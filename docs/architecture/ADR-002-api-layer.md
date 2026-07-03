@@ -22,3 +22,13 @@ Expose a **single tRPC API** (hosted by the Next.js app) consumed by both client
 - (+) Thin routers + service layer make use-cases unit-testable without HTTP.
 - (−) We must be disciplined: no Prisma in routers, no business logic in routers, RLS never assumed sufficient for the tRPC path.
 - (−) tRPC couples clients to TypeScript (acceptable — the whole stack is TS).
+
+## M1 authorization refinements (2026-07)
+Refined while implementing M1 auth; the decision above is unchanged, these sharpen *how* authorization is expressed:
+
+1. **Identity vs. authorization context are distinct types.** `AuthUser` (`@repo/auth`) is the verified Supabase **identity** only — `userId`, `email`, `phone`, and deliberately **no role/schoolId/status**. The authoritative authorization context is the **`Principal`** (`@repo/business`) — `{ userId, schoolId, role, status }` — built by the context layer from the DB `User` profile. This makes "never trust a JWT/client role" a **type-level guarantee**: there is no role on the identity to misuse. Flow: `JWT → userId → load User profile → Principal → authorize`.
+2. **`Principal` carries `schoolId` + `status`** so services get tenant context without re-fetching, and per-request `status === ACTIVE` can be enforced (revocation of disabled users).
+3. **Permission and scope are separate concerns** in `packages/business/authorization.ts`:
+   - **Permission** (`assertCan`) — "can this *role* perform this *action*?", decided against the fixed `ROLE_PERMISSIONS` policy (`@repo/core` `can`).
+   - **Scope** (`ScopeRule<T>` + `assertScope`) — "can this *actor* act on *this resource*?". A `ScopeRule` is a pure predicate over the principal and the resource's already-loaded ownership facts; the service loads those facts via repositories (which stay authorization-free). New ownership scopes (division/guardian/student/enrollment/school) are added by writing a new `ScopeRule` in the relevant feature module and calling `assertScope` — **without modifying existing authorization code** (Open/Closed). M1 ships only `ownsAccount`.
+4. **Transport role gate removed.** The M0 `roleProcedure`/`hasRole`-at-transport primitive was removed because a transport role gate would read a role from the request context rather than the DB `Principal` — the exact anti-pattern (1) forbids. Transport does authentication (`protectedProcedure`); authorization is permission+scope in the business layer. `hasRole` remains a pure role-membership utility for the rare coarse case, callable only with a DB-resolved role.

@@ -12,9 +12,15 @@ export const LOCALES = ["en", "ml"] as const;
 export type LocaleCode = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: LocaleCode = "en";
 
-/** User roles (Dev PRD §5). Mirrored as a Prisma enum in M1; no STUDENT (students are records). */
-export const ROLES = ["SUPER_ADMIN", "OFFICE_ADMIN", "TEACHER", "PARENT", "ACCOUNTANT"] as const;
-export type RoleKey = (typeof ROLES)[number];
+/** User roles (fixed set) — see ./roles. */
+export * from "./roles";
+
+/** Permission catalog + Role → Permissions policy — see ./permissions. */
+export * from "./permissions";
+
+/** User lifecycle statuses (Dev PRD §8.1). Mirrored as the Prisma `UserStatus` enum. */
+export const USER_STATUSES = ["INVITED", "ACTIVE", "DISABLED"] as const;
+export type UserStatusKey = (typeof USER_STATUSES)[number];
 
 /** Notification channels (ADR-005). Mirrored as a Prisma enum in M1. */
 export const NOTIFICATION_CHANNELS = ["IN_APP", "PUSH", "SMS", "WHATSAPP"] as const;

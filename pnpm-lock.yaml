@@ -239,6 +239,9 @@ importers:
       '@repo/constants':
         specifier: workspace:*
         version: link:../constants
+      '@repo/core':
+        specifier: workspace:*
+        version: link:../core
       '@repo/types':
         specifier: workspace:*
         version: link:../types
@@ -295,6 +298,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@repo/constants':
+        specifier: workspace:*
+        version: link:../constants
       '@repo/types':
         specifier: workspace:*
         version: link:../types
@@ -334,7 +340,11 @@ importers:
         specifier: workspace:*
         version: link:../constants
 
-  packages/types: {}
+  packages/types:
+    dependencies:
+      '@repo/constants':
+        specifier: workspace:*
+        version: link:../constants
 
   packages/ui:
     dependencies:

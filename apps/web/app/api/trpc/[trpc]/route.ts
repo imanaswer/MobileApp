@@ -5,9 +5,19 @@ import { cookies } from "next/headers";
 
 import { env } from "@/src/env";
 
+/** Extract a bearer token from the Authorization header (the mobile path). */
+function getBearerToken(req: Request): string | undefined {
+  const header = req.headers.get("authorization");
+  if (header && header.toLowerCase().startsWith("bearer ")) {
+    return header.slice(7).trim() || undefined;
+  }
+  return undefined;
+}
+
 /**
- * tRPC HTTP endpoint. Resolves the Supabase session from cookies into the
- * request's AuthUser, then delegates to the shared appRouter (ADR-002).
+ * tRPC HTTP endpoint. Verifies the caller's identity — cookie session (web) or
+ * Authorization bearer token (mobile) — then builds the context, which loads the
+ * DB profile into the authoritative `Principal` (ADR-002).
  */
 function handler(req: Request): Promise<Response> {
   return fetchRequestHandler({
@@ -22,12 +32,12 @@ function handler(req: Request): Promise<Response> {
         {
           getAll: () => cookieStore.getAll(),
           // Route handlers can't mutate cookies; session refresh is handled in
-          // middleware when auth flows land (M1).
+          // middleware (added with the web auth flows).
           setAll: () => undefined,
         },
       );
-      const user = await getAuthUser(supabase);
-      return createContext({ user });
+      const authUser = await getAuthUser(supabase, getBearerToken(req));
+      return createContext({ authUser });
     },
   });
 }

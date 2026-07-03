@@ -1,10 +1,11 @@
 import { checkReadiness } from "@repo/business";
 
+import { authRouter } from "./routers/auth";
 import { publicProcedure, router } from "./trpc";
 
 /**
- * The application router. M0 exposes only system probes; feature routers
- * (students, attendance, …) mount here per milestone (Dev PRD §7).
+ * The application router. M1 exposes system probes + authentication; feature
+ * routers (students, attendance, …) mount here per milestone (Dev PRD §7).
  */
 export const appRouter = router({
   system: router({
@@ -16,6 +17,7 @@ export const appRouter = router({
     /** Readiness — dependencies (DB) are reachable; safe to receive traffic. */
     ready: publicProcedure.query(() => checkReadiness()),
   }),
+  auth: authRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -4,5 +4,5 @@
  */
 export { prisma } from "./client";
 export { pingDatabase } from "./health";
-export { type Repositories } from "./repositories";
+export * from "./repositories";
 export type { PrismaClient } from "@prisma/client";

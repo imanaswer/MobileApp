@@ -1,21 +1,37 @@
+import { prisma } from "./client";
+import type { DbClient } from "./db-client";
+import { createAuditLogRepository, type AuditLogRepository } from "./repositories/audit.repository";
+import { createUserRepository, type UserRepository } from "./repositories/user.repository";
+
+
 /**
- * Repository barrel (ADR-003).
- *
- * This is a COMPILE-TIME barrel export ONLY — it re-exports repository modules
- * and the aggregate type. It is explicitly **not** a runtime service locator:
- *   - no global/ambient registry object,
- *   - no string-keyed `get(name)` lookup,
- *   - no singleton that code reaches into.
- *
- * Repositories are constructed at the composition root and injected into
- * services explicitly via `ServiceContext` (dependency injection, not lookup).
- * Feature repositories are re-exported here per milestone; none exist in M0.
+ * Repository composition (ADR-003). `createRepositories` is a pure DI factory —
+ * given a client, it builds the repository set — NOT a global service locator.
+ * The composition root (`@repo/business`) calls it once with the Prisma singleton;
+ * `withTransaction` calls it per-transaction with the transaction client.
  */
+export * from "./repositories/user.repository";
+export * from "./repositories/audit.repository";
+export type { DbClient } from "./db-client";
 
-// export * from "./student.repository";   // M1
-// export * from "./attendance.repository"; // M2
-
-/** Aggregate of repositories injected into services via `ServiceContext`. Empty in M0. */
+/** Aggregate of repositories injected into services via `ServiceContext`. */
 export interface Repositories {
-  readonly _empty?: never;
+  users: UserRepository;
+  audit: AuditLogRepository;
+}
+
+export function createRepositories(client: DbClient): Repositories {
+  return {
+    users: createUserRepository(client),
+    audit: createAuditLogRepository(client),
+  };
+}
+
+/**
+ * Unit of work: run `fn` inside a single DB transaction with repositories bound
+ * to the transaction client, so a mutation and its `AuditLog` row commit
+ * atomically (DATABASE_CONVENTIONS §11). No Prisma is exposed outside `db`.
+ */
+export function withTransaction<T>(fn: (repos: Repositories) => Promise<T>): Promise<T> {
+  return prisma.$transaction((tx) => fn(createRepositories(tx)));
 }

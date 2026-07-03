@@ -11,5 +11,9 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/constants": "workspace:*"
   }
 }
+

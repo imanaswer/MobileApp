@@ -6,8 +6,20 @@
  */
 import type { ServiceContext } from "./context";
 
-export type { ServiceContext } from "./context";
+export { createServiceContext, type ServiceContext } from "./context";
 export { checkReadiness, type ReadinessReport } from "./system";
+export { resolvePrincipal, activateUser } from "./auth/session";
+export { updateProfile, type UpdateProfileInput } from "./services/profile";
+export { setRole, disableUser, enableUser } from "./services/admin";
+export {
+  assertCan,
+  assertScope,
+  assertSelf,
+  assertSelfOrCan,
+  ownsAccount,
+  type Principal,
+  type ScopeRule,
+} from "./authorization";
 
 export interface Services {
   // students: StudentService;     // M1

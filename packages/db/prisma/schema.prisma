@@ -1,10 +1,9 @@
-// Prisma schema — M0 FOUNDATION ONLY.
+// Prisma schema — M1 adds the AUTHENTICATION foundation.
 //
-// There are intentionally NO application models yet (M0 is infrastructure-only).
-// The full, reviewed schema (School, User, Student, Attendance, Exam, etc.) is
-// defined in the Developer PRD §6 and lands per milestone starting at M1.
-//
-// `prisma validate` passes with a generator + datasource and zero models.
+// Scope: tenant root (School) + identity (User) + devices (DeviceToken) + audit
+// (AuditLog) + the auth enums. Business/feature models (Staff, Guardian, Student,
+// Attendance, Exam, …) land in later milestones per Developer PRD §6. The User↔Staff
+// and User↔Guardian relations are intentionally absent until M2 (People).
 
 generator client {
   provider = "prisma-client-js"
@@ -13,4 +12,90 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// ---------- enums ----------
+enum Role {
+  SUPER_ADMIN
+  OFFICE_ADMIN
+  TEACHER
+  PARENT
+  ACCOUNTANT
+}
+
+enum UserStatus {
+  INVITED // provisioned, not yet signed in
+  ACTIVE // activated on first successful sign-in
+  DISABLED // soft-disabled; history preserved, access revoked
+}
+
+enum Locale {
+  EN
+  ML
+}
+
+// ---------- tenant ----------
+// Single-tenant today. `schoolId` is a LOOSE scalar on other tables (ADR-008),
+// so School has no back-relations; it is the tenant root the seed creates.
+model School {
+  id            String   @id @default(cuid())
+  name          String
+  address       String?
+  logoUrl       String?
+  defaultLocale Locale   @default(EN)
+  settings      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ---------- identity (profile keyed to the Supabase auth UID) ----------
+// `id` == Supabase `auth.users.id` — no separate PK, no default (the UID is
+// supplied at provisioning). Credentials/OTP live in Supabase; we store none.
+model User {
+  id           String        @id
+  schoolId     String // loose tenant ref (ADR-008)
+  role         Role
+  status       UserStatus    @default(INVITED)
+  phone        String?       @unique
+  email        String?       @unique
+  locale       Locale        @default(EN)
+  lastLoginAt  DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  deviceTokens DeviceToken[]
+
+  @@index([schoolId, role])
+}
+
+// ---------- devices ----------
+// Table designed in M1 (per the milestone's model list); device REGISTRATION and
+// push delivery are deferred to the Notifications milestone (no registerDevice yet).
+model DeviceToken {
+  id            String   @id @default(cuid())
+  userId        String
+  expoPushToken String   @unique
+  platform      String
+  lastSeenAt    DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ---------- audit (append-only) ----------
+// Loose actor/entity refs on purpose — append-only history that outlives the rows
+// it describes; entityType+entityId is polymorphic (ADR-007). Written by services
+// for role/user changes (setRole, disableUser) in the same transaction.
+model AuditLog {
+  id          String   @id @default(cuid())
+  schoolId    String
+  actorUserId String
+  action      String
+  entityType  String
+  entityId    String
+  beforeJson  Json?
+  afterJson   Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([schoolId, createdAt])
 }

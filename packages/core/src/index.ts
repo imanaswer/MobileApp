@@ -18,3 +18,29 @@ export class DomainError extends Error {
     this.name = "DomainError";
   }
 }
+
+/** Authentication failure — no valid/active principal. Maps to tRPC UNAUTHORIZED. */
+export class UnauthorizedError extends DomainError {
+  constructor(message = "Not authenticated", options?: { cause?: unknown }) {
+    super("UNAUTHORIZED", message, options);
+    this.name = "UnauthorizedError";
+  }
+}
+
+/** Authorization failure — authenticated but not permitted. Maps to tRPC FORBIDDEN. */
+export class ForbiddenError extends DomainError {
+  constructor(message = "Forbidden", options?: { cause?: unknown }) {
+    super("FORBIDDEN", message, options);
+    this.name = "ForbiddenError";
+  }
+}
+
+/** The requested entity does not exist. Maps to tRPC NOT_FOUND. */
+export class NotFoundError extends DomainError {
+  constructor(message = "Not found", options?: { cause?: unknown }) {
+    super("NOT_FOUND", message, options);
+    this.name = "NotFoundError";
+  }
+}
+
+export { can, canAny, canAll, getPermissions } from "./authorization";

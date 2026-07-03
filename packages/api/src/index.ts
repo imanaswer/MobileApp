@@ -7,7 +7,7 @@ export {
   router,
   publicProcedure,
   protectedProcedure,
-  roleProcedure,
+  onboardingProcedure,
   createCallerFactory,
 } from "./trpc";
 export { createContext, type Context, type CreateContextOptions } from "./context";
