@@ -1,21 +1,30 @@
 # Current Milestone
 
-**M1.5 — Infrastructure Provisioning — ✅ COMPLETE** · M1 approved & frozen.
+**M2 — Academic Foundation** (kickoff 2026-07-05)
 
 ## Current Step
 
-Milestone delivered and verified (11/11 live auth checks). **Stop — M2 begins only on explicit approval.**
+**Step 1 (requirements analysis) ✅ — next: Step 2 (database design).**
 
-## What exists now
+## Scope (M2)
 
-- Live Supabase project `wupcsvbyrknfuuskzuzp` — migrated, security-configured (config-as-code, see `docs/RUNBOOK_SUPABASE_SETUP.md`).
-- Ops scripts: `pnpm --filter @repo/business run bootstrap | provision | verify:auth`.
-- Evidence + deferred items: `docs/milestones/M1.5-infrastructure.md`.
+Academic structure ONLY: `AcademicYear`, `AcademicTerm`, `Class`, `Section`,
+`Subject`, `TeacherAssignment`. Managed by SUPER_ADMIN + OFFICE_ADMIN; staff
+read; teachers read own assignments; parents no access.
 
-## Out of scope until approved
+## Out of scope
 
-All M2 feature work (students, staff, guardians, academic structure, CRUD).
+Students, enrollment, attendance, marks, report cards, timetable, fees, people
+records (Staff/Guardian), bulk import, class-teacher flag — later milestones.
 
-## Standing blockers (go-live, not code)
+## Workflow (stop after Step 10)
 
-Real SMS provider + DLT for parent OTP (test number only today) · credential rotation before real data · HIBP needs Pro plan · custom SMTP for production email.
+1 Requirements ✅ · 2 DB design · 3 RLS · 4 Business · 5 API · 6 Mobile (read-only)
+· 7 Web (CRUD) · 8 Testing · 9 Documentation · 10 Deliverables report → STOP.
+
+## Invariants (from the brief — enforce DB + business)
+
+One ACTIVE year · terms don't overlap · class name unique/school · section
+unique/class · subject unique/school · no duplicate (teacher, subject, section)
+assignment. All admin mutations audited in-transaction. M1 frozen (critical
+bug/security fixes only).
