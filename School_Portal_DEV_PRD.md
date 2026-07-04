@@ -1,8 +1,13 @@
-# School Management Portal — Developer PRD (v1.2, build-ready)
+# School Management Portal — Developer PRD (v1.3, build-ready)
 
 **Audience:** the development team. **Type:** single-school deployment (one paying school).
+**Client:** **Sri Gujarathi Vidhyalaya Higher Secondary School** (SGV HSS), Beach Rd, Mananchira, Kozhikode, Kerala 673032 · managed by Sri Gujarati Vidhyalaya Association (SGVA) · English-medium, co-education, ~153 years old · https://www.srigujaratividhyalaya.com/
 **Status:** approved scope, ready to build.
 
+> **Client-profile notes (v1.3):** the school's website states it is a "Kerala Government **recognised unaided** English medium" school, while the client brief said **aided** — **[CONFIRM §16.12]**, because aided/unaided determines what the `fees` add-on may legally collect (unaided = tuition; aided = typically only PTA/special fees). The school community is Gujarati-heritage: **[CONFIRM §16.13]** whether a Gujarati (`gu`) UI locale is wanted as a paid add-on later — the `Locale` enum and i18n catalogs extend cleanly; en + ml remain the committed v1 languages.
+>
+> **Corrections in v1.3 (review fixes — see `docs/REVIEW_FINDINGS.md`):** milestones renumbered to match the codebase (M1 = auth foundation; §13) with payments still attached to the same deliverables; §4.4 rewritten to match ADR-002's M1 refinement (**no transport role gate** — permission + scope in the business layer over a DB-resolved `Principal`); **`Holiday` model + typed `SchoolSettings`** added (school-day source of truth for leave §8.7 and the absence job §8.9); calendar-date columns are **`@db.Date`**; **`AcademicYear.isCurrent` gets a partial unique index** (exactly one current year); storage fields renamed **`*Path`** (private-bucket paths, signed on read — ADR-004); leave↔period-wise invariant defined (§8.7); staff-provisioning invariant (§8.2); notification channel selection is **policy-only in v1** (no per-user channel prefs — §4.6); `notifications.deregisterDevice`, `leave.cancel`, `exams.publishResults` added to §7. No product scope changed.
+>
 > **Corrections in v1.2 (architecture hardening):** 12-package monorepo with `business` split from `core` (§4.1); authorization clarified as application-enforced with RLS as defense-in-depth (§4.4, §10, ADR-002/003/004); `Attendance.period` made non-null to enforce uniqueness (§6, §8.4); production unique constraints, indexes, and explicit foreign keys added across the schema with deliberate `onDelete` rules (§6); `ReportCard.examId` kept **optional** with exam-bound uniqueness via a partial unique index (§8.5, ADR-009); Leave→Attendance enrollment resolution documented (§8.7); notification provider abstraction defined (§4.6, ADR-005); formal ADRs added under `docs/architecture/`. No product scope changed.
 >
 > **Corrections in v1.1:** auth model resolved to **Supabase Auth** (no self-stored passwords); Prisma schema completed with all relations (validates); events-calendar, notification-scheduling and timezone decisions added. This document — not the product PRD — is the source of truth for build scope and the schema.
@@ -134,16 +139,22 @@ Dependencies point inward. **Routers never contain business logic** — they val
 
 ### 4.4 Authorization
 
-**Authorization is application-enforced.** The primary and authoritative authz path is:
+**Authorization is application-enforced.** The primary and authoritative authz path (per ADR-002 incl. its M1 refinement) is:
 
 ```
-tRPC router (authenticate + coarse role guard)
-  → Business service (fine-grained scope checks + audit)
+tRPC router (authenticate only — protectedProcedure)
+  → Business service: Principal → assertCan (permission) → assertScope (ownership) → audit
     → Repository
       → Prisma → Postgres
 ```
 
-Middleware resolves `ctx.user` from the verified Supabase JWT. tRPC procedures apply the **coarse role gate**; the **business service** applies the **fine-grained scope check** before any read/write, because scope depends on data the service already loads: teacher → assigned divisions/subjects; class teacher (`TeacherAssignment.isClassTeacher`) → own division; guardian → linked students; office admin → school-wide non-destructive; super admin → all. Every authorization decision happens here, in TypeScript, where it is testable and auditable.
+Transport does **authentication only**: the tRPC context verifies the Supabase JWT, yielding the identity (`AuthUser` — userId/email/phone, deliberately **no role**). The business layer builds the **`Principal`** `{ userId, schoolId, role, status }` from the **DB `User` profile** (never from the JWT or client input) and enforces `status === ACTIVE` per request. There is **no transport role gate** — a role read at transport would come from the request context rather than the DB, the exact anti-pattern this design forbids.
+
+Authorization then has two separate concerns in `packages/business`:
+- **Permission** — `assertCan(principal, PERMISSION)` against the fixed `ROLE_PERMISSIONS` policy (`packages/constants`, evaluated by pure `can()` in `packages/core`). Code checks a permission, never a hard-coded role string.
+- **Scope** — `assertScope(rule, principal, facts)` with pure `ScopeRule` predicates over already-loaded ownership facts: teacher → assigned divisions/subjects; class teacher (`TeacherAssignment.isClassTeacher`) → own division; guardian → linked students; office admin → school-wide non-destructive; super admin → all.
+
+Every authorization decision happens here, in TypeScript, where it is testable and auditable. The full permission × role × scope catalog is `docs/PERMISSIONS_MATRIX.md`.
 
 **Supabase RLS is NOT the primary authorization mechanism — it is defense-in-depth.** Because Prisma connects over a privileged `DATABASE_URL`, it does **not** run as the request's user and therefore **bypasses RLS**; relying on RLS to protect the tRPC data path would be a false sense of security. RLS instead protects the surfaces that touch Supabase directly and are *not* mediated by tRPC:
 - **Supabase Storage** objects (homework attachments, report-card PDFs, import files) — buckets are private; access is via short-lived signed URLs minted server-side after a tRPC authz check.
@@ -175,9 +186,11 @@ export interface NotificationAdapter {
   send(msg: OutboundMessage): Promise<DeliveryResult>;
 }
 export interface NotificationService {
-  send(event: NotificationEvent): Promise<void>;    // picks channels per event + user locale/prefs
+  send(event: NotificationEvent): Promise<void>;    // resolves recipients + locale; channels by POLICY
 }
 ```
+
+**Channel selection is policy-only in v1** (v1.3 decision): the event→channel matrix (§9, `docs/API_INVENTORY.md`) plus feature flags decide channels; the only per-user inputs are `User.locale` and device tokens. There is **no per-user channel-preference model** — if the school later wants per-guardian opt-outs (e.g. "no WhatsApp"), that is a small future add-on (`NotificationPreference` model + settings UI), not v1 scope.
 
 - **OTP also goes through the adapter layer** — OTP delivery is Supabase Auth's responsibility, but the SMS *provider* it uses (MSG91/Gupshup) is configured once in the same place the `SmsAdapter` reads, so there is a single provider source of truth and no duplicate credentials. Application code never calls a provider SDK for OTP.
 - Channel selection per event is policy (see §9): push is primary/free; SMS/WhatsApp only for critical events; WhatsApp only when the `whatsapp` flag is on. Adapters are individually testable with a fake `DeliveryResult`.
@@ -198,6 +211,8 @@ export interface NotificationService {
 | Approve leave | ✓ | – | if class teacher † | – | – |
 | Apply for leave (for the child) | – | – | – | own child | – |
 | Announcements (school-wide) | ✓ | ✓ | – | – | – |
+| Announcements (class/division scope) | ✓ | ✓ | own division, if class teacher † | – | – |
+| View student records (roster/profile) | ✓ | ✓ | own divisions | own child(ren) | – |
 | Message guardians | ✓ | – | own students | reply only | – |
 | View child data | – | – | – | own child(ren) | – |
 | Year-end promotion | ✓ | – | – | – | – |
@@ -216,6 +231,8 @@ if (user.role === "TEACHER" && assignment.isClassTeacher) {
 ```
 
 Students do not log in — they are records, and a parent is the family-facing account.
+
+**Provisioning invariant (v1.3, B3):** every `SUPER_ADMIN`, `OFFICE_ADMIN`, and `TEACHER` user gets a **`Staff` row** at creation (seed, import, and invite flows all enforce this). Attendance/marks/homework FKs (`markedByStaffId`, `enteredByStaffId`, `createdByStaffId`) require it — an admin without a Staff row could not mark attendance.
 
 ---
 
@@ -249,11 +266,14 @@ enum PaymentStatus { CREATED CAPTURED FAILED REFUNDED }
 // layer regardless. See ADR-008 (single-tenant → future SaaS).
 model School {
   id            String   @id @default(cuid())
-  name          String
+  name          String   // "Sri Gujarathi Vidhyalaya Higher Secondary School"
   address       String?
-  logoUrl       String?
+  logoPath      String?  // PRIVATE storage PATH (not URL) — signed on read, ADR-004
   defaultLocale Locale   @default(EN)
-  settings      Json?
+  settings      Json?    // TYPED: validated by the versioned `SchoolSettings` Zod schema in
+                         // packages/validation and read only via one accessor in packages/business.
+                         // Owns: attendanceMode (DAILY | PERIOD), periodsPerDay, absenceCutoffIST,
+                         // workingWeekdays (e.g. Mon–Fri/Sat), academic display prefs. See §8.19.
   createdAt     DateTime @default(now())
 }
 
@@ -284,7 +304,7 @@ model Staff {
   userId      String   @unique
   name        String
   designation String?
-  photoUrl    String?
+  photoPath   String?  // PRIVATE storage PATH — signed on read, ADR-004
   phone       String?
   email       String?
   user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -304,7 +324,7 @@ model Student {
   name        String
   dob         DateTime?
   gender      Gender?
-  photoUrl    String?
+  photoPath   String?  // PRIVATE storage PATH — signed on read, ADR-004
   bloodGroup  String?
   address     String?
   createdAt   DateTime @default(now())
@@ -344,13 +364,33 @@ model AcademicYear {
   id        String   @id @default(cuid())
   schoolId  String
   name      String
-  startDate DateTime
-  endDate   DateTime
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
   isCurrent Boolean  @default(false)
   classSubjects ClassSubject[]
   enrollments   Enrollment[]
   exams         Exam[]
   feeStructures FeeStructure[]
+  // EXACTLY ONE current year per school — enforced by a PARTIAL UNIQUE INDEX in the migration
+  // (same idiom as ReportCard/GuardianStudent; Prisma can't express WHERE):
+  //   CREATE UNIQUE INDEX "AcademicYear_current_key" ON "AcademicYear" ("schoolId") WHERE "isCurrent";
+  // Year rollover flips old→false and new→true in ONE transaction. Leave resolution (§8.7),
+  // enrollment, and promotion all depend on this invariant. (v1.3, B6)
+}
+
+// School calendar: the source of truth for "is this a school day?" (v1.3, B1).
+// Consumed by leave→attendance expansion (§8.7) and the absence-cutoff job (§8.9).
+// A school day = weekday ∈ SchoolSettings.workingWeekdays AND no Holiday row for the date
+// (school-wide, or scoped to the class level when classLevelId is set).
+model Holiday {
+  id           String   @id @default(cuid())
+  schoolId     String
+  date         DateTime @db.Date
+  name         String
+  classLevelId String?  // null = whole school; set = e.g. exam-related holiday for one level
+  createdAt    DateTime @default(now())
+  @@unique([schoolId, date, classLevelId])
+  @@index([schoolId, date])
 }
 
 model ClassLevel {
@@ -444,7 +484,7 @@ model Enrollment {
 model Attendance {
   id              String           @id @default(cuid())
   enrollmentId    String
-  date            DateTime
+  date            DateTime         @db.Date   // IST calendar date, DB-typed (v1.3, B9) — no UTC drift
   period          Int              @default(0)
   status          AttendanceStatus
   markedByStaffId String
@@ -462,8 +502,8 @@ model Exam {
   academicYearId String
   name           String
   category       String        // CE, FIRST_TERMINAL, MODEL, ANNUAL ...
-  startDate      DateTime?
-  endDate        DateTime?
+  startDate      DateTime?     @db.Date
+  endDate        DateTime?     @db.Date
   academicYear AcademicYear  @relation(fields: [academicYearId], references: [id])
   examSubjects ExamSubject[]
   reportCards  ReportCard[]
@@ -523,7 +563,7 @@ model ReportCard {
   id           String   @id @default(cuid())
   enrollmentId String
   examId       String?  // OPTIONAL: exam-bound card, OR a consolidated/annual/promotion/custom report (no exam). See ADR-009 + §8.5.
-  pdfUrl       String
+  pdfPath      String   // PRIVATE storage PATH (not URL) — signed on read, ADR-004 (v1.3, B7)
   generatedAt  DateTime @default(now())
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id])
   exam       Exam?      @relation(fields: [examId], references: [id])
@@ -546,8 +586,8 @@ model Homework {
   classSubjectId   String?
   title            String
   body             String?
-  dueDate          DateTime?
-  attachmentUrls   String[]
+  dueDate          DateTime? @db.Date
+  attachmentPaths  String[]  // PRIVATE storage PATHS — signed on read, ADR-004 (v1.3, B7)
   createdByStaffId String
   createdAt        DateTime  @default(now())
   division     Division      @relation(fields: [divisionId], references: [id])
@@ -563,8 +603,8 @@ model Homework {
 model LeaveApplication {
   id               String      @id @default(cuid())
   studentId        String
-  fromDate         DateTime
-  toDate           DateTime
+  fromDate         DateTime    @db.Date
+  toDate           DateTime    @db.Date
   reason           String
   status           LeaveStatus @default(PENDING)
   appliedByUserId  String
@@ -595,6 +635,9 @@ model Announcement {
   @@index([scope, targetId])  // fetch announcements for a given class/division scope
 }
 
+// A thread is STRICTLY 1:1 (one staff ↔ one guardian, optional student context) — the single
+// Message.readAt works because there is exactly one recipient per message. A future group
+// thread would need a MessageRead join table; do not widen this model silently. (v1.3, B12)
 model MessageThread {
   id         String    @id @default(cuid())
   schoolId   String
@@ -615,7 +658,7 @@ model Message {
   threadId       String
   senderUserId   String
   body           String
-  attachmentUrls String[]
+  attachmentPaths String[]  // PRIVATE storage PATHS — signed on read, ADR-004
   sentAt         DateTime      @default(now())
   readAt         DateTime?
   thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
@@ -672,11 +715,11 @@ model ImportJob {
   schoolId        String
   kind            String
   status          String
-  fileUrl         String
+  filePath        String   // PRIVATE storage PATH — signed on read, ADR-004
   totalRows       Int      @default(0)
   successRows     Int      @default(0)
   errorRows       Int      @default(0)
-  errorReportUrl  String?
+  errorReportPath String?
   createdByUserId String
   createdAt       DateTime @default(now())
 }
@@ -776,21 +819,21 @@ model Payment {
 
 ## 7. API surface (tRPC routers)
 
-Each procedure enforces §5 scope. Mutations changing marks, attendance, roles, enrollments or money **must write an `AuditLog` row.** Routers are transport-only (§4.2): they validate input with a `packages/validation` Zod schema, run the coarse role guard, then call a `packages/business` service — no business logic in routers. Any procedure that notifies a user does so via the `NotificationService` (§4.6), never a provider SDK.
+Each procedure enforces §5 scope. Mutations changing marks, attendance, roles, enrollments or money **must write an `AuditLog` row.** Routers are transport-only (§4.2): they validate input with a `packages/validation` Zod schema and authenticate (`protectedProcedure`), then call a `packages/business` service which authorizes via permission + scope (§4.4) — no role checks at transport, no business logic in routers. Any procedure that notifies a user does so via the `NotificationService` (§4.6), never a provider SDK.
 
 - **auth**: `me`, `registerProfile` (post-Supabase-signup), `setRole`, `disableUser` *(credentials/OTP/reset handled by Supabase Auth)*
 - **students**: `list`, `get`, `create`, `update`, `archive`, `bulkImport`
 - **guardians**: `create`, `linkToStudent`, `list`, `invite`
 - **staff**: `create`, `update`, `assign`
-- **academic**: CRUD `academicYears`, `classLevels`, `divisions`, `subjects`, `classSubjects`, `teacherAssignments`
+- **academic**: CRUD `academicYears` (incl. transactional `setCurrent`), `classLevels`, `divisions`, `subjects`, `classSubjects`, `teacherAssignments`, `holidays` (school calendar, v1.3), `settings.get/update` (typed `SchoolSettings`, v1.3)
 - **enrollment**: `enroll`, `list`, `promoteBulk` (with retain/transfer overrides), `transfer`, `drop`
 - **attendance**: `markBulk` (upsert on `[enrollmentId, date, period]`; `period = 0` daily, `1..N` period-wise — never duplicates), `getByDivisionDate`, `studentSummary`
-- **exams**: `createExam`, `defineExamSubjects`, `enterMarksBulk`, `getMarks`, `results`, `gradeScale.*`, `generateReportCard`
+- **exams**: `createExam`, `defineExamSubjects`, `enterMarksBulk`, `getMarks`, `results`, `publishResults` (v1.3 — marks become parent-visible only on publish; publish notifies), `gradeScale.*`, `generateReportCard`
 - **homework**: `create`, `listForDivision` (distribution-only; no submit/review)
-- **leave**: `apply`, `decide`, `listMine`, `listForApproval`
+- **leave**: `apply`, `decide`, `cancel` (v1.3 — parent cancels PENDING; cancelling APPROVED reverts the LEAVE attendance rows, audited), `listMine`, `listForApproval`
 - **announcements**: `create`, `list`
 - **messages**: `createThread`, `send`, `listThreads`, `markRead`
-- **notifications**: `list`, `markRead`, `registerDevice`
+- **notifications**: `list`, `markRead`, `registerDevice`, `deregisterDevice` (v1.3 — logout hygiene, B13)
 - **profile**: `getStudent`, `getStaff`, `update`
 - **audit**: `list` (super admin)
 - **flags**: `list`, `set` (super admin)
@@ -808,14 +851,16 @@ Parents by **phone OTP**, staff by **email + password** — all via **Supabase A
 
 ### 8.2 People & bulk import
 CRUD students/guardians/staff; guardian↔student many-to-many with one `isPrimary`. **CSV/Excel import** with column mapping, validation, downloadable error report, `ImportJob` record, partial success.
-**DoD:** importing ~400 students + guardians creates valid linked profiles; bad rows reported, good committed.
+
+**v1.3 rules:** (a) **staff provisioning invariant** — creating any SUPER_ADMIN/OFFICE_ADMIN/TEACHER user also creates their `Staff` row (§5, B3); (b) **one login per phone number** — `User.phone` is unique and OTP is the credential, so two guardians sharing a phone cannot both have accounts; import validation flags duplicate guardian phones as row-level warnings (link both guardians to the student, create the login for the primary) rather than failing the batch (B8).
+**DoD:** importing ~400 students + guardians creates valid linked profiles; bad rows reported, good committed; every imported staff user has a Staff row; duplicate-phone guardians handled per the rule above.
 
 ### 8.3 Academic structure
 Manage year, class levels, divisions, subjects (theory/practical), class-subject mapping, teacher assignments, class-teacher flag. **[CONFIRM]** subject list + practicals.
 **DoD:** a full class→division→subject→teacher tree set up for the current year.
 
 ### 8.4 Attendance
-Teacher picks division + date (+ period if period-wise **[CONFIRM §16.4]**) → "mark all present" → flip absentees → save. Statuses Present/Absent/Half-day/Leave/Holiday. Dates are **IST** (store UTC, key uniqueness on the IST calendar date — guard the off-by-one). Auto daily/monthly/term %. Absent → push (configurable cutoff, sent by scheduled job §8.9).
+Teacher picks division + date (+ period if period-wise **[CONFIRM §16.4]**) → "mark all present" → flip absentees → save. Statuses Present/Absent/Half-day/Leave/Holiday. Dates are **IST calendar dates stored as `@db.Date`** (v1.3, B9 — the column is date-typed, so the unique key cannot drift by a UTC off-by-one; timestamps elsewhere remain UTC-stored/IST-rendered). Auto daily/monthly/term %. Absent → push (cutoff from `SchoolSettings.absenceCutoffIST`, sent by scheduled job §8.9; never on non-school days §8.19).
 
 **Period encoding (correctness fix, v1.1).** `Attendance.period` is a **non-null `Int` defaulting to `0`**:
 - `period = 0` → **whole-day** attendance (the default, daily mode).
@@ -848,21 +893,25 @@ Parent/guardian applies (date range + reason) → class teacher approves/rejects
 ```
 Student (studentId on the leave)
   → resolve current Enrollment   (Enrollment where studentId = X AND academicYear.isCurrent = true, status ACTIVE)
-    → for each IST date in [fromDate, toDate] that is a school day:
-        upsert Attendance(enrollmentId, date, period = 0, status = LEAVE)  // honours the §8.4 unique key
+    → for each IST date in [fromDate, toDate] that is a SCHOOL DAY
+      (weekday ∈ SchoolSettings.workingWeekdays AND no Holiday row — §8.19, v1.3):
+        DAILY mode:       upsert Attendance(enrollmentId, date, period = 0, status = LEAVE)
+        PERIOD-WISE mode: upsert Attendance(enrollmentId, date, period = p, status = LEAVE) for p in 1..periodsPerDay
 ```
+
+**Leave × attendance-mode invariant (v1.3, B2):** LEAVE rows are written **in the same period encoding the school's attendance mode uses** — `period = 0` in daily mode, all of `1..N` in period-wise mode. This keeps one consistent record per day and makes it impossible for a `(date, 0, LEAVE)` day-row and a `(date, 3, PRESENT)` period-row to coexist. Mode changes mid-year are an office-admin action with a documented migration step (not expected in practice).
 
 On approval the `LeaveAttendanceService` (in `packages/business`): (1) loads the student's **current active enrollment** via the repository — if none exists it rejects the approval with a clear error rather than guessing; (2) verifies the approver is the **class teacher of that enrollment's division** (scope check, §4.4); (3) upserts `Attendance` rows as `LEAVE` for each school day in range, each going through the same unique key as manual marking (so leave and a prior "present" mark reconcile instead of duplicating); (4) writes an `AuditLog` row; (5) fires notifications. Cancellation/rejection of a previously-approved leave reverts those `LEAVE` rows. **No schema change was required** — the existing `LeaveApplication.studentId` + `Enrollment` relation is sufficient.
 
 **DoD:** apply → approve → the **current-year enrollment's** attendance shows LEAVE for each school day in range (no duplicate rows); approval by a non-class-teacher is rejected; approval with no current enrollment is rejected with a clear message; push on each transition; every transition audited.
 
 ### 8.8 Announcements & messaging
-Announcements scoped School/Class/Division. Threaded teacher↔guardian messaging scoped to their students (no open chat). Read receipts.
-**DoD:** scoped broadcast reaches only the right recipients; teacher can't message a non-assigned guardian.
+Announcements scoped School/Class/Division. **Authorship (v1.3, B10):** super admin and office admin may publish at any scope; a **class teacher may publish to their own division** (derived from `isClassTeacher`, like leave approval) **[CONFIRM with school]**; other teachers cannot announce. Threaded teacher↔guardian messaging scoped to their students (no open chat); threads are **strictly 1:1** (staff↔guardian — B12). Read receipts.
+**DoD:** scoped broadcast reaches only the right recipients; a non-class-teacher cannot create a division announcement; teacher can't message a non-assigned guardian.
 
 ### 8.9 Notifications & scheduled sends
-In-app + **Expo push** primary; `registerDevice` stores the token. Critical events may also route to SMS/WhatsApp. **A scheduled job (Supabase cron)** runs absence-cutoff sends and fee reminders — idempotent, safe to re-run.
-**DoD:** push delivered Android + iOS; absence job sends once per student per day after cutoff; centre lists + marks read.
+In-app + **Expo push** primary; `registerDevice` stores the token, `deregisterDevice` removes it on logout (v1.3, B13); tokens that return `DeviceNotRegistered` in Expo push receipts are pruned by a weekly job. Critical events may also route to SMS/WhatsApp (policy-only channel selection, §4.6). **A scheduled job (Supabase cron)** runs absence-cutoff sends (at `SchoolSettings.absenceCutoffIST`, **skipping non-school days** per §8.19) and fee reminders — idempotent, safe to re-run.
+**DoD:** push delivered Android + iOS; absence job sends once per student per day after cutoff and never on a holiday/weekend; logout deregisters the device; centre lists + marks read.
 
 ### 8.10 Profiles & portals
 Role-aware home per portal (office, teacher, parent w/ **child-switcher**). The student is a *record* the parent views (photo, class, subjects, attendance, marks, timetable) — there is no student login.
@@ -899,6 +948,10 @@ Mobile caches roster; offline marking queued, synced on reconnect; conflict = la
 ### 8.18 Events / calendar — DECISION: NOT in core
 Shown in the original flowchart but **not** in committed scope; **not built** in v1. Announcements cover dated notices. If the client wants a true calendar, it's a new paid add-on. **[CONFIRM only if raised]**
 
+### 8.19 School calendar & typed settings (v1.3 — core, M2)
+The **`Holiday`** table + `SchoolSettings.workingWeekdays` are the single source of truth for "is this a school day?", consumed by leave→attendance expansion (§8.7) and the absence job (§8.9). Office admin manages holidays (list/add/remove, optional class-level scope) in web settings; `SchoolSettings` (attendance mode, periods/day, absence cutoff, working weekdays) is a **versioned Zod schema** in `packages/validation`, stored in `School.settings`, read only via one accessor in `packages/business`. This is **not** the declined parent-facing events calendar (§8.18) — it is internal operational data.
+**DoD:** marking a date as a holiday prevents absence notifications that day and excludes it from leave expansion; settings validate on write; changing the cutoff changes the job's send time.
+
 ---
 
 ## 9. Mobile app specifics (Expo)
@@ -933,15 +986,18 @@ Unit tests for `packages/core` (grade calc, attendance %, promotion). Integratio
 
 ## 13. Build order (mapped to payment milestones)
 
-| Milestone | Deliver | Payment |
-|---|---|---|
-| **M0** | Monorepo, schema + migrations, Supabase Auth + RBAC, school setup, i18n shell, CI, flags | **40% deposit** |
-| **M1** | People + bulk import + academic structure + enrollment | |
-| **M2** | Attendance + push + scheduled absence job | |
-| **M3** | Exams + marks + grades + report-card PDFs + audit log | |
-| **M4** | Homework/notes + leave + announcements + messaging | |
-| **M5** | Profiles/portals polish, offline attendance, dashboards, QA on staging | **30% at testing** |
-| **Go-live** | Contracted add-ons (fees + WhatsApp), data import, deploy, app-store submission, training | **30% on go-live** |
+> **Renumbered in v1.3** to match the codebase (the M0 scaffold shipped without auth; auth is M1). Payments stay attached to the **same deliverable content** as the original contract mapping — the deposit gate is still "foundation + auth demonstrated", testing payment is still "full core on staging".
+
+| Milestone | Deliver | Status | Payment |
+|---|---|---|---|
+| **M0** | Monorepo scaffold, 12 packages, CI, i18n shell, tooling, web+mobile shells | ✅ shipped | |
+| **M1** | Schema foundation (School/User/DeviceToken/AuditLog), Supabase Auth + RBAC (Principal, permissions), school setup, feature flags, seed | in progress | **40% deposit** (on M0+M1) |
+| **M2** | People + bulk import + academic structure + enrollment + **school calendar & typed settings (§8.19)** | | |
+| **M3** | Attendance + push + scheduled absence job | | |
+| **M4** | Exams + marks + grades + report-card PDFs + audit viewer | | |
+| **M5** | Homework/notes + leave + announcements + messaging | | |
+| **M6** | Profiles/portals polish, offline attendance, dashboards, QA on staging | | **30% at testing** |
+| **Go-live** | Contracted add-ons (fees + WhatsApp), data import, deploy, app-store submission, training | | **30% on go-live** |
 
 Build add-ons **only** for the contracted tier; leave the rest flagged off.
 
@@ -980,6 +1036,13 @@ Build add-ons **only** for the contracted tier; leave the rest flagged off.
 17. **Notifications sit behind one provider abstraction** (`packages/notifications`); no provider name appears in feature code, OTP provider configured in the same place (see ADR-005).
 18. **12-package monorepo** — `business` (use-cases) is separated from `core` (pure domain) and from thin `api` routers; `validation`/`types`/`constants`/`utils` are first-class shared packages.
 19. **`ReportCard.examId` is optional** — a card may be exam-bound or (future) consolidated; uniqueness for exam-bound cards is a **partial unique index** (`WHERE examId IS NOT NULL`), avoiding a future migration. The schema models the domain, not the current UI workflow (see ADR-009).
+20. **No transport role gate** (v1.3, ADR-002 M1 refinement) — transport authenticates; authorization = permission (`assertCan`) + scope (`assertScope`) in the business layer over a DB-resolved `Principal`.
+21. **`Holiday` + typed `SchoolSettings` are the school-day source of truth** (v1.3) — leave expansion and the absence job consume them; settings are a versioned Zod schema, never a free-form Json read.
+22. **Calendar-date columns are `@db.Date`** (v1.3) — attendance/exam/leave/year dates are DB-typed IST calendar dates; the UTC off-by-one class of bugs is eliminated at the type level.
+23. **Exactly one current `AcademicYear`** (v1.3) — partial unique index `WHERE "isCurrent"`; rollover flips in one transaction.
+24. **Storage fields store private-bucket PATHS, never URLs** (v1.3) — `pdfPath`, `attachmentPaths`, `photoPath`, `logoPath`, `filePath`; signed URLs are minted per read after authz (ADR-004).
+25. **Notification channels are policy-only in v1** (v1.3) — event→channel matrix + flags; per-user channel prefs are a future add-on.
+26. **Leave writes LEAVE in the active attendance-mode encoding** (v1.3) — period 0 in daily mode, all periods in period-wise mode; no mixed-encoding days.
 
 > **Formal ADRs** (Context · Decision · Alternatives · Consequences) live in `docs/architecture/ADR-001..008`. This log is the quick index; the ADR files are the long form.
 
@@ -997,7 +1060,11 @@ Build add-ons **only** for the contracted tier; leave the rest flagged off.
 9. **Privacy/consent** stance for minors (DPDP)?
 10. Final **tier** (which add-on flags ship ON)?
 11. **Events calendar** wanted as a paid add-on, or leave out?
+12. **Aided vs unaided status** (v1.3): the client brief says *aided*; the school website says "Kerala Government recognised **unaided**". Which is correct? This constrains what the `fees` add-on may collect (unaided = tuition; aided = typically PTA/special fees only) — answer before `fees`.
+13. **Gujarati (`gu`) UI locale** (v1.3): the school serves a Gujarati-heritage community. Is a third UI language wanted (paid add-on later)? v1 ships en + ml; the `Locale` enum and catalogs extend cleanly.
+14. **Class-teacher division announcements** (v1.3, §8.8): confirm class teachers may publish announcements to their own division.
+15. **School-day pattern** (v1.3, §8.19): working weekdays (Mon–Fri or Mon–Sat? alternate Saturdays?) and the standard holiday list for seeding.
 
 ---
 
-*Source of truth for v1.1. Keep schema, audit, and lifecycle structures intact; update as §16 answers land.*
+*Source of truth (v1.3). Keep schema, audit, and lifecycle structures intact; update as §16 answers land. Companion references: `docs/REVIEW_FINDINGS.md` and the planning docs indexed in the README.*

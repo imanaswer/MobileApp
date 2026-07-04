@@ -70,7 +70,7 @@ Every screen, keyed by the IDs used in `NAVIGATION_MAP.md` and `USER_FLOWS.md`. 
 | WEB-EXA-01 | Exams list/create | category, dates |
 | WEB-EXA-02 | Exam subjects | max marks/pass per ClassSubject |
 | WEB-EXA-03 | Marks entry | web grid twin of MOB-TEA-03 |
-| WEB-EXA-04 | Results | division results, grade distribution, publish (PROPOSED) |
+| WEB-EXA-04 | Results | division results, grade distribution, publish (`exams.publishResults`, v1.3) |
 | WEB-EXA-05 | Report cards | generate (bulk per division), regenerate, download |
 | WEB-SET-03 | Grade scales | bands editor (A+→E, min/max %, points) — seeded SCERT default |
 

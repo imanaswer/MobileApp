@@ -2,11 +2,13 @@
 
 **Owner:** Anaswer Ajay · **Type:** Single-school deployment (paid client) · **Status:** Approved scope
 
-> This is the **product/context** document — the *why*, the users, the rationale, the risks. For build scope, the data model and engineering detail, the **Developer PRD (v1.2)** is the source of truth. The two are kept consistent; where they overlap, defer to the Developer PRD.
+> This is the **product/context** document — the *why*, the users, the rationale, the risks. For build scope, the data model and engineering detail, the **Developer PRD (v1.3)** is the source of truth. The two are kept consistent; where they overlap, defer to the Developer PRD.
 
 ---
 
 ## 1. Summary
+
+**The client:** **Sri Gujarathi Vidhyalaya Higher Secondary School**, Beach Rd, Mananchira, Kozhikode, Kerala 673032 — an English-medium, co-education school (~153 years) managed by the Sri Gujarati Vidhyalaya Association (SGVA), serving a Gujarati-heritage community. Website: https://www.srigujaratividhyalaya.com/. Note: the brief says *aided*, the website says *"Kerala Government recognised unaided"* — **[CONFIRM §12.11]**; this affects what the `fees` add-on may collect.
 
 A management portal for **one school** (single-tenant) connecting three user groups — **Parents, Teachers, and the Principal/Office** (students are records, not logins) — around attendance, academics (Kerala SCERT/DHSE grading), homework, leave, communication and administration.
 
@@ -98,7 +100,7 @@ Bulk "mark all present, then flip absentees". Statuses Present/Absent/Half-day/L
 ### 6.5 Exams, marks & grading (core)
 Exams per term (CE + terminals) **[CONFIRM structure]**. Marks per exam-subject; theory/practical. **Configurable** grade bands (A+→E) — never hardcoded. Auto grade, totals, result, optional rank **[CONFIRM visibility]**. **Printable report-card PDFs** (core, not deferred; generated per exam today, with the data model intentionally able to support consolidated/annual cards later with no migration). Every mark edit audited.
 
-### 6.6 Homework, notes & submissions (core)
+### 6.6 Homework & notes — distribution-only (core)
 Teacher posts homework/notes/files to a division/subject; parents and the child read it in the app. **Distribution-only** — no online upload (matches the common Kerala flow: child writes in the notebook, teacher checks physically). If a school specifically wants digital homework uploads with feedback, scope it as a paid add-on.
 
 ### 6.7 Communication
@@ -152,13 +154,16 @@ Default to push (free); spend on SMS/WhatsApp only for high-value events.
 
 ## 10. Roadmap / milestones (mapped to payment stages)
 
-1. **M0 (deposit):** monorepo, schema, Supabase Auth + roles, school setup, bilingual shell, CI.
-2. **M1:** people + bulk import + academic structure + enrollment.
-3. **M2:** attendance + push + scheduled absence job.
-4. **M3:** exams, marks, grades, report-card PDFs, audit log.
-5. **M4:** homework/submissions, leave, announcements, messaging.
-6. **M5 (testing payment):** profiles/portals polish, offline attendance, dashboards, QA on staging.
-7. **Go-live (final payment):** contracted add-ons (fees + WhatsApp), data import, deployment, app-store submission, training.
+*(Renumbered 2026-07 to match the codebase — Dev PRD §13 has the authoritative table with payment gates.)*
+
+1. **M0:** monorepo scaffold, CI, bilingual shell (shipped).
+2. **M1 (deposit):** schema foundation, Supabase Auth + roles, school setup, feature flags.
+3. **M2:** people + bulk import + academic structure + enrollment + school calendar/settings.
+4. **M3:** attendance + push + scheduled absence job.
+5. **M4:** exams, marks, grades, report-card PDFs, audit viewer.
+6. **M5:** homework/notes, leave, announcements, messaging.
+7. **M6 (testing payment):** profiles/portals polish, offline attendance, dashboards, QA on staging.
+8. **Go-live (final payment):** contracted add-ons (fees + WhatsApp), data import, deployment, app-store submission, training.
 
 ---
 
@@ -182,7 +187,10 @@ Default to push (free); spend on SMS/WhatsApp only for high-value events.
 8. **Apple/Google developer accounts:** school's or vendor's?
 9. **Privacy:** written data-privacy/consent policy for minors (DPDP)?
 10. **Final tier:** confirms which add-on flags ship ON.
+11. **Aided vs unaided:** brief says aided; website says unaided — determines the `fees` scope.
+12. **Gujarati (`gu`) UI language:** wanted as a later add-on for the Gujarati-heritage community? (v1 = en + ml.)
+13. **School-day pattern:** working weekdays + holiday list for the calendar (Dev PRD §8.19).
 
 ---
 
-*Product companion to the Developer PRD (v1.2). Keep both aligned as §12 answers land.*
+*Product companion to the Developer PRD (v1.3). Keep both aligned as §12 answers land.*

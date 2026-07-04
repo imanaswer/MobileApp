@@ -6,7 +6,7 @@ Visual companion to Dev PRD §6 (the schema there is the source of truth). Merma
 
 - `||--o{` one-to-many · `||--||` one-to-one · `}o--o{` many-to-many (via join model)
 - **Loose refs** (deliberately no FK): `schoolId` everywhere (ADR-008), `AuditLog`/`ImportJob` actor+entity (ADR-007), `Announcement.targetId` (polymorphic). Shown as dashed notes, not edges.
-- Partial unique indexes (raw SQL in migrations): `ReportCard(enrollmentId, examId) WHERE examId IS NOT NULL` (ADR-009), `GuardianStudent(studentId) WHERE isPrimary`, and (proposed, REVIEW_FINDINGS B6) `AcademicYear(schoolId) WHERE isCurrent`.
+- Partial unique indexes (raw SQL in migrations): `ReportCard(enrollmentId, examId) WHERE examId IS NOT NULL` (ADR-009), `GuardianStudent(studentId) WHERE isPrimary`, and `AcademicYear(schoolId) WHERE isCurrent` (adopted v1.3 — exactly one current year).
 
 ## Identity & people (M1–M2)
 
@@ -55,7 +55,12 @@ erDiagram
     STAFF ||--o{ TEACHER_ASSIGNMENT : "cascade"
     STUDENT ||--o{ ENROLLMENT : ""
 
-    ACADEMIC_YEAR { bool isCurrent "exactly one (B6 partial idx)" }
+    ACADEMIC_YEAR { bool isCurrent "exactly one — partial unique idx (v1.3)" }
+    HOLIDAY {
+        date date "school calendar (v1.3, Dev PRD 8.19)"
+        string classLevelId "nullable scope"
+        string id "UK(schoolId, date, classLevelId)"
+    }
     DIVISION { string name "UK(classLevelId, name)" }
     CLASS_SUBJECT { string id "UK(classLevelId, subjectId, academicYearId)" }
     TEACHER_ASSIGNMENT { bool isClassTeacher "grants division rights" }
@@ -76,7 +81,7 @@ erDiagram
     STAFF ||--o{ LEAVE_APPLICATION : "decidedBy (nullable)"
 
     ATTENDANCE {
-        date date "IST calendar date (@db.Date — B9)"
+        date date "IST calendar date — @db.Date (decided v1.3)"
         int period "0 = whole day; 1..N period-wise"
         enum status "PRESENT|ABSENT|HALF_DAY|LEAVE|HOLIDAY"
         string id "UK(enrollmentId, date, period)"
@@ -116,7 +121,7 @@ erDiagram
     GRADE_BAND { string grade "A+..E configurable" }
     REPORT_CARD {
         string examId "nullable — partial UK WHERE NOT NULL"
-        string pdfUrl "storage PATH, signed on read (B7)"
+        string pdfPath "private storage PATH, signed on read (v1.3)"
     }
 ```
 
@@ -170,7 +175,7 @@ erDiagram
 
 Standalone (loose refs only): `SCHOOL` (tenant root), `AUDIT_LOG(actorUserId, entityType, entityId, before/afterJson)`, `IMPORT_JOB`, `FEATURE_FLAG(UK schoolId+key)`.
 
-**Proposed addition (B1):** `HOLIDAY(schoolId, date, name, scope?)` + working-weekday config in typed `SchoolSettings` — required by leave approval and the absence job.
+**Adopted v1.3:** `Holiday(schoolId, date, name, classLevelId?)` + working-weekday config in typed `SchoolSettings` (Dev PRD §8.19) — the school-day source of truth for leave approval and the absence job. Storage fields are now `*Path` (`logoPath`, `photoPath`, `pdfPath`, `attachmentPaths`, `filePath`) per decision #24.
 
 ## onDelete policy summary (DATABASE_CONVENTIONS §7)
 

@@ -38,7 +38,7 @@ Imperative mood, no `do`/`handle` prefixes, no HTTP verbs in names.
 - Almost everything is protected; there is **no public self-signup**. The few unauthenticated calls (if any) use an explicit `publicProcedure`.
 
 ## 5. Authorization rules
-- **Coarse role gate in the procedure** (middleware), **fine-grained scope in the business service** (Dev PRD §4.4): teacher→assigned divisions/subjects, class-teacher→own division, guardian→linked students, office→school-wide non-destructive, super-admin→all. Failures → `FORBIDDEN`.
+- **No role gate at transport** (ADR-002 M1 refinement): procedures authenticate (`protectedProcedure`); the **business service** authorizes with **permission** (`assertCan` against `ROLE_PERMISSIONS`) then **scope** (`assertScope` with `ScopeRule` predicates): teacher→assigned divisions/subjects, class-teacher→own division, guardian→linked students, office→school-wide non-destructive, super-admin→all. The role comes from the DB-resolved `Principal`, never the JWT or request context. Failures → `FORBIDDEN`. Full catalog: `docs/PERMISSIONS_MATRIX.md`.
 - **Add-on procedures check their `FeatureFlag` first** and return `FORBIDDEN` when off (ADR-006).
 - **Sensitive mutations** (marks, attendance, roles/users, enrollment/promotion, money) **write an `AuditLog` row in the same transaction** (ADR-007).
 - RLS is **not** the API's authz mechanism — it is defense-in-depth for Storage/direct access (ADR-002/004).

@@ -1,6 +1,6 @@
 # Permissions Matrix — School Management Portal
 
-The full authorization catalog: every **permission** (`resource:action[:scope]`), which **role** holds it, and which **scope rule** narrows it. Extends Dev PRD §5 and the M1 implementation (`packages/constants/permissions.ts`, `packages/business/authorization.ts`) to all milestones. Rows marked **PROPOSED** fill gaps the PRD left implicit (see REVIEW_FINDINGS B10/B11) — confirm before that module's milestone.
+The full authorization catalog: every **permission** (`resource:action[:scope]`), which **role** holds it, and which **scope rule** narrows it. Extends Dev PRD §5 and the M1 implementation (`packages/constants/permissions.ts`, `packages/business/authorization.ts`) to all milestones. All formerly-PROPOSED rows were **adopted in Dev PRD v1.3** (see REVIEW_FINDINGS resolution status); rows noting a pending client [CONFIRM] keep that tag until answered.
 
 **Model (ADR-002, M1 refinement):** transport authenticates (`protectedProcedure` → `Principal { userId, schoolId, role, status }` from the DB, never the JWT). The business service then checks **permission** (`assertCan(principal, PERMISSION)`) and **scope** (`assertScope(rule, principal, resourceFacts)`). There is no transport role gate.
 
@@ -36,11 +36,11 @@ SA = Super Admin, OA = Office Admin, T = Teacher, P = Parent, AC = Accountant. C
 | Permission | SA | OA | T | P | AC |
 |---|---|---|---|---|---|
 | `student:create` / `student:update` / `student:archive` | any | school | – | – | – |
-| `student:read` | any | school | ownDivision **PROPOSED** (B11 — roster access is required for attendance/marks) | ownChild | – |
+| `student:read` | any | school | ownDivision — **adopted v1.3** (Dev PRD §5 "View student records") | ownChild | – |
 | `guardian:create` / `guardian:link` / `guardian:invite` | any | school | – | – | – |
 | `staff:create` / `staff:update` / `staff:assign` | any | school | – | – | – |
 | `import:run` | any | school | – | – | – |
-| `academic:manage` (years, classes, divisions, subjects, mappings, assignments) | any | school | – | – | – |
+| `academic:manage` (years, classes, divisions, subjects, mappings, assignments, **holidays, school settings** — v1.3) | any | school | – | – | – |
 | `enrollment:enroll` / `enrollment:transfer` / `enrollment:drop` | any | school | – | – | – |
 | `enrollment:promote_bulk` | any | – | – | – | – |
 
@@ -57,10 +57,10 @@ Note B3: marking requires the actor to have a `Staff` row (`markedByStaffId`) �
 
 | Permission | SA | OA | T | P | AC |
 |---|---|---|---|---|---|
-| `exam:manage` (create exam, define subjects, grade scales) | any | school **PROPOSED** (matrix says "manage academic structure ✓" — confirm exams included) | – | – | – |
+| `exam:manage` (create exam, define subjects, grade scales, publish results) | any | school — **decided v1.3 default**: exam definition is academic structure (Dev PRD §5 grants OA structure management); mark *entry* stays teacher/SA-only | – | – | – |
 | `marks:enter` | any | – | ownSubject | – | – |
 | `marks:read` | any | school | ownDivision | ownChild | – |
-| `reportcard:generate` | any | school | classTeacher **PROPOSED** | – | – |
+| `reportcard:generate` | any | school | classTeacher — **decided v1.3 default** (class teacher prepares/prints their division's cards; generation is idempotent upsert, ADR-009) | – | – |
 | `reportcard:read` | any | school | ownDivision | ownChild | – |
 
 ### Homework, leave, communication (M5)
@@ -73,7 +73,7 @@ Note B3: marking requires the actor to have a `Staff` row (`markedByStaffId`) �
 | `leave:decide` | any | – | classTeacher | – | – |
 | `leave:read` | any | school | classTeacher | ownChild (own applications) | – |
 | `announcement:create:school` | any | school | – | – | – |
-| `announcement:create:division` | any | school | classTeacher **PROPOSED** (B10 — [CONFIRM]) | – | – |
+| `announcement:create:division` | any | school | classTeacher — **adopted v1.3** (Dev PRD §5/§8.8; client [CONFIRM §16.14] pending) | – | – |
 | `announcement:read` | any | school | school | school (scoped to child's class/division + school-wide) | school |
 | `message:create_thread` | any | – | own students' guardians | – (reply only) | – |
 | `message:send` | any | – | own threads | own threads | – |
@@ -88,7 +88,7 @@ Note B3: marking requires the actor to have a `Staff` row (`markedByStaffId`) �
 | `fees:pay` | `fees` | – | – | – | ownChild | – |
 | `timetable:manage` | `timetable` | any | school | – | – | – |
 | `timetable:read` | `timetable` | any | school | ownDivision | ownChild | – |
-| `analytics:view` | `analytics` | any | school **PROPOSED** | – | – | – |
+| `analytics:view` | `analytics` | any | – (**decided v1.3**: Dev PRD §8.16 scopes dashboards to the principal; extend to OA later only if asked) | – | – | – |
 | `flags:manage` | — | any | – | – | – | – |
 
 ## Enforcement invariants

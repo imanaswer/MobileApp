@@ -2,6 +2,11 @@
 
 Full-pass review of `School_Portal_DEV_PRD.md` (v1.2), `School_Portal_PRD_v2.md`, ADR-001..009, all convention docs, and the current code state (M0 scaffold + M1 auth). Findings are ordered by severity. Each has a proposed resolution; nothing here changes product scope.
 
+> ## ✅ Resolution status (2026-07-04, same day — Dev PRD v1.3)
+> **All findings fixed in the docs.** A1 (milestones renumbered, Dev PRD §13 + PRD v2 §10), A2 (§4.4 + API_CONVENTIONS §5 rewritten to ADR-002's refinement), A3 (submissions copy fixed), B1 (`Holiday` model + §8.19), B2 (leave × mode invariant, §8.7), B3 (staff provisioning invariant, §5/§8.2), B4 (typed `SchoolSettings`, §8.19), B5 (policy-only channels, §4.6), B6 (isCurrent partial unique index), B7 (`*Path` renames + DB conventions rule), B8 (duplicate-phone import rule, §8.2), B9 (`@db.Date` decided), B10 (announcement authorship, §8.8 — client [CONFIRM §16.14] pending), B11 (teacher roster read in §5 matrix), B12 (1:1 thread comment in schema), B13 (`deregisterDevice` + token pruning, §7/§8.9).
+> **Still requiring client answers** (tracked in Dev PRD §16): aided vs unaided (§16.12 — website says *unaided*, brief said *aided*), Gujarati locale (§16.13), class-teacher announcements (§16.14), working weekdays + holiday list (§16.15), plus the original §16.1–.11.
+> Client identified: **Sri Gujarathi Vidhyalaya HSS, Mananchira, Kozhikode** (SGVA-managed, English-medium) — profile added to both PRDs.
+
 ---
 
 ## A. Contradictions between documents (fix the docs)

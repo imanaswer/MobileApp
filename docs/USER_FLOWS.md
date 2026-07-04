@@ -58,7 +58,7 @@ End-to-end flows for every core journey. Format per flow: **Actor · Trigger · 
 1. Office defines Exam + ExamSubjects (maxTheory/practical, passMark) — `WEB-EXA-01`.
 2. Teacher `MOB-TEA-03`/`WEB-EXA-02`: division × subject grid → enter theory/practical or absent → save `exams.enterMarksBulk` (bulk, per-cell validation vs max marks).
 3. Grades auto-assigned from GradeScale bands; results/rank per [CONFIRM §16.3].
-4. Publish (**PROPOSED** `exams.publishResults` — parents notified) → generate report cards (`exams.generateReportCard`, PDF per student, upsert per ADR-009) → parent views/downloads via signed URL.
+4. Publish (`exams.publishResults`, adopted v1.3 — marks become parent-visible only now; parents notified) → generate report cards (`exams.generateReportCard`, PDF per student, upsert per ADR-009) → parent views/downloads via signed URL.
 
 **Alternates:** concurrent edit → `updatedAt` conflict → CONFLICT surfaced, no silent overwrite. Mark edit after publish → audited; consider re-publish rules [CONFIRM].
 **Side effects:** every mark write/edit audited; publish notifies.
@@ -69,7 +69,7 @@ End-to-end flows for every core journey. Format per flow: **Actor · Trigger · 
 1. Parent `MOB-PAR-05`: child (switcher) → date range + reason → `leave.apply`.
 2. Class teacher notified → `MOB-TEA-05` approval list → approve/reject (+note).
 3. On APPROVE: service resolves current ACTIVE enrollment (none → clear error, approval blocked); verifies approver is class teacher of that division; upserts Attendance LEAVE per school day (B1 calendar; B2 period rule); audit; notify parent.
-4. Cancellation (`leave.cancel`, PROPOSED): parent cancels PENDING; APPROVED cancellation reverts LEAVE rows (audited).
+4. Cancellation (`leave.cancel`, adopted v1.3): parent cancels PENDING; APPROVED cancellation reverts LEAVE rows (audited).
 
 **Alternates:** overlapping existing leave → validation error. Range spans holiday → holidays skipped.
 

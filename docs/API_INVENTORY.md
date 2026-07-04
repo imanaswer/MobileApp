@@ -35,7 +35,9 @@ Complete catalog of the tRPC surface (expands Dev PRD §7), plus scheduled jobs,
 
 | Procedure | T | Permission | Audit | Notes |
 |---|---|---|---|---|
-| `academic.academicYears.*` (CRUD + setCurrent) | Q/M | `academic:manage` | ✓ | setCurrent = transactional flip (B6) |
+| `academic.academicYears.*` (CRUD + setCurrent) | Q/M | `academic:manage` | ✓ | setCurrent = transactional flip; partial unique index enforces one current (v1.3) |
+| `academic.holidays.*` (list/create/delete) | Q/M | `academic:manage` | ✓ | school calendar (Dev PRD §8.19); optional classLevel scope |
+| `academic.settings.get/update` | Q/M | `academic:manage` | ✓ | typed `SchoolSettings` (attendance mode, periods, cutoff, working weekdays) |
 | `academic.classLevels.*` / `divisions.*` / `subjects.*` / `classSubjects.*` / `teacherAssignments.*` | Q/M | `academic:manage` | ✓ (mutations) | reads open to staff roles |
 | `enrollment.enroll` / `transfer` / `drop` | M | `enrollment:*` | ✓ | |
 | `enrollment.list` | Q | `student:read` | – | offset OK (bounded roster) |
@@ -59,7 +61,7 @@ Complete catalog of the tRPC surface (expands Dev PRD §7), plus scheduled jobs,
 | `exams.gradeScale.*` (CRUD scales/bands) | Q/M | `exam:manage` | ✓ | – |
 | `exams.enterMarksBulk` | M | `marks:enter` | ✓ (per mark edit) | – |
 | `exams.getMarks` / `results` | Q | `marks:read` | – | – |
-| `exams.publishResults` **PROPOSED** | M | `exam:manage` | ✓ | ✓ push "marks published" (PRD §9 implies a publish moment; otherwise parents see marks as they're typed — [CONFIRM]) |
+| `exams.publishResults` | M | `exam:manage` | ✓ | ✓ push "marks published" — **adopted v1.3** (Dev PRD §7): marks become parent-visible only on publish |
 | `exams.generateReportCard` | M | `reportcard:generate` | ✓ | – (upsert per ADR-009) |
 | `exams.getReportCard` | Q | `reportcard:read` | – | – (mints signed URL, B7) |
 
@@ -71,7 +73,7 @@ Complete catalog of the tRPC surface (expands Dev PRD §7), plus scheduled jobs,
 | `homework.listForDivision` | Q | `homework:read` | – | – | cursor |
 | `leave.apply` | M | `leave:apply` | ✓ | ✓ to class teacher |
 | `leave.decide` | M | `leave:decide` | ✓ | ✓ to applicant; on APPROVE upserts Attendance LEAVE (§8.7; calendar B1) |
-| `leave.cancel` **PROPOSED** | M | `leave:apply` (own, PENDING) or `leave:decide` (APPROVED revert) | ✓ | ✓ (LeaveStatus.CANCELLED exists; no procedure was listed — needed for §8.7 "cancellation reverts LEAVE rows") |
+| `leave.cancel` | M | `leave:apply` (own, PENDING) or `leave:decide` (APPROVED revert) | ✓ | ✓ — **adopted v1.3** (Dev PRD §7); cancelling APPROVED reverts LEAVE rows |
 | `leave.listMine` / `listForApproval` | Q | `leave:read` | – | – | cursor |
 | `announcements.create` | M | `announcement:create:*` | ✓ | ✓ scoped push |
 | `announcements.list` | Q | `announcement:read` | – | – | cursor |
@@ -85,7 +87,7 @@ Complete catalog of the tRPC surface (expands Dev PRD §7), plus scheduled jobs,
 |---|---|---|---|
 | `notifications.list` / `markRead` | Q/M | `notification:manage_own` | cursor; unread badge from `[userId, readAt]` |
 | `notifications.registerDevice` | M | self | upsert on expoPushToken |
-| `notifications.deregisterDevice` **PROPOSED** | M | self | logout cleanup (REVIEW_FINDINGS B13) |
+| `notifications.deregisterDevice` | M | self | logout cleanup — **adopted v1.3** (Dev PRD §7, B13) |
 | `profile.getStudent` / `getStaff` / `update` | Q/M | matrix scopes | child profile for parents |
 | `audit.list` | Q | `audit:read` | cursor; filters entityType/actor/date |
 | `flags.list` | Q | authenticated | clients need flags to render nav |
@@ -117,7 +119,7 @@ Complete catalog of the tRPC surface (expands Dev PRD §7), plus scheduled jobs,
 | Absence notifier | daily, after configurable cutoff (SchoolSettings, B4) | push (+SMS/WA if flagged) to guardians of students ABSENT today with no notification yet | once per student/day; skips holidays (B1); IST date |
 | Fee reminders (`fees`) | daily | dues/overdue reminders per policy | idempotent per invoice/day |
 | Invoice overdue sweep (`fees`) | daily | PENDING/PARTIAL past dueDate → OVERDUE | status transition only |
-| Device-token prune **PROPOSED** | weekly | remove tokens with `DeviceNotRegistered` receipts (B13) | – |
+| Device-token prune | weekly | remove tokens with `DeviceNotRegistered` receipts — **adopted v1.3** (Dev PRD §8.9) | – |
 
 ## Notification event matrix (channel policy — ADR-005, PRD v2 §9)
 
