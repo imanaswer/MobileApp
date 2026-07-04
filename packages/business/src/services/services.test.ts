@@ -37,7 +37,8 @@ function makeCtx(user: Principal, repoUser: User | null) {
     updateLocale: vi.fn(async (_id: string, locale: User["locale"]): Promise<User> => ({ ...(current ?? baseUser), locale })),
   };
   const audit = { record: vi.fn(async (): Promise<void> => undefined) };
-  const repositories: Repositories = { users, audit };
+  // These M1 tests exercise only users/audit; widen to the (M2-extended) aggregate.
+  const repositories = { users, audit } as unknown as Repositories;
   const ctx: ServiceContext = {
     user,
     repositories,

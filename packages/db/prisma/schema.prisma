@@ -47,6 +47,7 @@ model School {
   settings      Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  // + raw SQL: RLS ON — admin read only (m1_rls_hardening; defense-in-depth)
 }
 
 // ---------- identity (profile keyed to the Supabase auth UID) ----------
@@ -68,6 +69,7 @@ model User {
   teacherAssignments TeacherAssignment[]
 
   @@index([schoolId, role])
+  // + raw SQL: RLS ON — read-self + admin-read-all (m1_rls_hardening)
 }
 
 // ---------- devices ----------
@@ -82,6 +84,7 @@ model DeviceToken {
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  // + raw SQL: RLS ON — owner read only (m1_rls_hardening)
 }
 
 // ---------- academic structure (M2) ----------
@@ -113,6 +116,7 @@ model AcademicYear {
   @@index([schoolId, status])
   // + raw SQL: UNIQUE (schoolId) WHERE status = 'ACTIVE'  — one ACTIVE year
   // + raw SQL: CHECK (startDate < endDate)
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration; defense-in-depth)
 }
 
 // Subdivision of a year, e.g. "Term 1". Sibling terms must not overlap
@@ -132,6 +136,7 @@ model AcademicTerm {
   @@index([academicYearId, startDate])
   // + raw SQL: EXCLUDE USING gist (academicYearId =, daterange(start,end,'[]') &&)
   // + raw SQL: CHECK (startDate < endDate)
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 }
 
 // STRUCTURE axis: a grade level ("Grade 5"). Persistent across years —
@@ -148,6 +153,7 @@ model Class {
 
   @@unique([schoolId, name])
   @@index([schoolId, sortOrder])
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 }
 
 // Parallel group within a class ("A", "B"). Restrict delete from Class: a class
@@ -162,6 +168,7 @@ model Section {
   teacherAssignments TeacherAssignment[]
 
   @@unique([classId, name])
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 }
 
 // School-wide subject catalog ("Gujarati", "Mathematics") — a sibling of the
@@ -175,6 +182,7 @@ model Subject {
   teacherAssignments TeacherAssignment[]
 
   @@unique([schoolId, name])
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 }
 
 // The operational unit: teacher × subject × section. teacherId references
@@ -198,6 +206,7 @@ model TeacherAssignment {
   @@index([sectionId])
   @@index([subjectId])
   @@index([schoolId])
+  // + raw SQL: RLS ON — admin ALL + teacher SELECT own (teacherId = auth.uid())
 }
 
 // ---------- audit (append-only) ----------
@@ -217,4 +226,5 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@index([schoolId, createdAt])
+  // + raw SQL: RLS ON — admin read only (m1_rls_hardening)
 }

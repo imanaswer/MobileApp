@@ -1,5 +1,13 @@
 import { checkReadiness } from "@repo/business";
 
+import {
+  academicTermRouter,
+  academicYearRouter,
+  classRouter,
+  sectionRouter,
+  subjectRouter,
+  teacherAssignmentRouter,
+} from "./routers/academic";
 import { authRouter } from "./routers/auth";
 import { publicProcedure, router } from "./trpc";
 
@@ -18,6 +26,12 @@ export const appRouter = router({
     ready: publicProcedure.query(() => checkReadiness()),
   }),
   auth: authRouter,
+  academicYear: academicYearRouter,
+  academicTerm: academicTermRouter,
+  class: classRouter,
+  section: sectionRouter,
+  subject: subjectRouter,
+  teacherAssignment: teacherAssignmentRouter,
 });
 
 export type AppRouter = typeof appRouter;

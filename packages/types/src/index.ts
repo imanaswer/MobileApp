@@ -39,3 +39,52 @@ export interface UserProfile {
   email: string | null;
   phone: string | null;
 }
+
+/* ---- Academic structure DTOs (M2). Calendar columns are @db.Date → IST date
+ * strings (YYYY-MM-DD); timestamps are UTC ISO strings (rendered to IST at edge). */
+
+export type AcademicYearStatusKey = "PLANNED" | "ACTIVE" | "CLOSED";
+
+export interface AcademicYearDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  startDate: IstDateString;
+  endDate: IstDateString;
+  status: AcademicYearStatusKey;
+}
+
+export interface AcademicTermDto {
+  id: string;
+  academicYearId: string;
+  name: string;
+  startDate: IstDateString;
+  endDate: IstDateString;
+}
+
+export interface ClassDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  sortOrder: number;
+}
+
+export interface SectionDto {
+  id: string;
+  classId: string;
+  name: string;
+}
+
+export interface SubjectDto {
+  id: string;
+  schoolId: string;
+  name: string;
+}
+
+export interface TeacherAssignmentDto {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  subjectId: string;
+  sectionId: string;
+}

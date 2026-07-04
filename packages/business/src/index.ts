@@ -11,6 +11,7 @@ export { checkReadiness, type ReadinessReport } from "./system";
 export { resolvePrincipal, activateUser } from "./auth/session";
 export { updateProfile, type UpdateProfileInput } from "./services/profile";
 export { setRole, disableUser, enableUser } from "./services/admin";
+export * from "./services/academic";
 export {
   assertCan,
   assertScope,

@@ -43,4 +43,23 @@ export class NotFoundError extends DomainError {
   }
 }
 
+/**
+ * A business invariant would be violated (duplicate, overlap, or a still-referenced
+ * row). Maps to tRPC CONFLICT (409) — `mapDomainErrors` already knows the code.
+ */
+export class ConflictError extends DomainError {
+  constructor(message = "Conflict", options?: { cause?: unknown }) {
+    super("CONFLICT", message, options);
+    this.name = "ConflictError";
+  }
+}
+
+/** Semantically invalid input a service rejects (e.g. startDate ≥ endDate). Maps to BAD_REQUEST. */
+export class ValidationError extends DomainError {
+  constructor(message = "Invalid input", options?: { cause?: unknown }) {
+    super("BAD_REQUEST", message, options);
+    this.name = "ValidationError";
+  }
+}
+
 export { can, canAny, canAll, getPermissions } from "./authorization";

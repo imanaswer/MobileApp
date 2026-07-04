@@ -8,8 +8,9 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Step
 
-**M2 Steps 1–2 complete** (requirements analysis; DB schema + live migration with
-probed constraints). Next: Step 3 (RLS). 10-step workflow; stop after Step 10.
+**M2 Steps 1–5 complete** (requirements; DB schema; RLS; business layer; API layer
+— 6 tRPC routers on `appRouter`, Zod inputs in `@repo/validation`, thin/delegating).
+Next: Step 6 (mobile read-only screens). 10-step workflow; stop after Step 10.
 
 ## Completed
 
@@ -28,6 +29,8 @@ probed constraints). Next: Step 3 (RLS). 10-step workflow; stop after Step 10.
 - ✓ M1 Step 11 — Documentation: `API_INVENTORY.md` auth section (implemented, gates, 6 procedures), `API_CONVENTIONS.md` §6 error-mapping nuance, `features/authentication.md` + status/milestone docs synced; no new ADR
 - ✓ **M1 approved & frozen** (2026-07-05)
 - ✓ **M1.5 — Infrastructure Provisioning**: live Supabase project (`wupcsvbyrknfuuskzuzp`) wired + migrated; `@repo/auth` admin module; bootstrap/provision/verify ops scripts (`packages/business/scripts`); auth security config applied via Management API (signups off, test OTP, OTP 600s, pw ≥10, URLs); **11/11 live auth checks passed** (OTP, email login, activation, session restore, refresh, logout, provisioning, signup-disabled); web build + expo android bundle with real env; `docs/RUNBOOK_SUPABASE_SETUP.md` + `docs/milestones/M1.5-infrastructure.md`
+
+- ✓ **M1 RLS hardening** (security-fix exception, 2026-07-05): M1 auth tables shipped with no RLS. Migration `20260705020000_m1_rls_hardening` enables RLS (not FORCE) on School/User/DeviceToken/AuditLog with read-only policies (`user_read_self` + `is_admin()` reads; owner-only device tokens; admin-only School/AuditLog) — stops parent/teacher user enumeration; no write policies (writes stay service_role); anon denied. Defense-in-depth only. **Blocking pre-apply gate:** confirm live Prisma role bypasses RLS before applying or auth locks out (see `docs/RLS_POLICIES.md`). All 80 tests still green.
 
 ## Frozen Modules (read-only — see workflow.md)
 
@@ -65,5 +68,6 @@ M1 auth fully implemented, security-reviewed, tested, and documented on web + mo
 
 ## Next Task
 
-**M2 Step 3 — RLS planning + policies** (admin-manage / teacher-own-assignment-read
-/ parent-none; document every policy + the app-enforced-authz caveat).
+**M2 Step 6 — Mobile** (placeholder read-only screens: academic years, classes,
+subjects, teacher assignments; consume `@repo/api` client, type-only AppRouter;
+no editing UI, no student screens).

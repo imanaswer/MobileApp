@@ -32,6 +32,11 @@ export const PERMISSIONS = {
 
   /** Read the audit log. */
   AUDIT_READ: "audit:read",
+
+  /** Manage academic structure (years/terms/classes/sections/subjects/assignments). */
+  ACADEMIC_MANAGE: "academic:manage",
+  /** Read academic structure. Teacher-assignment reads are scoped to own (service). */
+  ACADEMIC_READ: "academic:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -56,9 +61,13 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.USER_SET_ROLE,
     PERMISSIONS.USER_DISABLE,
     PERMISSIONS.AUDIT_READ,
+    PERMISSIONS.ACADEMIC_MANAGE,
+    PERMISSIONS.ACADEMIC_READ,
   ],
-  OFFICE_ADMIN: [...SELF_PROFILE],
-  TEACHER: [...SELF_PROFILE],
+  // OFFICE_ADMIN manages academic structure (M2); teachers read it (assignment
+  // reads scoped to own in the service). Accountant/parent have no academic surface yet.
+  OFFICE_ADMIN: [...SELF_PROFILE, PERMISSIONS.ACADEMIC_MANAGE, PERMISSIONS.ACADEMIC_READ],
+  TEACHER: [...SELF_PROFILE, PERMISSIONS.ACADEMIC_READ],
   PARENT: [...SELF_PROFILE],
   ACCOUNTANT: [...SELF_PROFILE],
 };

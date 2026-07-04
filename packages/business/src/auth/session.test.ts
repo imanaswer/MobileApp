@@ -45,7 +45,8 @@ function fakeUsers(user: User | null): UserRepository {
 function makeCtx(user: Principal, dbUser: User | null, auditImpl?: () => Promise<void>) {
   const users = fakeUsers(dbUser);
   const audit = { record: vi.fn(auditImpl ?? (async (): Promise<void> => undefined)) };
-  const repositories: Repositories = { users, audit };
+  // These M1 tests exercise only users/audit; widen to the (M2-extended) aggregate.
+  const repositories = { users, audit } as unknown as Repositories;
   const ctx: ServiceContext = {
     user,
     repositories,

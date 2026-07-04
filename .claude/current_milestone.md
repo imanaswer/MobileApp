@@ -4,7 +4,7 @@
 
 ## Current Step
 
-**Steps 1–2 ✅ — next: Step 3 (RLS planning + policies).**
+**Steps 1–5 ✅ — next: Step 6 (mobile read-only screens).**
 
 ## Scope (M2)
 
