@@ -8,7 +8,7 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Step
 
-**Step 10 — Tests** (next). Steps 1–9 complete.
+**Steps 1–11 complete — M1 awaiting sign-off.** Do not begin M2 without approval.
 
 ## Completed
 
@@ -23,6 +23,8 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 - ✓ M1 Step 8 — Web auth (login/forgot/OTP/protected layout/middleware/logout/dashboard)
 - ✓ Workflow — Intelligent context loading system (`.claude/START_HERE.md` router + `docs/architecture_index.md`; docs only, no code changed)
 - ✓ M1 Step 9 — Security review (`docs/SECURITY_REVIEW_M1.md`): fixed OTP `shouldCreateUser:false` (SMS-pumping/user-creation hole) + added web security headers; Supabase dashboard config checklist pending provisioning
+- ✓ M1 Step 10 — Tests: 7 suites / 80 tests (auth 22, business 20, api 14, core 8, web 7, validation 6, utils 3). **Caught+fixed critical bug:** `mapDomainErrors` (`packages/api/src/trpc.ts`) was dead code — tRPC v11 `next()` returns a result, never throws — so business `DomainError`s surfaced as 500s; now remaps `error.cause` to typed codes (frozen-module amendment, allowed as critical bug)
+- ✓ M1 Step 11 — Documentation: `API_INVENTORY.md` auth section (implemented, gates, 6 procedures), `API_CONVENTIONS.md` §6 error-mapping nuance, `features/authentication.md` + status/milestone docs synced; no new ADR
 
 ## Frozen Modules (read-only — see workflow.md)
 
@@ -49,7 +51,7 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Status
 
-M1 auth fully implemented on web + mobile; verified **typecheck 14/14, lint 14/14, tests (5 suites), web build, expo bundle**. No live Supabase in the dev environment (auth flows verified structurally + unit tests with mocks).
+M1 auth fully implemented, security-reviewed, tested, and documented on web + mobile; verified **typecheck 14/14, lint 14/14, tests 7 suites / 80 total, web build (`SKIP_ENV_VALIDATION=true` — no local Supabase env)**. No live Supabase in the dev environment (auth flows verified structurally + unit tests with mocks).
 
 ## Known Blockers / Notes
 
@@ -59,4 +61,4 @@ M1 auth fully implemented on web + mobile; verified **typecheck 14/14, lint 14/1
 
 ## Next Task
 
-**M1 Step 10 — Tests** (auth/authz/permission/route-protection/session/edge cases).
+**M1 sign-off** (user decision), then either provisioning (Supabase Admin-API user provisioning + seed super-admin + SMS provider — the go-live blockers) or M2 kickoff on approval.

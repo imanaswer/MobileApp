@@ -9,14 +9,20 @@ Complete catalog of the tRPC surface (expands Dev PRD §7), plus scheduled jobs,
 | `system.live` | Q | public | liveness; no deps |
 | `system.ready` | Q | public | readiness; DB via api→business→db |
 
-## auth (M1)
+## auth (M1 — implemented)
 
-| Procedure | T | Permission | Audit | Notes |
-|---|---|---|---|---|
-| `auth.me` | Q | authenticated | – | returns Principal-derived profile DTO |
-| `auth.registerProfile` | M | authenticated | ✓ | idempotent first-sign-in activation INVITED→ACTIVE |
-| `auth.setRole` | M | `user:set_role` | ✓ | |
-| `auth.disableUser` | M | `user:disable` | ✓ | |
+Gates: **onboarding** = authenticated, INVITED or ACTIVE (DISABLED rejected); **protected** = authenticated + ACTIVE only. Fine-grained permission is then enforced in the business service (`assertCan`).
+
+| Procedure | T | Gate | Permission | Audit | Notes |
+|---|---|---|---|---|---|
+| `auth.me` | Q | onboarding | – | – | returns the `Principal` (userId/schoolId/role/status) |
+| `auth.registerProfile` | M | onboarding | – | ✓ `USER_ACTIVATED` | idempotent first-sign-in activation INVITED→ACTIVE; re-sign-in only touches `lastLoginAt` (not re-audited) |
+| `auth.updateProfile` | M | protected | `profile:update:self` | – | own non-credential fields (M1: locale) |
+| `auth.setRole` | M | protected | `user:set_role` | ✓ | |
+| `auth.disableUser` | M | protected | `user:disable` | ✓ | self-disable rejected (FORBIDDEN) |
+| `auth.enableUser` | M | protected | `user:disable` | ✓ | re-enable → ACTIVE |
+
+Logout/refresh are client-side Supabase session operations (`@repo/auth` helpers), not procedures.
 
 ## students / guardians / staff (M2)
 

@@ -4,7 +4,7 @@
 
 ## Current Step
 
-**Step 9 — Security Review** (Steps 1–8 complete; Steps 10–11 pending).
+**Steps 1–11 complete — milestone awaiting user sign-off.** Do not begin M2.
 
 ## Scope (M1)
 
@@ -17,15 +17,13 @@ Students, attendance, classes, exams, homework, fees, notifications delivery, an
 
 ## Deliverables (remaining)
 
-- Step 9 — Security review (JWT, storage, cookies, session expiry/refresh, brute-force/rate-limit, CSRF, sensitive logging, Supabase config).
-- Step 10 — Tests (auth/authz/permission/route-protection/session/edge cases).
-- Step 11 — Documentation (API, auth architecture; ADRs only if a new decision).
+None — Steps 1–11 delivered. Validation: typecheck 14/14 · lint 14/14 · tests 7 suites / 80 total · web build.
 
 ## Stop conditions
 
-Complete only the current step, validate, update `docs/project_memory.md`, then **stop and wait for approval**. Do not begin M2.
+M1 is code-complete. **Stop and wait for approval** before M2 or milestone archival (M0-style tag).
 
-## Milestone-level blockers
+## Milestone-level blockers (go-live, not code)
 
-Provisioning (Supabase Admin API) + seed + SMS provider pending before real sign-in/OTP.
+Provisioning (Supabase Admin API) + seed super-admin + SMS provider pending before real sign-in/OTP; Supabase dashboard security checklist (`docs/SECURITY_REVIEW_M1.md`) to apply at provisioning.
 Source of truth: **Dev PRD v1.3**.

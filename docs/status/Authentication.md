@@ -1,8 +1,8 @@
 # Status — Authentication & Authorization
 
-- **Status:** Implemented + security-reviewed + tested (M1 Steps 1–10); docs remaining.
+- **Status:** Implemented + security-reviewed + tested + documented (M1 Steps 1–11 complete; milestone awaiting sign-off).
 - **Current milestone:** M1
-- **Completion:** ~95% (Step 11 pending)
+- **Completion:** 100% of milestone steps (go-live still blocked on provisioning — see Known issues)
 - **Dependencies:** `@repo/db`, `@repo/auth`, `@repo/core`, `@repo/business`, `@repo/api`, `@repo/constants`, `@repo/validation`, `@repo/ui`, `@repo/i18n`
 - **Frozen?** Yes — implemented layers are frozen (amend only for a security fix from Step 9, a critical bug, or explicit approval).
 - **Known issues:**
@@ -16,5 +16,6 @@
 - **Frozen-module amendment (Step 10 — critical bug, allowed by freeze protocol):**
   - `packages/api/src/trpc.ts` — `mapDomainErrors` was dead code: tRPC v11 middleware `next()` returns `{ ok: false, error }` instead of throwing, so its try/catch never fired and every business `DomainError` reached clients as `INTERNAL_SERVER_ERROR`. Now inspects the middleware result and remaps `error.cause instanceof DomainError` → typed code (FORBIDDEN/NOT_FOUND/…). Caught by the new API route-protection tests.
 - **Test coverage (Step 10):** 7 suites, 80 tests — `@repo/auth` 22 (getAuthUser cookie/bearer seam, session helpers incl. `shouldCreateUser:false` security regression, rbac), business 20, api 14 (gates, Zod → BAD_REQUEST, DomainError mapping), core 8, web 7 (middleware token rotation, protected-layout redirect), validation 6, utils 3.
-- **Next work:** Step 11 (docs).
+- **Docs (Step 11):** `API_INVENTORY.md` auth section, `API_CONVENTIONS.md` §6 error-mapping note, `features/authentication.md` refreshed. No new ADR needed.
+- **Next work:** milestone sign-off, then provisioning (Admin API + seed + SMS provider) or M2 on approval.
 - **Feature rules:** `docs/features/authentication.md`. Permission catalog: `docs/PERMISSIONS_MATRIX.md`.
