@@ -104,3 +104,17 @@ UI (web/mobile) → tRPC routers (api) → business services → repositories (d
 - `School_Portal_PRD_v2.md` — product context.
 - `docs/architecture/ADR-001..009.md` — architecture decisions.
 - `docs/{API_CONVENTIONS,DATABASE_CONVENTIONS,CODING_STANDARDS,DEFINITION_OF_DONE,UI_DESIGN_SYSTEM}.md`.
+
+### Planning & design references (2026-07)
+
+- `docs/REVIEW_FINDINGS.md` — documentation audit: contradictions, logic gaps, open items (read first).
+- `docs/USER_FLOWS.md` — end-to-end flows per role (F1–F14).
+- `docs/NAVIGATION_MAP.md` — expo-router + App Router route trees, guards, push deep links.
+- `docs/SCREEN_INVENTORY.md` — every screen with role, APIs, milestone.
+- `docs/COMPONENT_INVENTORY.md` — `packages/ui` primitives + domain components build checklist.
+- `docs/API_INVENTORY.md` — full tRPC catalog + scheduled jobs, webhooks, notification event matrix.
+- `docs/DB_RELATIONSHIP_DIAGRAM.md` — Mermaid ERD of the target schema.
+- `docs/PERMISSIONS_MATRIX.md` — permission × role × scope catalog (extends Dev PRD §5).
+- `docs/STATE_MANAGEMENT_PLAN.md` — Query/Zustand/RHF ownership, keys, cache policy.
+- `docs/OFFLINE_STRATEGY.md` — baseline caching + `offline` attendance queue design.
+- `docs/ANALYTICS_LOGGING_PLAN.md` — PostHog/Sentry/logging taxonomy + DPDP privacy rules.
