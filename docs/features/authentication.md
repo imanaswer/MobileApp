@@ -22,13 +22,18 @@ Spec: Dev PRD v1.3 §4.3–§4.4, §5, §8.1 · ADR-001/002 · `docs/PERMISSIONS
 
 ## Sessions
 - Web: SSR cookies + `middleware.ts` refresh; server reads session from cookies. Mobile: SecureStore + `autoRefreshToken`; bearer token to the tRPC route.
-- tRPC context resolves identity (cookie or bearer) → `Principal`. Errors map `DomainError → TRPCError` (UNAUTHORIZED/FORBIDDEN/NOT_FOUND).
+- tRPC context resolves identity (cookie or bearer) → `Principal`. Errors map `DomainError → TRPCError` (UNAUTHORIZED/FORBIDDEN/NOT_FOUND) via `mapDomainErrors`, which inspects the middleware **result** (tRPC v11 `next()` returns `{ ok, error }`, it never throws — see API_CONVENTIONS §6).
+- Mid-session revocation: `protectedProcedure` re-checks `status === ACTIVE` from the DB on every request, so a DISABLED user is cut off despite a valid JWT.
 
 ## Procedures (M1)
 `auth.me`, `auth.registerProfile` (activate), `auth.updateProfile` (self locale), `auth.setRole` / `auth.disableUser` / `auth.enableUser` (SUPER_ADMIN, audited in-transaction). Logout/refresh are client session ops.
 
 ## Audit
 `setRole`, `disableUser`, `enableUser`, and `USER_ACTIVATED` all write an `AuditLog` row in the same transaction (ADR-007).
+
+## Security & tests
+- Security review (M1 Step 9): `docs/SECURITY_REVIEW_M1.md` — `signInWithOtp` must always pass `shouldCreateUser: false` (no public signup; regression-tested); web security headers in `next.config.ts`; Supabase dashboard checklist pending provisioning.
+- Tests (M1 Step 10): 7 suites, 80 tests — `@repo/auth` (identity seam, session helpers), `@repo/business` (services + activation), `@repo/api` (gates, Zod, error mapping), `@repo/core` (policy, errors), `@repo/validation` (inputs), web (middleware token rotation, protected-layout redirect).
 
 ## Pending
 Provisioning (Admin API) + seed super-admin + SMS provider before real sign-in/OTP.

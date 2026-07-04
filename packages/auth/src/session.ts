@@ -103,6 +103,27 @@ export async function signOut(supabase: SupabaseClient): Promise<void> {
   }
 }
 
+/**
+ * Restore a previously issued session onto a fresh client (session-restoration
+ * path: app restart / new process re-adopting stored tokens).
+ */
+export async function restoreSession(
+  supabase: SupabaseClient,
+  tokens: { accessToken: string; refreshToken: string },
+): Promise<Session> {
+  const { data, error } = await supabase.auth.setSession({
+    access_token: tokens.accessToken,
+    refresh_token: tokens.refreshToken,
+  });
+  if (error) {
+    throw error;
+  }
+  if (!data.session) {
+    throw new Error("Session could not be restored");
+  }
+  return data.session;
+}
+
 /** Force a session refresh (rotates the access token using the refresh token). */
 export async function refreshSession(supabase: SupabaseClient): Promise<void> {
   const { error } = await supabase.auth.refreshSession();

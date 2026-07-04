@@ -48,6 +48,7 @@ Imperative mood, no `do`/`handle` prefixes, no HTTP verbs in names.
 - **Two-layer message:** a stable machine `code`/`appCode` for the client to branch on, plus a human message the client **localizes via `packages/i18n` keys** (never ship server-side localized prose as the source of truth).
 - **Field errors:** validation failures return Zod's flattened `fieldErrors` in `error.data` so forms can map errors to inputs.
 - Never leak stack traces, SQL, or internal ids in messages; log full detail to Sentry server-side.
+- **Domain error mapping:** business services throw `DomainError` subclasses (`@repo/core`); the `mapDomainErrors` middleware (`packages/api/src/trpc.ts`, applied to every procedure) remaps them to the matching `TRPCError` code. Implementation note: tRPC v11 middleware `next()` returns `{ ok: false, error }` with the original exception as `error.cause` — it does **not** throw — so the mapping must inspect the returned result; a try/catch around `next()` is dead code (M1 Step 10 finding).
 
 ## 7. Response conventions
 - Return **domain DTOs from `packages/types`, never raw Prisma models** — control the shape, omit internal fields, keep the contract stable.

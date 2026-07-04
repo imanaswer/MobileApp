@@ -41,20 +41,22 @@ const DOMAIN_TO_TRPC: Record<
  * Translate business `DomainError`s (thrown by services) into typed `TRPCError`s
  * so clients get FORBIDDEN/NOT_FOUND/… instead of a generic 500. Applied to every
  * procedure. Existing `TRPCError`s (e.g. the auth gates) pass through unchanged.
+ *
+ * tRPC middleware `next()` does NOT throw on downstream errors — it returns
+ * `{ ok: false, error }` with the original exception wrapped as `error.cause`
+ * (a plain try/catch here would never fire), so the mapping inspects the result.
  */
 const mapDomainErrors = t.middleware(async ({ next }) => {
-  try {
-    return await next();
-  } catch (error) {
-    if (error instanceof DomainError) {
-      throw new TRPCError({
-        code: DOMAIN_TO_TRPC[error.code] ?? "INTERNAL_SERVER_ERROR",
-        message: error.message,
-        cause: error,
-      });
-    }
-    throw error;
+  const result = await next();
+  if (!result.ok && result.error.cause instanceof DomainError) {
+    const domainError = result.error.cause;
+    throw new TRPCError({
+      code: DOMAIN_TO_TRPC[domainError.code] ?? "INTERNAL_SERVER_ERROR",
+      message: domainError.message,
+      cause: domainError,
+    });
   }
+  return result;
 });
 
 const baseProcedure = t.procedure.use(mapDomainErrors);

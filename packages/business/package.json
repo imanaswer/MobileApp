@@ -11,7 +11,10 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bootstrap": "dotenv -e ../../.env -- tsx scripts/bootstrap-school.ts",
+    "provision": "dotenv -e ../../.env -- tsx scripts/provision-user.ts",
+    "verify:auth": "dotenv -e ../../.env -- tsx scripts/verify-auth.ts"
   },
   "dependencies": {
     "@repo/auth": "workspace:*",
@@ -20,5 +23,9 @@
     "@repo/db": "workspace:*",
     "@repo/notifications": "workspace:*",
     "@repo/types": "workspace:*"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^8.0.0",
+    "tsx": "^4.19.2"
   }
 }

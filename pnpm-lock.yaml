@@ -314,6 +314,13 @@ importers:
       '@repo/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      dotenv-cli:
+        specifier: ^8.0.0
+        version: 8.0.0
+      tsx:
+        specifier: ^4.19.2
+        version: 4.22.4
 
   packages/constants: {}
 
@@ -7643,7 +7650,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 

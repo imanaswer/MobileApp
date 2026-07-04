@@ -3,7 +3,6 @@ import type { DbClient } from "./db-client";
 import { createAuditLogRepository, type AuditLogRepository } from "./repositories/audit.repository";
 import { createUserRepository, type UserRepository } from "./repositories/user.repository";
 
-
 /**
  * Repository composition (ADR-003). `createRepositories` is a pure DI factory —
  * given a client, it builds the repository set — NOT a global service locator.
@@ -12,6 +11,7 @@ import { createUserRepository, type UserRepository } from "./repositories/user.r
  */
 export * from "./repositories/user.repository";
 export * from "./repositories/audit.repository";
+export * from "./repositories/school.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */

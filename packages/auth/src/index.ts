@@ -7,8 +7,10 @@ export {
   createBrowserClient,
   createServerClient,
   createExpoClient,
+  createHeadlessClient,
   type SupabaseStorage,
 } from "./clients";
+export type { SupabaseClient } from "@supabase/supabase-js";
 export { getAuthUser, type AuthUser } from "./context";
 export {
   signInWithPassword,
@@ -20,6 +22,14 @@ export {
   onAuthStateChange,
   signOut,
   refreshSession,
+  restoreSession,
   type Session,
 } from "./session";
 export { hasRole } from "./rbac";
+export {
+  createAdminClient,
+  adminCreateUser,
+  adminFindUserId,
+  adminDeleteUser,
+  type AdminCreateUserInput,
+} from "./admin";

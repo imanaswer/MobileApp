@@ -1,31 +1,21 @@
 # Current Milestone
 
-**M1 — Authentication & User Profiles**
+**M1.5 — Infrastructure Provisioning — ✅ COMPLETE** · M1 approved & frozen.
 
 ## Current Step
 
-**Step 9 — Security Review** (Steps 1–8 complete; Steps 10–11 pending).
+Milestone delivered and verified (11/11 live auth checks). **Stop — M2 begins only on explicit approval.**
 
-## Scope (M1)
+## What exists now
 
-Authentication · Authorization · User Profiles · Session management.
-Roles: SUPER_ADMIN, OFFICE_ADMIN, TEACHER, PARENT, ACCOUNTANT (students don't log in; class-teacher is an assignment, not a role).
+- Live Supabase project `wupcsvbyrknfuuskzuzp` — migrated, security-configured (config-as-code, see `docs/RUNBOOK_SUPABASE_SETUP.md`).
+- Ops scripts: `pnpm --filter @repo/business run bootstrap | provision | verify:auth`.
+- Evidence + deferred items: `docs/milestones/M1.5-infrastructure.md`.
 
-## Out of scope
+## Out of scope until approved
 
-Students, attendance, classes, exams, homework, fees, notifications delivery, and any CRUD for school entities — those are M2+.
+All M2 feature work (students, staff, guardians, academic structure, CRUD).
 
-## Deliverables (remaining)
+## Standing blockers (go-live, not code)
 
-- Step 9 — Security review (JWT, storage, cookies, session expiry/refresh, brute-force/rate-limit, CSRF, sensitive logging, Supabase config).
-- Step 10 — Tests (auth/authz/permission/route-protection/session/edge cases).
-- Step 11 — Documentation (API, auth architecture; ADRs only if a new decision).
-
-## Stop conditions
-
-Complete only the current step, validate, update `docs/project_memory.md`, then **stop and wait for approval**. Do not begin M2.
-
-## Milestone-level blockers
-
-Provisioning (Supabase Admin API) + seed + SMS provider pending before real sign-in/OTP.
-Source of truth: **Dev PRD v1.3**.
+Real SMS provider + DLT for parent OTP (test number only today) · credential rotation before real data · HIBP needs Pro plan · custom SMTP for production email.

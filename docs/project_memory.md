@@ -4,11 +4,11 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Milestone
 
-**M1 — Authentication & User Profiles**
+**M1.5 — Infrastructure Provisioning — ✅ COMPLETE** (M1 approved & frozen 2026-07-05)
 
 ## Current Step
 
-**Step 10 — Tests** (next). Steps 1–9 complete.
+**M1.5 complete — stop; M2 starts only on explicit approval.**
 
 ## Completed
 
@@ -23,6 +23,10 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 - ✓ M1 Step 8 — Web auth (login/forgot/OTP/protected layout/middleware/logout/dashboard)
 - ✓ Workflow — Intelligent context loading system (`.claude/START_HERE.md` router + `docs/architecture_index.md`; docs only, no code changed)
 - ✓ M1 Step 9 — Security review (`docs/SECURITY_REVIEW_M1.md`): fixed OTP `shouldCreateUser:false` (SMS-pumping/user-creation hole) + added web security headers; Supabase dashboard config checklist pending provisioning
+- ✓ M1 Step 10 — Tests: 7 suites / 80 tests (auth 22, business 20, api 14, core 8, web 7, validation 6, utils 3). **Caught+fixed critical bug:** `mapDomainErrors` (`packages/api/src/trpc.ts`) was dead code — tRPC v11 `next()` returns a result, never throws — so business `DomainError`s surfaced as 500s; now remaps `error.cause` to typed codes (frozen-module amendment, allowed as critical bug)
+- ✓ M1 Step 11 — Documentation: `API_INVENTORY.md` auth section (implemented, gates, 6 procedures), `API_CONVENTIONS.md` §6 error-mapping nuance, `features/authentication.md` + status/milestone docs synced; no new ADR
+- ✓ **M1 approved & frozen** (2026-07-05)
+- ✓ **M1.5 — Infrastructure Provisioning**: live Supabase project (`wupcsvbyrknfuuskzuzp`) wired + migrated; `@repo/auth` admin module; bootstrap/provision/verify ops scripts (`packages/business/scripts`); auth security config applied via Management API (signups off, test OTP, OTP 600s, pw ≥10, URLs); **11/11 live auth checks passed** (OTP, email login, activation, session restore, refresh, logout, provisioning, signup-disabled); web build + expo android bundle with real env; `docs/RUNBOOK_SUPABASE_SETUP.md` + `docs/milestones/M1.5-infrastructure.md`
 
 ## Frozen Modules (read-only — see workflow.md)
 
@@ -49,14 +53,15 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Status
 
-M1 auth fully implemented on web + mobile; verified **typecheck 14/14, lint 14/14, tests (5 suites), web build, expo bundle**. No live Supabase in the dev environment (auth flows verified structurally + unit tests with mocks).
+M1 auth fully implemented, security-reviewed, tested, and documented on web + mobile; verified **typecheck 14/14, lint 14/14, tests 7 suites / 80 total, web build (`SKIP_ENV_VALIDATION=true` — no local Supabase env)**. No live Supabase in the dev environment (auth flows verified structurally + unit tests with mocks).
 
 ## Known Blockers / Notes
 
-- **Provisioning pending:** Supabase **Admin-API user provisioning + seed (super-admin) + SMS provider** not yet built — required before real sign-in/OTP.
+- **Real SMS provider pending:** Twilio creds are placeholders; only the test OTP number (`+919999900001`) works. Provider choice + India DLT needed before parent go-live.
+- **Rotate credentials before real data:** service-role key + DB password (+ seed admin password) were shared during setup; HIBP protection needs the Pro plan; custom SMTP before production. See M1.5 doc "Deferred".
 - **Source of truth is now Dev PRD v1.3** (merged from other contributors; reconciles milestone numbering + authz model to this code).
 - **Config artifacts to resolve:** a stray root `package-lock.json` (npm) and root `tsconfig.json` were merged in — conflict with the pnpm/Turborepo setup; cleanup pending user decision.
 
 ## Next Task
 
-**M1 Step 10 — Tests** (auth/authz/permission/route-protection/session/edge cases).
+**M2 kickoff — pending explicit user approval.**

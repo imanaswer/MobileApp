@@ -22,6 +22,16 @@ export function createServerClient(
   return createSsrServerClient(url, anonKey, { cookies });
 }
 
+/**
+ * Headless Node client (ops scripts / live verification): anon key, in-memory
+ * session only — nothing persisted, no background refresh.
+ */
+export function createHeadlessClient(url: string, anonKey: string): SupabaseClient {
+  return createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
 /** Async storage shape the Expo app injects (e.g. AsyncStorage / SecureStore). */
 export interface SupabaseStorage {
   getItem(key: string): Promise<string | null>;
