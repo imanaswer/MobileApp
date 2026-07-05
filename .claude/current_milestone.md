@@ -4,7 +4,9 @@
 
 ## Current Step
 
-**Steps 1–5 ✅ — next: Step 6 (mobile read-only screens).**
+**Steps 1–10 ✅ COMPLETE (2026-07-05) — deliverables reported; STOPPED awaiting
+user approval before M3.** Gates: typecheck 14/14 · lint 14/14 · tests 17 files /
+136 · web production build (real env) ✓.
 
 ## Scope (M2)
 

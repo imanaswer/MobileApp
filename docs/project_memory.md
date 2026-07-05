@@ -8,9 +8,8 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Step
 
-**M2 Steps 1–5 complete** (requirements; DB schema; RLS; business layer; API layer
-— 6 tRPC routers on `appRouter`, Zod inputs in `@repo/validation`, thin/delegating).
-Next: Step 6 (mobile read-only screens). 10-step workflow; stop after Step 10.
+**M2 Steps 1–10 COMPLETE (2026-07-05)** — deliverables reported; **STOPPED
+awaiting user approval before M3**.
 
 ## Completed
 
@@ -29,6 +28,20 @@ Next: Step 6 (mobile read-only screens). 10-step workflow; stop after Step 10.
 - ✓ M1 Step 11 — Documentation: `API_INVENTORY.md` auth section (implemented, gates, 6 procedures), `API_CONVENTIONS.md` §6 error-mapping nuance, `features/authentication.md` + status/milestone docs synced; no new ADR
 - ✓ **M1 approved & frozen** (2026-07-05)
 - ✓ **M1.5 — Infrastructure Provisioning**: live Supabase project (`wupcsvbyrknfuuskzuzp`) wired + migrated; `@repo/auth` admin module; bootstrap/provision/verify ops scripts (`packages/business/scripts`); auth security config applied via Management API (signups off, test OTP, OTP 600s, pw ≥10, URLs); **11/11 live auth checks passed** (OTP, email login, activation, session restore, refresh, logout, provisioning, signup-disabled); web build + expo android bundle with real env; `docs/RUNBOOK_SUPABASE_SETUP.md` + `docs/milestones/M1.5-infrastructure.md`
+
+- ✓ **M2 Steps 1–5** (2026-07-05) — requirements analysis; DB schema + migration
+  (6 models, live-probed constraints); RLS policies (`20260705010000_academic_rls`);
+  6 business services (permission+scope gated, audited in-tx); 6 thin API routers
+  + Zod inputs (`istDateSchema`)
+- ✓ **M2 Step 6** — mobile read-only academic screens (years/classes/subjects/
+  assignments) + role-aware Home links
+- ✓ **M2 Step 7** — web CRUD `/academic/*` (years+terms, classes+sections,
+  subjects, assignments) with search/pagination/filters/dialogs; manage-gated UI
+- ✓ **M2 Step 8** — tests: 17 files / 136 total (business 50, auth 32, api 25,
+  validation 11, core 8, web 7, utils 3); typecheck+lint 14/14; web prod build
+  with real env validation
+- ✓ **M2 Steps 9–10** — docs synced (API_INVENTORY rewritten to implemented
+  surface, feature + status docs added) + deliverables report → awaiting approval
 
 - ✓ **M1 RLS hardening** (security-fix exception, 2026-07-05): M1 auth tables shipped with no RLS. Migration `20260705020000_m1_rls_hardening` enables RLS (not FORCE) on School/User/DeviceToken/AuditLog with read-only policies (`user_read_self` + `is_admin()` reads; owner-only device tokens; admin-only School/AuditLog) — stops parent/teacher user enumeration; no write policies (writes stay service_role); anon denied. Defense-in-depth only. **Blocking pre-apply gate:** confirm live Prisma role bypasses RLS before applying or auth locks out (see `docs/RLS_POLICIES.md`). All 80 tests still green.
 
@@ -57,7 +70,14 @@ Next: Step 6 (mobile read-only screens). 10-step workflow; stop after Step 10.
 
 ## Current Status
 
-M1 auth fully implemented, security-reviewed, tested, and documented on web + mobile; verified **typecheck 14/14, lint 14/14, tests 7 suites / 80 total, web build (`SKIP_ENV_VALIDATION=true` — no local Supabase env)**. No live Supabase in the dev environment (auth flows verified structurally + unit tests with mocks).
+M1 auth implemented, reviewed, and **frozen**. **M2 Academic Foundation complete
+(Steps 1–10, 2026-07-05), awaiting approval:** six academic entities with DB
+invariants (partial-unique ACTIVE year, gist EXCLUDE term overlap, CHECKs,
+Restrict FKs), RLS defense-in-depth, six permission-gated services (mutations
+audited in-tx), six thin routers, web CRUD (`/academic/*`), mobile read-only
+placeholders, docs synced. Verified **typecheck 14/14, lint 14/14, tests 17
+files / 136 total, web production build with real env validation** (root `.env`
+from M1.5). `@repo/core` added as a web+mobile dependency (UI `can()` checks).
 
 ## Known Blockers / Notes
 
@@ -68,6 +88,6 @@ M1 auth fully implemented, security-reviewed, tested, and documented on web + mo
 
 ## Next Task
 
-**M2 Step 6 — Mobile** (placeholder read-only screens: academic years, classes,
-subjects, teacher assignments; consume `@repo/api` client, type-only AppRouter;
-no editing UI, no student screens).
+**STOPPED — M2 deliverables reported; waiting for user approval before M3**
+(people records: Student/Guardian/Staff, enrollment, guardian↔student links,
+teacher picker for assignments, class-teacher flag).

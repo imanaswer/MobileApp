@@ -24,7 +24,41 @@ Gates: **onboarding** = authenticated, INVITED or ACTIVE (DISABLED rejected); **
 
 Logout/refresh are client-side Supabase session operations (`@repo/auth` helpers), not procedures.
 
-## students / guardians / staff (M2)
+## academic structure (M2 — implemented)
+
+Six flat routers (naming per M2 kickoff brief: **Class/Section**, not the older
+ClassLevel/Division draft). All procedures run on the **protected** gate
+(authenticated + ACTIVE); the business service then enforces the permission.
+Reads need `academic:read` (SUPER_ADMIN, OFFICE_ADMIN, TEACHER); mutations need
+`academic:manage` (SUPER_ADMIN, OFFICE_ADMIN). Parents have no access. Every
+mutation writes `AuditLog` in the same transaction. Lists return bounded full
+arrays (single-tenant admin data) — cursor pagination arrives with unbounded data.
+
+| Procedure | T | Permission | Audit | Notes |
+|---|---|---|---|---|
+| `academicYear.list/get` | Q | `academic:read` | – | |
+| `academicYear.create/update` | M | `academic:manage` | ✓ | name unique/school; start<end; ≤1 ACTIVE/school |
+| `academicYear.delete` | M | `academic:manage` | ✓ | cascades its terms (DB Cascade) |
+| `academicTerm.list` | Q | `academic:read` | – | by `academicYearId` |
+| `academicTerm.get` | Q | `academic:read` | – | |
+| `academicTerm.create/update` | M | `academic:manage` | ✓ | name unique/year; start<end; no overlap (incl. boundary) |
+| `academicTerm.delete` | M | `academic:manage` | ✓ | |
+| `class.list/get` | Q | `academic:read` | – | ordered by `sortOrder` |
+| `class.create/update` | M | `academic:manage` | ✓ | name unique/school |
+| `class.delete` | M | `academic:manage` | ✓ | blocked while sections exist |
+| `section.list` | Q | `academic:read` | – | by `classId` |
+| `section.get` | Q | `academic:read` | – | |
+| `section.create/update` | M | `academic:manage` | ✓ | name unique/class |
+| `section.delete` | M | `academic:manage` | ✓ | blocked while assignments exist |
+| `subject.list/get` | Q | `academic:read` | – | school-wide catalog |
+| `subject.create/update` | M | `academic:manage` | ✓ | name unique/school |
+| `subject.delete` | M | `academic:manage` | ✓ | blocked while assignments exist |
+| `teacherAssignment.list` | Q | `academic:read` | – | filters teacher/subject/section; a TEACHER is always scoped to own rows |
+| `teacherAssignment.get` | Q | `academic:read` | – | teacher may read only own (scope rule) |
+| `teacherAssignment.create` | M | `academic:manage` | ✓ | assignee must be ACTIVE TEACHER in school; no duplicate (teacher, subject, section) |
+| `teacherAssignment.delete` | M | `academic:manage` | ✓ | assignments are immutable — no update |
+
+## students / guardians / staff (M3 — planned)
 
 | Procedure | T | Permission | Audit | Notif | Pagination |
 |---|---|---|---|---|---|
@@ -37,14 +71,17 @@ Logout/refresh are client-side Supabase session operations (`@repo/auth` helpers
 | `guardians.list` | Q | `student:read` | – | – | cursor |
 | `staff.create` / `update` / `assign` | M | `staff:*` | ✓ | – | assign = TeacherAssignment incl. isClassTeacher |
 
-## academic / enrollment (M2)
+## calendar / settings / enrollment (M3+ — planned)
+
+Older draft rows (pre-M2-kickoff naming). `setCurrent` was subsumed by
+`academicYear.update { status }` in the implemented surface above; holidays,
+settings, class-subject mapping, and the class-teacher flag are future work.
 
 | Procedure | T | Permission | Audit | Notes |
 |---|---|---|---|---|
-| `academic.academicYears.*` (CRUD + setCurrent) | Q/M | `academic:manage` | ✓ | setCurrent = transactional flip; partial unique index enforces one current (v1.3) |
-| `academic.holidays.*` (list/create/delete) | Q/M | `academic:manage` | ✓ | school calendar (Dev PRD §8.19); optional classLevel scope |
+| `academic.holidays.*` (list/create/delete) | Q/M | `academic:manage` | ✓ | school calendar (Dev PRD §8.19); optional class scope |
 | `academic.settings.get/update` | Q/M | `academic:manage` | ✓ | typed `SchoolSettings` (attendance mode, periods, cutoff, working weekdays) |
-| `academic.classLevels.*` / `divisions.*` / `subjects.*` / `classSubjects.*` / `teacherAssignments.*` | Q/M | `academic:manage` | ✓ (mutations) | reads open to staff roles |
+| `classSubjects.*` (class↔subject mapping) | Q/M | `academic:manage` | ✓ | with class-teacher flag on assignments |
 | `enrollment.enroll` / `transfer` / `drop` | M | `enrollment:*` | ✓ | |
 | `enrollment.list` | Q | `student:read` | – | offset OK (bounded roster) |
 | `enrollment.promoteBulk` | M | `enrollment:promote_bulk` | ✓ | retain/transfer overrides; dry-run mode recommended |
