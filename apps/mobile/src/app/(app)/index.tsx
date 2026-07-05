@@ -8,15 +8,18 @@ import { useAuthStore } from "../../stores/auth-store";
 
 /**
  * Role-aware placeholder home. M2 adds read-only academic-structure links for
- * roles holding ACADEMIC_READ (admins + teachers); parents/accountants see the
- * M1 shell unchanged. Feature screens (attendance, marks, …) arrive in later
- * milestones.
+ * roles holding ACADEMIC_READ (admins + teachers); M3 adds People links gated
+ * per permission (students/parents/teacher profiles — row scope applied by the
+ * services). Feature screens (attendance, marks, …) arrive in later milestones.
  */
 export default function AppHome() {
   const me = trpc.auth.me.useQuery();
   const logout = useAuthStore((state) => state.logout);
   const role = me.data?.role;
   const canReadAcademic = role !== undefined && can(role, PERMISSIONS.ACADEMIC_READ);
+  const canReadStudents = role !== undefined && can(role, PERMISSIONS.STUDENT_READ);
+  const canReadParents = role !== undefined && can(role, PERMISSIONS.PARENT_READ);
+  const canReadStaff = role !== undefined && can(role, PERMISSIONS.STAFF_READ);
 
   return (
     <View className="flex-1 items-center justify-center gap-4 bg-background p-6">
@@ -32,6 +35,17 @@ export default function AppHome() {
           <NavLink href="/academic/classes" label="Classes" />
           <NavLink href="/academic/subjects" label="Subjects" />
           <NavLink href="/academic/assignments" label="Teacher assignments" />
+        </View>
+      ) : null}
+
+      {canReadStudents || canReadParents || canReadStaff ? (
+        <View className="w-full gap-2">
+          <Text className="text-sm font-medium text-muted-foreground">People</Text>
+          {canReadStudents ? <NavLink href="/people/students" label="Students" /> : null}
+          {canReadParents ? <NavLink href="/people/parents" label="Parents" /> : null}
+          {canReadStaff ? (
+            <NavLink href="/people/teacher-profiles" label="Teacher profiles" />
+          ) : null}
         </View>
       ) : null}
 
