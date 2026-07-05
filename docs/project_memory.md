@@ -4,12 +4,14 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Milestone
 
-**M2 — Academic Foundation** (kicked off 2026-07-05; scope = academic structure only — see `docs/milestones/M2.md`)
+**M3 — People Management** (kicked off 2026-07-05; scope = students, parents +
+links, staff profiles, enrollment per ADR-010, student documents — see
+`docs/milestones/M3.md`)
 
 ## Current Step
 
-**M2 Steps 1–10 COMPLETE (2026-07-05)** — deliverables reported; **STOPPED
-awaiting user approval before M3**.
+**M3 Steps 1–10 COMPLETE (2026-07-05)** — deliverables reported; **STOPPED
+awaiting user approval before M4 — Attendance**.
 
 ## Completed
 
@@ -43,6 +45,36 @@ awaiting user approval before M3**.
 - ✓ **M2 Steps 9–10** — docs synced (API_INVENTORY rewritten to implemented
   surface, feature + status docs added) + deliverables report → awaiting approval
 
+- ✓ **M2 approved & frozen** (2026-07-05)
+- ✓ **M3 Steps 1–5** (2026-07-05, commit `741dca1`) — ADR-010 (Student identity
+  vs Enrollment placement) + requirements; DB schema + migration
+  `20260705030000_people_management` (Student/StudentDocument/Parent/
+  StudentParent/Staff/Enrollment, partial uniques, CHECKs); relationships
+  (Restrict on placement history, Cascade docs/links, SetNull parent login);
+  RLS `20260705040000_people_rls` (admin ALL, teacher own-section, parent
+  own-child, self rows); 5 business services + shared row-scope helpers,
+  audited in-tx; PERMISSIONS split `*:read`/`*:manage` per people entity
+- ✓ **M3 Step 6** (`9fded51`) — 5 thin routers (`student/parent/teacherProfile/
+  enrollment/studentDocument`) + Zod inputs; `StudentListFilter` widened for
+  `exactOptionalPropertyTypes`
+- ✓ **M3 Step 7** (`e5b7d28`) — mobile read-only people screens (students,
+  student profile w/ enrollment history + guardians, parents, teacher profiles);
+  permission-gated Home links
+- ✓ **M3 Step 8** (`6f17532`) — web `/people/*` full CRUD (students + detail
+  with enroll/transfer/promote/withdraw, guardian links, documents; parents;
+  teacher profiles); **ADR-004 storage end-to-end**: business `StoragePort`
+  mint services (authz before URL), API `storageProcedure` +
+  `uploadUrl/downloadUrl`, web service-role adapter + `uploadToSignedUrl`;
+  private `student-documents` bucket documented (runbook §3b, provisioning
+  pending)
+- ✓ **M3 Step 9** (`d1929eb`) — +77 tests (business 53: identity uniqueness,
+  row scopes, full ADR-010 lifecycle incl. invalid transfer/promotion, guardian
+  links, document visibility + mint authz; api 15; validation 9). Totals:
+  **20 files / 213 tests**; typecheck+lint 14/14; web build + mobile export ✓
+- ✓ **M3 Step 10** — docs synced (API_INVENTORY people section,
+  `features/people-management.md`, status, milestone, memory); no new ADR
+  (ADR-010 + ADR-004 cover the decisions)
+
 - ✓ **M1 RLS hardening** (security-fix exception, 2026-07-05): M1 auth tables shipped with no RLS. Migration `20260705020000_m1_rls_hardening` enables RLS (not FORCE) on School/User/DeviceToken/AuditLog with read-only policies (`user_read_self` + `is_admin()` reads; owner-only device tokens; admin-only School/AuditLog) — stops parent/teacher user enumeration; no write policies (writes stay service_role); anon denied. Defense-in-depth only. **Blocking pre-apply gate:** confirm live Prisma role bypasses RLS before applying or auth locks out (see `docs/RLS_POLICIES.md`). All 80 tests still green.
 
 ## Frozen Modules (read-only — see workflow.md)
@@ -51,6 +83,8 @@ awaiting user approval before M3**.
 - Auth DB models (`packages/db`), Authorization (`packages/core` + `packages/business/authorization`)
 - Business auth services (`packages/business/{auth,services}`), API auth router (`packages/api`)
 - Mobile auth (`apps/mobile/src/{app,lib,stores,providers}`), Web auth (`apps/web` auth routes + middleware + `src/lib/supabase`)
+- M2 academic structure (schema/migrations, `services/academic`, academic routers, `/academic/*` web, mobile academic screens)
+- M3 people management freezes on approval (schema/migrations, `services/people`, people routers, `/people/*` web, mobile people screens)
 
 > Frozen = amend only for a critical bug, a security fix (Step 9 may amend), or explicit user approval.
 
@@ -70,14 +104,16 @@ awaiting user approval before M3**.
 
 ## Current Status
 
-M1 auth implemented, reviewed, and **frozen**. **M2 Academic Foundation complete
-(Steps 1–10, 2026-07-05), awaiting approval:** six academic entities with DB
-invariants (partial-unique ACTIVE year, gist EXCLUDE term overlap, CHECKs,
-Restrict FKs), RLS defense-in-depth, six permission-gated services (mutations
-audited in-tx), six thin routers, web CRUD (`/academic/*`), mobile read-only
-placeholders, docs synced. Verified **typecheck 14/14, lint 14/14, tests 17
-files / 136 total, web production build with real env validation** (root `.env`
-from M1.5). `@repo/core` added as a web+mobile dependency (UI `can()` checks).
+M0/M1/M1.5/M2 **approved & frozen**. **M3 People Management complete (Steps
+1–10, 2026-07-05), awaiting approval:** Student identity + Enrollment placement
+(ADR-010 — one row per student per year, in-place same-class transfer, new-row
+promotion, dual-write withdraw), Parent↔Student junction with relationship enum
++ single primary, Staff 1:1 User, StudentDocument metadata over the private
+`student-documents` bucket with server-minted signed URLs (ADR-004; teacher
+sees PHOTO only). Row scope in the business layer (teacher → own sections,
+parent → own children) + RLS defense-in-depth. Web `/people/*` full CRUD,
+mobile read-only screens. Verified **typecheck 14/14, lint 14/14, tests 20
+files / 213 total, web production build, mobile ios export**.
 
 ## Known Blockers / Notes
 
@@ -88,6 +124,7 @@ from M1.5). `@repo/core` added as a web+mobile dependency (UI `can()` checks).
 
 ## Next Task
 
-**STOPPED — M2 deliverables reported; waiting for user approval before M3**
-(people records: Student/Guardian/Staff, enrollment, guardian↔student links,
-teacher picker for assignments, class-teacher flag).
+**STOPPED — M3 deliverables reported; waiting for user approval before M4 —
+Attendance** (marks against Enrollment rows; absence notifications). Before
+live document uploads: create the private `student-documents` bucket
+(runbook §3b).

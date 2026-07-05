@@ -1,5 +1,9 @@
-# Feature — Students / People (not yet implemented)
+# Feature — Students / People (implemented in M3)
 
-Spec: Dev PRD v1.3 §6, §8.2. Status: `docs/status/Students.md`.
+Superseded pointer: the implemented feature is documented in
+**`docs/features/people-management.md`** (students, parents/guardians, staff
+profiles, enrollment per ADR-010, student documents per ADR-004).
+Status: `docs/status/Students.md`. Spec: M3 kickoff brief · Dev PRD v1.3 §6, §8.2.
 
-Key rules (when built in M2): students are **records, not users**; guardian↔student is **many-to-many** with one `isPrimary`; bulk CSV/Excel import with validation + error report + `ImportJob`; student lifecycle per academic year (`admitted→active→promoted/retained/transferred/dropped→alumni`). Depends on frozen Authentication.
+Still future: bulk CSV/Excel import (`ImportJob`), guardian portal invites,
+class-teacher flag.

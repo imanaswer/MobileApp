@@ -58,35 +58,64 @@ arrays (single-tenant admin data) — cursor pagination arrives with unbounded d
 | `teacherAssignment.create` | M | `academic:manage` | ✓ | assignee must be ACTIVE TEACHER in school; no duplicate (teacher, subject, section) |
 | `teacherAssignment.delete` | M | `academic:manage` | ✓ | assignments are immutable — no update |
 
-## students / guardians / staff (M3 — planned)
+## people management (M3 — implemented)
 
-| Procedure | T | Permission | Audit | Notif | Pagination |
-|---|---|---|---|---|---|
-| `students.list` | Q | `student:read` | – | – | cursor (search/filter by class/division/status) |
-| `students.get` | Q | `student:read` | – | – | – |
-| `students.create` / `update` | M | `student:create/update` | ✓ | – | |
-| `students.archive` | M | `student:archive` | ✓ | – | lifecycle, not delete |
-| `students.bulkImport` | M | `import:run` | ✓ (ImportJob) | – | async; per-batch transactions |
-| `guardians.create` / `linkToStudent` / `invite` | M | `guardian:*` | ✓ | invite → SMS/notification | |
-| `guardians.list` | Q | `student:read` | – | – | cursor |
-| `staff.create` / `update` / `assign` | M | `staff:*` | ✓ | – | assign = TeacherAssignment incl. isClassTeacher |
+Five flat routers on the **protected** gate. The service enforces the permission
+AND row scope: a TEACHER reads only students enrolled in sections they teach
+(ACTIVE year, via TeacherAssignment) and only their own staff profile; a PARENT
+reads only their own children (via StudentParent) and their own parent record.
+**Student is identity only — Enrollment owns per-year placement (ADR-010).**
+Every mutation writes `AuditLog` in the same transaction. Bounded full lists
+(single school) — cursor pagination arrives with genuinely unbounded data.
 
-## calendar / settings / enrollment (M3+ — planned)
+| Procedure | T | Permission | Audit | Notes |
+|---|---|---|---|---|
+| `student.list` | Q | `student:read` | – | server-side status filter + search; row-scoped |
+| `student.get` | Q | `student:read` | – | row-scoped |
+| `student.create` | M | `student:manage` | ✓ | admissionNo unique/school; Aadhaar unique when present |
+| `student.update` | M | `student:manage` | ✓ | identity fields only — never class/section/year |
+| `student.archive` | M | `student:manage` | ✓ | lifecycle, not delete |
+| `parent.list` / `get` | Q | `parent:read` | – | PARENT role → own record only |
+| `parent.create` / `update` | M | `parent:manage` | ✓ | optional 1:1 `User` link (portal login vs contact-only) |
+| `parent.delete` | M | `parent:manage` | ✓ | removes the record; links cascade |
+| `parent.link` / `unlink` | M | `parent:manage` | ✓ | `(student, parent, relationship)` unique; `isPrimary` clears the previous primary |
+| `parent.guardians` | Q | `student:read` | – | one student's links; student-scoped |
+| `teacherProfile.list` / `get` | Q | `staff:read` | – | TEACHER → own profile only |
+| `teacherProfile.create/update/delete` | M | `staff:manage` | ✓ | employeeId unique/school; 1:1 User (no auth duplication) |
+| `enrollment.listByStudent` | Q | `enrollment:read` | – | full history (never mutated); student-scoped |
+| `enrollment.sectionRoster` | Q | `enrollment:read` | – | teacher → only sections they teach; parent → none |
+| `enrollment.create` | M | `enrollment:manage` | ✓ | one per (student, year); no section → ADMITTED; rollNo needs a free slot in section+year |
+| `enrollment.transfer` | M | `enrollment:manage` | ✓ | same class, IN-PLACE on the same row (ADR-010 §5); rollNo cleared unless re-given |
+| `enrollment.promote` | M | `enrollment:manage` | ✓ | NEW row in the target year; source → PROMOTED (or RETAINED if same class) |
+| `enrollment.withdraw` | M | `enrollment:manage` | ✓✓ | enrollment → DROPPED **and** student → WITHDRAWN, one tx, two audit rows |
+| `studentDocument.list` / `get` | Q | `student_document:read` | – | TEACHER sees the PHOTO type only |
+| `studentDocument.upload` / `replace` | M | `student_document:manage` | ✓ | metadata only (bytes in Storage); replace bumps `version` |
+| `studentDocument.delete` | M | `student_document:manage` | ✓ | metadata only; the stored file stays until storage cleanup |
+| `studentDocument.uploadUrl` | M | `student_document:manage` | – | **storage gate**; one-time signed upload URL, server-chosen `schoolId/…` path (ADR-004) |
+| `studentDocument.downloadUrl` | M | `student_document:read` | – | **storage gate**; 300 s signed URL, minted only after scope + type-visibility checks |
+
+Storage gate = `storageProcedure`: the host must wire a `StoragePort`
+(service-role signed-URL adapter) into the tRPC context; without it these two
+return `PRECONDITION_FAILED`. Web wires it in `apps/web/src/lib/storage.ts`.
+
+Still planned from the old draft: `students.bulkImport` (ImportJob), guardian
+portal invites, and the class-teacher flag on assignments — future milestones.
+
+## calendar / settings (M4+ — planned)
 
 Older draft rows (pre-M2-kickoff naming). `setCurrent` was subsumed by
-`academicYear.update { status }` in the implemented surface above; holidays,
-settings, class-subject mapping, and the class-teacher flag are future work.
+`academicYear.update { status }`; single-enrollment ops shipped in M3 above
+(`promoteBulk` with dry-run remains future work); holidays, settings, and
+class-subject mapping are future work.
 
 | Procedure | T | Permission | Audit | Notes |
 |---|---|---|---|---|
 | `academic.holidays.*` (list/create/delete) | Q/M | `academic:manage` | ✓ | school calendar (Dev PRD §8.19); optional class scope |
 | `academic.settings.get/update` | Q/M | `academic:manage` | ✓ | typed `SchoolSettings` (attendance mode, periods, cutoff, working weekdays) |
 | `classSubjects.*` (class↔subject mapping) | Q/M | `academic:manage` | ✓ | with class-teacher flag on assignments |
-| `enrollment.enroll` / `transfer` / `drop` | M | `enrollment:*` | ✓ | |
-| `enrollment.list` | Q | `student:read` | – | offset OK (bounded roster) |
-| `enrollment.promoteBulk` | M | `enrollment:promote_bulk` | ✓ | retain/transfer overrides; dry-run mode recommended |
+| `enrollment.promoteBulk` | M | `enrollment:manage` | ✓ | retain/transfer overrides; dry-run mode recommended |
 
-## attendance (M3)
+## attendance (M4 — next)
 
 | Procedure | T | Permission | Audit | Notif |
 |---|---|---|---|---|

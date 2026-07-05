@@ -1,10 +1,10 @@
 # Status — Students / People
 
-- **Status:** Not started
-- **Current milestone:** M2 (People + bulk import + academic structure)
-- **Completion:** 0%
-- **Dependencies:** Authentication (frozen), `@repo/db` (adds Student/Guardian/Staff models)
-- **Frozen?** No
-- **Known issues:** —
-- **Next work:** M2 — student/guardian/staff records, guardian↔student M:N, bulk import.
-- **Spec:** Dev PRD v1.3 §6, §8.2.
+- **Status:** Implemented (M3 Steps 1–10 complete, awaiting approval)
+- **Current milestone:** M3 — People Management
+- **Completion:** 100% of M3 scope (students, parents + links, staff profiles, enrollment, documents)
+- **Dependencies:** Authentication (frozen), Academic structure (M2, frozen), private `student-documents` bucket (runbook §3b — manual provisioning pending)
+- **Frozen?** Not yet (freezes on M3 approval)
+- **Known issues:** document delete removes metadata only (bytes stay until storage cleanup); staff/assignment forms take a raw user id (no user-directory API); parents see raw ids for class/section names on mobile (no `academic:read`)
+- **Next work:** M4 — Attendance (marks against Enrollment rows). Future: bulk import, guardian invites, class-teacher flag, `promoteBulk`.
+- **Spec:** M3 kickoff brief · ADR-010 · `docs/features/people-management.md`.

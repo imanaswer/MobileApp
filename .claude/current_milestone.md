@@ -1,32 +1,48 @@
 # Current Milestone
 
-**M2 — Academic Foundation** (kickoff 2026-07-05)
+**M3 — People Management** (kickoff 2026-07-05)
 
 ## Current Step
 
 **Steps 1–10 ✅ COMPLETE (2026-07-05) — deliverables reported; STOPPED awaiting
-user approval before M3.** Gates: typecheck 14/14 · lint 14/14 · tests 17 files /
-136 · web production build (real env) ✓.
+user approval before M4 — Attendance.** Gates: typecheck 14/14 · lint 14/14 ·
+tests 20 files / 213 · web production build ✓ · mobile ios export ✓.
 
-## Scope (M2)
+## Scope (M3)
 
-Academic structure ONLY: `AcademicYear`, `AcademicTerm`, `Class`, `Section`,
-`Subject`, `TeacherAssignment`. Managed by SUPER_ADMIN + OFFICE_ADMIN; staff
-read; teachers read own assignments; parents no access.
+`Student` (identity only), `Parent` + `StudentParent` junction (relationship
+enum, single primary), `Staff` (1:1 User employment profile), `Enrollment`
+(ADR-010 — owns year/class/section/rollNo, one per student per year),
+`StudentDocument` (metadata; bytes in the private `student-documents` bucket,
+signed URLs minted server-side per ADR-004).
 
 ## Out of scope
 
-Students, enrollment, attendance, marks, report cards, timetable, fees, people
-records (Staff/Guardian), bulk import, class-teacher flag — later milestones.
+Attendance, homework, exams/marks, report cards, fees, timetable,
+communication, bulk import — later milestones.
 
-## Workflow (stop after Step 10)
+## Roles
 
-1 Requirements ✅ · 2 DB design · 3 RLS · 4 Business · 5 API · 6 Mobile (read-only)
-· 7 Web (CRUD) · 8 Testing · 9 Documentation · 10 Deliverables report → STOP.
+SUPER_ADMIN / OFFICE_ADMIN full management · TEACHER reads students in sections
+they teach (+ own staff profile; PHOTO documents only) · PARENT reads own
+children (+ own parent record) · ACCOUNTANT none. Row scope lives in the
+business services; RLS is defense-in-depth.
 
-## Invariants (from the brief — enforce DB + business)
+## Workflow (stop after each step)
 
-One ACTIVE year · terms don't overlap · class name unique/school · section
-unique/class · subject unique/school · no duplicate (teacher, subject, section)
-assignment. All admin mutations audited in-transaction. M1 frozen (critical
-bug/security fixes only).
+1 Requirements ✅ (ADR-010) · 2 DB ✅ · 3 Relationships ✅ · 4 RLS ✅ ·
+5 Business ✅ · 6 API ✅ (`9fded51`) · 7 Mobile ✅ (`e5b7d28`) · 8 Web ✅
+(`6f17532`) · 9 Testing ✅ (`d1929eb`) · 10 Documentation ✅ → **STOP**.
+
+## Invariants (enforce DB + business)
+
+Admission no unique/school · Aadhaar partial-unique · one enrollment per
+(student, year) · promotion = NEW enrollment, history never mutated · same-class
+transfer = in-place · rollNo needs section + unique per (year, section) · one
+primary contact per student · employeeId unique/school · all admin mutations
+audited in-transaction. M0–M2 frozen (critical bug/security fixes only).
+
+## Open items
+
+Private `student-documents` bucket needs manual provisioning
+(RUNBOOK_SUPABASE_SETUP.md §3b) before live document uploads.
