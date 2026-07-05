@@ -54,22 +54,24 @@ model School {
 // `id` == Supabase `auth.users.id` — no separate PK, no default (the UID is
 // supplied at provisioning). Credentials/OTP live in Supabase; we store none.
 model User {
-  id           String        @id
-  schoolId     String // loose tenant ref (ADR-008)
-  role         Role
-  status       UserStatus    @default(INVITED)
-  phone        String?       @unique
-  email        String?       @unique
-  locale       Locale        @default(EN)
-  lastLoginAt  DateTime?
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  deviceTokens DeviceToken[]
-  // Virtual back-relation only (no column/behavior change to the frozen M1 model).
+  id                 String              @id
+  schoolId           String // loose tenant ref (ADR-008)
+  role               Role
+  status             UserStatus          @default(INVITED)
+  phone              String?             @unique
+  email              String?             @unique
+  locale             Locale              @default(EN)
+  lastLoginAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  deviceTokens       DeviceToken[]
+  // Virtual back-relations only (no column/behavior change to the frozen M1 model).
   teacherAssignments TeacherAssignment[]
+  staff              Staff? // M3: employment profile, 1:1 (userId unique on Staff)
+  parent             Parent? // M3: parent portal login, 1:1 (userId unique on Parent)
+  // + raw SQL: RLS ON — read-self + admin-read-all (m1_rls_hardening)
 
   @@index([schoolId, role])
-  // + raw SQL: RLS ON — read-self + admin-read-all (m1_rls_hardening)
 }
 
 // ---------- devices ----------
@@ -82,9 +84,9 @@ model DeviceToken {
   platform      String
   lastSeenAt    DateTime @default(now())
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // + raw SQL: RLS ON — owner read only (m1_rls_hardening)
 
   @@index([userId])
-  // + raw SQL: RLS ON — owner read only (m1_rls_hardening)
 }
 
 // ---------- academic structure (M2) ----------
@@ -102,21 +104,22 @@ enum AcademicYearStatus {
 // TIME axis root, e.g. "2026–27". Calendar dates are @db.Date (IST convention,
 // Dev PRD decision #22) so range logic can't drift by a UTC off-by-one.
 model AcademicYear {
-  id        String             @id @default(cuid())
-  schoolId  String // loose tenant ref (ADR-008)
-  name      String
-  startDate DateTime           @db.Date
-  endDate   DateTime           @db.Date
-  status    AcademicYearStatus @default(PLANNED)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
-  terms     AcademicTerm[]
-
-  @@unique([schoolId, name])
-  @@index([schoolId, status])
+  id          String             @id @default(cuid())
+  schoolId    String // loose tenant ref (ADR-008)
+  name        String
+  startDate   DateTime           @db.Date
+  endDate     DateTime           @db.Date
+  status      AcademicYearStatus @default(PLANNED)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  terms       AcademicTerm[]
+  enrollments Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
   // + raw SQL: UNIQUE (schoolId) WHERE status = 'ACTIVE'  — one ACTIVE year
   // + raw SQL: CHECK (startDate < endDate)
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration; defense-in-depth)
+
+  @@unique([schoolId, name])
+  @@index([schoolId, status])
 }
 
 // Subdivision of a year, e.g. "Term 1". Sibling terms must not overlap
@@ -131,29 +134,30 @@ model AcademicTerm {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-
-  @@unique([academicYearId, name])
-  @@index([academicYearId, startDate])
   // + raw SQL: EXCLUDE USING gist (academicYearId =, daterange(start,end,'[]') &&)
   // + raw SQL: CHECK (startDate < endDate)
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
+
+  @@unique([academicYearId, name])
+  @@index([academicYearId, startDate])
 }
 
 // STRUCTURE axis: a grade level ("Grade 5"). Persistent across years —
 // enrollment (M3) binds student × section × year. sortOrder gives deterministic
 // display order ("Grade 10" would otherwise sort before "Grade 2").
 model Class {
-  id        String    @id @default(cuid())
-  schoolId  String // loose tenant ref (ADR-008)
-  name      String
-  sortOrder Int       @default(0)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  sections  Section[]
+  id          String       @id @default(cuid())
+  schoolId    String // loose tenant ref (ADR-008)
+  name        String
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  sections    Section[]
+  enrollments Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([schoolId, name])
   @@index([schoolId, sortOrder])
-  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 }
 
 // Parallel group within a class ("A", "B"). Restrict delete from Class: a class
@@ -166,9 +170,10 @@ model Section {
   updatedAt          DateTime            @updatedAt
   class              Class               @relation(fields: [classId], references: [id], onDelete: Restrict)
   teacherAssignments TeacherAssignment[]
+  enrollments        Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([classId, name])
-  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 }
 
 // School-wide subject catalog ("Gujarati", "Mathematics") — a sibling of the
@@ -180,9 +185,9 @@ model Subject {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   teacherAssignments TeacherAssignment[]
+  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([schoolId, name])
-  // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 }
 
 // The operational unit: teacher × subject × section. teacherId references
@@ -201,12 +206,12 @@ model TeacherAssignment {
   teacher   User     @relation(fields: [teacherId], references: [id], onDelete: Restrict)
   subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
   section   Section  @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  // + raw SQL: RLS ON — admin ALL + teacher SELECT own (teacherId = auth.uid())
 
   @@unique([teacherId, subjectId, sectionId])
   @@index([sectionId])
   @@index([subjectId])
   @@index([schoolId])
-  // + raw SQL: RLS ON — admin ALL + teacher SELECT own (teacherId = auth.uid())
 }
 
 // ---------- audit (append-only) ----------
@@ -223,8 +228,232 @@ model AuditLog {
   beforeJson  Json?
   afterJson   Json?
   createdAt   DateTime @default(now())
+  // + raw SQL: RLS ON — admin read only (m1_rls_hardening)
 
   @@index([entityType, entityId])
   @@index([schoolId, createdAt])
-  // + raw SQL: RLS ON — admin read only (m1_rls_hardening)
+}
+
+// ========================= People Management (M3) =========================
+// Student = IDENTITY ONLY (no class/section/year). Enrollment owns per-year
+// placement (ADR-010). Two lifecycle axes kept separate: Student.status (the
+// person) vs EnrollmentStatus (the year's placement). Names diverge from the
+// DEV_PRD deliberately (Parent not Guardian) — approved M3 decision.
+
+// ---------- enums ----------
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// Person-level lifecycle. Distinct from EnrollmentStatus. No soft-delete column
+// (DATABASE_CONVENTIONS §3) — ARCHIVED/WITHDRAWN/GRADUATED carry the reason.
+enum StudentStatus {
+  ACTIVE
+  ARCHIVED
+  GRADUATED
+  WITHDRAWN
+}
+
+// Per-(student,parent) relationship — lives on the junction so one person can be
+// FATHER to one child and GUARDIAN/EMERGENCY_CONTACT to another.
+enum StudentRelationship {
+  FATHER
+  MOTHER
+  GUARDIAN
+  EMERGENCY_CONTACT
+}
+
+enum PreferredContact {
+  PHONE
+  EMAIL
+  WHATSAPP
+}
+
+// DOCUMENT VISIBILITY (business-layer authorization; RLS is unchanged and only
+// governs WHO reaches a student's docs). StudentDocumentService filters WHICH
+// types are returned by role:
+//   TEACHER            → PHOTO only (all other types hidden)
+//   PARENT (own child) → all types
+//   OFFICE_ADMIN / SUPER_ADMIN → all types
+// Never expose MEDICAL_RECORD to teachers — if teachers ever need medical info,
+// add a dedicated Medical Summary feature, not access to the uploaded files.
+enum StudentDocumentType {
+  BIRTH_CERTIFICATE
+  PASSPORT
+  AADHAAR
+  MEDICAL_RECORD
+  TRANSFER_CERTIFICATE
+  PHOTO // the ONLY teacher-visible type
+  OTHER
+}
+
+// Year-placement lifecycle (ADR-010). ADMITTED → ACTIVE → one terminal state.
+enum EnrollmentStatus {
+  ADMITTED
+  ACTIVE
+  PROMOTED
+  RETAINED
+  TRANSFERRED
+  DROPPED
+  ALUMNI
+}
+
+// ---------- student (identity) ----------
+// admissionNo unique per school; calendar dob is @db.Date (IST convention, no
+// UTC off-by-one). photoPath is a PRIVATE storage path signed on read (ADR-004).
+model Student {
+  id          String            @id @default(cuid())
+  schoolId    String // loose tenant ref (ADR-008)
+  admissionNo String
+  firstName   String
+  lastName    String
+  dob         DateTime?         @db.Date
+  gender      Gender?
+  bloodGroup  String?
+  nationality String?
+  aadhaar     String? // optional national ID; sensitive — unique per school when present (raw SQL below)
+  passport    String?
+  address     String?
+  photoPath   String? // PRIVATE storage path, signed on read (ADR-004)
+  status      StudentStatus     @default(ACTIVE)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  enrollments Enrollment[]
+  parents     StudentParent[]
+  documents   StudentDocument[]
+  // + raw SQL: partial unique — Aadhaar unique per school when present:
+  //   WHERE "aadhaar" IS NOT NULL  (a shared national ID is a data error)
+  // + raw SQL: RLS ON — admin ALL; teacher SELECT own-section; parent SELECT own-child (people_rls, Step 4)
+
+  @@unique([schoolId, admissionNo])
+  @@index([schoolId, status])
+  @@index([schoolId, lastName, firstName]) // roster search/sort
+}
+
+// ---------- student documents (metadata; bytes live in Supabase Storage) ----------
+// version is versioning-ready: replace bumps version (no unique on (student,type),
+// so historical versions coexist — full history table is a later concern).
+// Retrieval = storagePath (signed on read). Validation = mimeType + sizeBytes +
+// optional checksum (SHA-256 hex; integrity check on download). uploadedAt is
+// `createdAt` — the row is written at upload time.
+model StudentDocument {
+  id               String              @id @default(cuid())
+  schoolId         String // loose tenant ref (ADR-008)
+  studentId        String
+  type             StudentDocumentType
+  storagePath      String // PRIVATE bucket path (ADR-004), signed on read
+  fileName         String
+  mimeType         String?
+  sizeBytes        Int?
+  checksum         String? // optional SHA-256 hex — verify integrity on download
+  version          Int                 @default(1)
+  uploadedByUserId String // actor (loose ref — append-only-ish metadata)
+  createdAt        DateTime            @default(now()) // == uploadedAt
+  student          Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  // + raw SQL: RLS ON — mirrors Student visibility (people_rls, Step 4)
+
+  @@index([studentId, type])
+  @@index([schoolId])
+}
+
+// ---------- parent (contact / guardian) ----------
+// userId NULLABLE: an app-login parent (Role=PARENT) carries the Supabase uid for
+// RLS parent-scope; an emergency-only contact has null uid and no portal access.
+// SetNull (not Cascade): removing the login keeps the contact record.
+model Parent {
+  id               String           @id @default(cuid())
+  schoolId         String // loose tenant ref (ADR-008)
+  userId           String?          @unique
+  name             String
+  phone            String
+  email            String?
+  occupation       String?
+  address          String?
+  preferredContact PreferredContact @default(PHONE)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  students         StudentParent[]
+  // + raw SQL: RLS ON — admin ALL; parent SELECT self (userId = auth.uid()) (people_rls, Step 4)
+
+  @@index([schoolId])
+}
+
+// ---------- student ↔ parent (junction) ----------
+// PK includes relationship: one person may hold multiple relationships to one
+// child. Cascade from both parents/students (a link has no independent meaning).
+model StudentParent {
+  studentId    String
+  parentId     String
+  relationship StudentRelationship
+  isPrimary    Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  student      Student             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent       Parent              @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  // + raw SQL: partial unique — one PRIMARY contact per student: WHERE "isPrimary"
+
+  @@id([studentId, parentId, relationship])
+  @@index([parentId])
+  @@index([studentId])
+}
+
+// ---------- staff (employment profile; extends User 1:1) ----------
+// No auth duplication — credentials/role/status stay on the frozen User. This is
+// DESCRIPTIVE only: a teacher's read-scope derives from TeacherAssignment→Section,
+// never from Staff. Named Staff (not TeacherProfile) for forward-consistency.
+model Staff {
+  id              String    @id @default(cuid())
+  schoolId        String // loose tenant ref (ADR-008)
+  userId          String    @unique
+  employeeId      String
+  department      String?
+  qualification   String?
+  experienceYears Int?
+  joiningDate     DateTime? @db.Date
+  bio             String?
+  photoPath       String? // PRIVATE storage path, signed on read (ADR-004)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // + raw SQL: RLS ON — admin ALL; staff SELECT self (userId = auth.uid()) (people_rls, Step 4)
+
+  @@unique([schoolId, employeeId])
+  @@index([schoolId])
+}
+
+// ---------- enrollment (per-year placement; ADR-010 is the source of truth) ----------
+// One row per student per year. sectionId NULLABLE (ADMITTED before placement).
+// classId is its OWN column (not derived from section) so it survives a null
+// section and makes promotion/retention a clean field diff. All refs Restrict:
+// enrollments carry (future) attendance/marks/fees and are never hard-deleted —
+// lifecycle is via status. Section transfer = in-place sectionId update (audited).
+// BUSINESS RULE: rollNo is assigned only after a student is allocated to a
+// section — a rollNo without a sectionId is invalid. Enforced by a CHECK below
+// (rollNo NULL OR sectionId NOT NULL) and by EnrollmentService on allocation.
+model Enrollment {
+  id             String           @id @default(cuid())
+  schoolId       String // loose tenant ref (ADR-008)
+  studentId      String
+  academicYearId String
+  classId        String
+  sectionId      String?
+  rollNo         Int? // set only once sectionId is assigned (see CHECK below)
+  status         EnrollmentStatus @default(ADMITTED)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  student        Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  class          Class            @relation(fields: [classId], references: [id], onDelete: Restrict)
+  section        Section?         @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  // + raw SQL: partial unique — roll number unique per section per year:
+  //   WHERE "sectionId" IS NOT NULL AND "rollNo" IS NOT NULL
+  // + raw SQL: CHECK ("rollNo" IS NULL OR "sectionId" IS NOT NULL) — rollNo only after allocation
+  // + raw SQL: RLS ON — admin ALL; teacher SELECT own-section; parent SELECT own-child (people_rls, Step 4)
+
+  @@unique([studentId, academicYearId]) // one enrollment per student per year (ADR-010)
+  @@index([academicYearId, sectionId]) // section roster this year
+  @@index([academicYearId, classId]) // grade roster this year
+  @@index([schoolId])
 }

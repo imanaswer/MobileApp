@@ -12,6 +12,7 @@ export { resolvePrincipal, activateUser } from "./auth/session";
 export { updateProfile, type UpdateProfileInput } from "./services/profile";
 export { setRole, disableUser, enableUser } from "./services/admin";
 export * from "./services/academic";
+export * from "./services/people";
 export {
   assertCan,
   assertScope,

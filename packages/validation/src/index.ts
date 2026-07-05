@@ -130,3 +130,146 @@ export const listTeacherAssignmentsInput = z.object({
   subjectId: idSchema.optional(),
   sectionId: idSchema.optional(),
 });
+
+/* ---- People Management inputs (M3). Cross-entity rules (uniqueness, one-per-year,
+ * scope, rollNo-needs-section) live in the business services — not duplicated here. */
+
+const genderSchema = z.enum(["MALE", "FEMALE", "OTHER"]);
+const studentStatusSchema = z.enum(["ACTIVE", "ARCHIVED", "GRADUATED", "WITHDRAWN"]);
+const relationshipSchema = z.enum(["FATHER", "MOTHER", "GUARDIAN", "EMERGENCY_CONTACT"]);
+const preferredContactSchema = z.enum(["PHONE", "EMAIL", "WHATSAPP"]);
+const documentTypeSchema = z.enum([
+  "BIRTH_CERTIFICATE",
+  "PASSPORT",
+  "AADHAAR",
+  "MEDICAL_RECORD",
+  "TRANSFER_CERTIFICATE",
+  "PHOTO",
+  "OTHER",
+]);
+const shortText = (max: number) => z.string().trim().min(1).max(max);
+const phoneSchema = z.string().trim().min(3).max(20);
+const aadhaarSchema = z.string().trim().regex(/^\d{12}$/, "Aadhaar must be 12 digits");
+
+/* Student */
+export const createStudentInput = z.object({
+  admissionNo: shortText(60),
+  firstName: nameSchema,
+  lastName: nameSchema,
+  dob: istDateSchema.optional(),
+  gender: genderSchema.optional(),
+  bloodGroup: shortText(10).optional(),
+  nationality: shortText(60).optional(),
+  aadhaar: aadhaarSchema.optional(),
+  passport: shortText(20).optional(),
+  address: z.string().trim().max(500).optional(),
+});
+export const updateStudentInput = z.object({
+  id: idSchema,
+  firstName: nameSchema.optional(),
+  lastName: nameSchema.optional(),
+  dob: istDateSchema.nullable().optional(),
+  gender: genderSchema.nullable().optional(),
+  bloodGroup: shortText(10).nullable().optional(),
+  nationality: shortText(60).nullable().optional(),
+  aadhaar: aadhaarSchema.nullable().optional(),
+  passport: shortText(20).nullable().optional(),
+  address: z.string().trim().max(500).nullable().optional(),
+  status: studentStatusSchema.optional(),
+});
+export const listStudentsInput = z.object({
+  status: studentStatusSchema.optional(),
+  search: z.string().trim().min(1).max(120).optional(),
+});
+export const studentIdInput = z.object({ studentId: idSchema });
+
+/* Enrollment (ADR-010) */
+const rollNoSchema = z.number().int().positive();
+export const enrollInput = z.object({
+  studentId: idSchema,
+  academicYearId: idSchema,
+  classId: idSchema,
+  sectionId: idSchema.optional(),
+  rollNo: rollNoSchema.optional(),
+});
+export const transferInput = z.object({
+  enrollmentId: idSchema,
+  toSectionId: idSchema,
+  rollNo: rollNoSchema.optional(),
+});
+export const promoteInput = z.object({
+  enrollmentId: idSchema,
+  targetAcademicYearId: idSchema,
+  toClassId: idSchema,
+  toSectionId: idSchema.optional(),
+  rollNo: rollNoSchema.optional(),
+});
+export const withdrawInput = z.object({ enrollmentId: idSchema });
+export const sectionRosterInput = z.object({ academicYearId: idSchema, sectionId: idSchema });
+
+/* Parent */
+export const createParentInput = z.object({
+  userId: idSchema.optional(),
+  name: nameSchema,
+  phone: phoneSchema,
+  email: z.string().trim().email().optional(),
+  occupation: shortText(120).optional(),
+  address: z.string().trim().max(500).optional(),
+  preferredContact: preferredContactSchema.optional(),
+});
+export const updateParentInput = z.object({
+  id: idSchema,
+  userId: idSchema.nullable().optional(),
+  name: nameSchema.optional(),
+  phone: phoneSchema.optional(),
+  email: z.string().trim().email().nullable().optional(),
+  occupation: shortText(120).nullable().optional(),
+  address: z.string().trim().max(500).nullable().optional(),
+  preferredContact: preferredContactSchema.optional(),
+});
+export const linkParentInput = z.object({
+  studentId: idSchema,
+  parentId: idSchema,
+  relationship: relationshipSchema,
+  isPrimary: z.boolean().optional(),
+});
+export const unlinkParentInput = z.object({
+  studentId: idSchema,
+  parentId: idSchema,
+  relationship: relationshipSchema,
+});
+
+/* Staff (employment profile) */
+export const createStaffInput = z.object({
+  userId: idSchema,
+  employeeId: shortText(40),
+  department: shortText(120).optional(),
+  qualification: shortText(200).optional(),
+  experienceYears: z.number().int().min(0).max(80).optional(),
+  joiningDate: istDateSchema.optional(),
+  bio: z.string().trim().max(1000).optional(),
+});
+export const updateStaffInput = z.object({
+  id: idSchema,
+  employeeId: shortText(40).optional(),
+  department: shortText(120).nullable().optional(),
+  qualification: shortText(200).nullable().optional(),
+  experienceYears: z.number().int().min(0).max(80).nullable().optional(),
+  joiningDate: istDateSchema.nullable().optional(),
+  bio: z.string().trim().max(1000).nullable().optional(),
+});
+
+/* Student documents (metadata; bytes uploaded separately to Storage) */
+const documentMeta = {
+  fileName: shortText(255),
+  storagePath: shortText(400),
+  mimeType: shortText(120).optional(),
+  sizeBytes: z.number().int().nonnegative().optional(),
+  checksum: shortText(128).optional(),
+};
+export const createStudentDocumentInput = z.object({
+  studentId: idSchema,
+  type: documentTypeSchema,
+  ...documentMeta,
+});
+export const replaceStudentDocumentInput = z.object({ id: idSchema, ...documentMeta });

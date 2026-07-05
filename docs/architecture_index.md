@@ -12,6 +12,7 @@ All ADRs live in `docs/architecture/`.
 - ADR-007 — Audit log (role/user/status mutations)
 
 **Students / enrollment**
+- ADR-010 — Student ↔ Enrollment model (year-bound membership; promotion/transfer/retention)
 - ADR-003 — Repositories as the data-access boundary
 - ADR-007 — Audit log (enrollment mutations)
 

@@ -88,3 +88,103 @@ export interface TeacherAssignmentDto {
   subjectId: string;
   sectionId: string;
 }
+
+/* ---- People Management DTOs (M3). Student is identity-only; Enrollment owns
+ * per-year placement (ADR-010). Calendar columns (dob, joiningDate) are IST date
+ * strings. */
+
+export type GenderKey = "MALE" | "FEMALE" | "OTHER";
+export type StudentStatusKey = "ACTIVE" | "ARCHIVED" | "GRADUATED" | "WITHDRAWN";
+export type StudentRelationshipKey = "FATHER" | "MOTHER" | "GUARDIAN" | "EMERGENCY_CONTACT";
+export type PreferredContactKey = "PHONE" | "EMAIL" | "WHATSAPP";
+export type StudentDocumentTypeKey =
+  | "BIRTH_CERTIFICATE"
+  | "PASSPORT"
+  | "AADHAAR"
+  | "MEDICAL_RECORD"
+  | "TRANSFER_CERTIFICATE"
+  | "PHOTO"
+  | "OTHER";
+export type EnrollmentStatusKey =
+  | "ADMITTED"
+  | "ACTIVE"
+  | "PROMOTED"
+  | "RETAINED"
+  | "TRANSFERRED"
+  | "DROPPED"
+  | "ALUMNI";
+
+export interface StudentDto {
+  id: string;
+  schoolId: string;
+  admissionNo: string;
+  firstName: string;
+  lastName: string;
+  dob: IstDateString | null;
+  gender: GenderKey | null;
+  bloodGroup: string | null;
+  nationality: string | null;
+  aadhaar: string | null;
+  passport: string | null;
+  address: string | null;
+  photoPath: string | null;
+  status: StudentStatusKey;
+}
+
+export interface EnrollmentDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  academicYearId: string;
+  classId: string;
+  sectionId: string | null;
+  rollNo: number | null;
+  status: EnrollmentStatusKey;
+}
+
+export interface ParentDto {
+  id: string;
+  schoolId: string;
+  userId: string | null;
+  name: string;
+  phone: string;
+  email: string | null;
+  occupation: string | null;
+  address: string | null;
+  preferredContact: PreferredContactKey;
+}
+
+export interface StudentParentDto {
+  studentId: string;
+  parentId: string;
+  relationship: StudentRelationshipKey;
+  isPrimary: boolean;
+}
+
+export interface StaffDto {
+  id: string;
+  schoolId: string;
+  userId: string;
+  employeeId: string;
+  department: string | null;
+  qualification: string | null;
+  experienceYears: number | null;
+  joiningDate: IstDateString | null;
+  bio: string | null;
+  photoPath: string | null;
+}
+
+export interface StudentDocumentDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  type: StudentDocumentTypeKey;
+  storagePath: string;
+  fileName: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  checksum: string | null;
+  version: number;
+  uploadedByUserId: string;
+  uploadedAt: IsoUtcString;
+}

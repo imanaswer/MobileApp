@@ -32,6 +32,11 @@ describe("authorization policy", () => {
     expect(getPermissions("PARENT")).toEqual([
       PERMISSIONS.PROFILE_READ_SELF,
       PERMISSIONS.PROFILE_UPDATE_SELF,
+      // M3: parents read their own children + own parent record (row-scoped in service).
+      PERMISSIONS.STUDENT_READ,
+      PERMISSIONS.ENROLLMENT_READ,
+      PERMISSIONS.STUDENT_DOCUMENT_READ,
+      PERMISSIONS.PARENT_READ,
     ]);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.USER_SET_ROLE);
   });

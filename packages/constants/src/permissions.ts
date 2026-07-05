@@ -37,6 +37,29 @@ export const PERMISSIONS = {
   ACADEMIC_MANAGE: "academic:manage",
   /** Read academic structure. Teacher-assignment reads are scoped to own (service). */
   ACADEMIC_READ: "academic:read",
+
+  /* ---- People Management (M3). Reads carry ROW scope (own-section / own-child),
+   * narrowed in the service; the permission only grants the capability. */
+  /** Create/update/archive student identity records. */
+  STUDENT_MANAGE: "student:manage",
+  /** Read students. Teacher → own-section; parent → own children (service scope). */
+  STUDENT_READ: "student:read",
+  /** Enroll / transfer / promote / withdraw (per-year placement, ADR-010). */
+  ENROLLMENT_MANAGE: "enrollment:manage",
+  /** Read enrollments. Teacher → own-section; parent → own children (service scope). */
+  ENROLLMENT_READ: "enrollment:read",
+  /** Manage parent/guardian records and their student links. */
+  PARENT_MANAGE: "parent:manage",
+  /** Read parents. Parent role → own record only (service scope). */
+  PARENT_READ: "parent:read",
+  /** Manage staff (employment) profiles. */
+  STAFF_MANAGE: "staff:manage",
+  /** Read staff profiles. Teacher → own record only (service scope). */
+  STAFF_READ: "staff:read",
+  /** Upload / replace / delete student document metadata. */
+  STUDENT_DOCUMENT_MANAGE: "student_document:manage",
+  /** Read student documents. Teacher → PHOTO only; parent → own children (service). */
+  STUDENT_DOCUMENT_READ: "student_document:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -47,6 +70,24 @@ const SELF_PROFILE: readonly Permission[] = [
   PERMISSIONS.PROFILE_UPDATE_SELF,
 ];
 
+/** Full People-Management mutation grant (SUPER_ADMIN + OFFICE_ADMIN, M3). */
+const PEOPLE_MANAGE: readonly Permission[] = [
+  PERMISSIONS.STUDENT_MANAGE,
+  PERMISSIONS.ENROLLMENT_MANAGE,
+  PERMISSIONS.PARENT_MANAGE,
+  PERMISSIONS.STAFF_MANAGE,
+  PERMISSIONS.STUDENT_DOCUMENT_MANAGE,
+];
+
+/** Full People-Management read grant (SUPER_ADMIN + OFFICE_ADMIN, M3). */
+const PEOPLE_READ: readonly Permission[] = [
+  PERMISSIONS.STUDENT_READ,
+  PERMISSIONS.ENROLLMENT_READ,
+  PERMISSIONS.PARENT_READ,
+  PERMISSIONS.STAFF_READ,
+  PERMISSIONS.STUDENT_DOCUMENT_READ,
+];
+
 /**
  * The fixed Role → Permissions policy (Dev PRD §5). Only SUPER_ADMIN manages
  * users/roles and reads the audit log; all other roles get the self-profile
@@ -54,6 +95,8 @@ const SELF_PROFILE: readonly Permission[] = [
  * permissions. Every role must appear (compile-time enforced by the type).
  */
 export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> = {
+  // Full management of everything: users, academic structure, and all People
+  // Management (M3). No row-scope restriction (super-admin → all).
   SUPER_ADMIN: [
     ...SELF_PROFILE,
     PERMISSIONS.USER_READ,
@@ -63,11 +106,35 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.AUDIT_READ,
     PERMISSIONS.ACADEMIC_MANAGE,
     PERMISSIONS.ACADEMIC_READ,
+    ...PEOPLE_MANAGE,
+    ...PEOPLE_READ,
   ],
-  // OFFICE_ADMIN manages academic structure (M2); teachers read it (assignment
-  // reads scoped to own in the service). Accountant/parent have no academic surface yet.
-  OFFICE_ADMIN: [...SELF_PROFILE, PERMISSIONS.ACADEMIC_MANAGE, PERMISSIONS.ACADEMIC_READ],
-  TEACHER: [...SELF_PROFILE, PERMISSIONS.ACADEMIC_READ],
-  PARENT: [...SELF_PROFILE],
+  // OFFICE_ADMIN: full academic + People management (M3), school-wide.
+  OFFICE_ADMIN: [
+    ...SELF_PROFILE,
+    PERMISSIONS.ACADEMIC_MANAGE,
+    PERMISSIONS.ACADEMIC_READ,
+    ...PEOPLE_MANAGE,
+    ...PEOPLE_READ,
+  ],
+  // TEACHER: reads academic structure + reads students/enrollments/documents in
+  // their OWN sections and their OWN staff profile (row-scope in the service).
+  TEACHER: [
+    ...SELF_PROFILE,
+    PERMISSIONS.ACADEMIC_READ,
+    PERMISSIONS.STUDENT_READ,
+    PERMISSIONS.ENROLLMENT_READ,
+    PERMISSIONS.STUDENT_DOCUMENT_READ,
+    PERMISSIONS.STAFF_READ,
+  ],
+  // PARENT: reads only their OWN children (students/enrollments/documents) and
+  // their OWN parent record (row-scope in the service).
+  PARENT: [
+    ...SELF_PROFILE,
+    PERMISSIONS.STUDENT_READ,
+    PERMISSIONS.ENROLLMENT_READ,
+    PERMISSIONS.STUDENT_DOCUMENT_READ,
+    PERMISSIONS.PARENT_READ,
+  ],
   ACCOUNTANT: [...SELF_PROFILE],
 };

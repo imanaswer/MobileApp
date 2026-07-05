@@ -10,7 +10,22 @@ import {
 } from "./repositories/academic-year.repository";
 import { createAuditLogRepository, type AuditLogRepository } from "./repositories/audit.repository";
 import { createClassRepository, type ClassRepository } from "./repositories/class.repository";
+import {
+  createEnrollmentRepository,
+  type EnrollmentRepository,
+} from "./repositories/enrollment.repository";
+import { createParentRepository, type ParentRepository } from "./repositories/parent.repository";
 import { createSectionRepository, type SectionRepository } from "./repositories/section.repository";
+import { createStaffRepository, type StaffRepository } from "./repositories/staff.repository";
+import {
+  createStudentDocumentRepository,
+  type StudentDocumentRepository,
+} from "./repositories/student-document.repository";
+import {
+  createStudentParentRepository,
+  type StudentParentRepository,
+} from "./repositories/student-parent.repository";
+import { createStudentRepository, type StudentRepository } from "./repositories/student.repository";
 import { createSubjectRepository, type SubjectRepository } from "./repositories/subject.repository";
 import {
   createTeacherAssignmentRepository,
@@ -33,6 +48,12 @@ export * from "./repositories/class.repository";
 export * from "./repositories/section.repository";
 export * from "./repositories/subject.repository";
 export * from "./repositories/teacher-assignment.repository";
+export * from "./repositories/student.repository";
+export * from "./repositories/enrollment.repository";
+export * from "./repositories/parent.repository";
+export * from "./repositories/student-parent.repository";
+export * from "./repositories/staff.repository";
+export * from "./repositories/student-document.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */
@@ -45,6 +66,12 @@ export interface Repositories {
   sections: SectionRepository;
   subjects: SubjectRepository;
   teacherAssignments: TeacherAssignmentRepository;
+  students: StudentRepository;
+  enrollments: EnrollmentRepository;
+  parents: ParentRepository;
+  studentParents: StudentParentRepository;
+  staff: StaffRepository;
+  studentDocuments: StudentDocumentRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -57,6 +84,12 @@ export function createRepositories(client: DbClient): Repositories {
     sections: createSectionRepository(client),
     subjects: createSubjectRepository(client),
     teacherAssignments: createTeacherAssignmentRepository(client),
+    students: createStudentRepository(client),
+    enrollments: createEnrollmentRepository(client),
+    parents: createParentRepository(client),
+    studentParents: createStudentParentRepository(client),
+    staff: createStaffRepository(client),
+    studentDocuments: createStudentDocumentRepository(client),
   };
 }
 
