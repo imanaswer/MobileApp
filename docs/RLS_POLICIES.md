@@ -43,6 +43,39 @@ policy → **denied**. Single-tenant: policies intentionally omit `schoolId`
   a live control or purely intent-mirroring, and whether direct reads are denied.
   No live DB creds in the dev env (same as M1); apply + probe during provisioning.
 
+## M4 attendance tables (migration `20260707000000_attendance_rls`)
+
+Same posture as M3 people_rls: admin `ALL`, teacher/parent **SELECT-only** in
+scope (client-JWT writes denied everywhere; writes go via `service_role` after
+business checks). New `SECURITY DEFINER` helpers (`search_path=''`):
+`teaches_session(sid)`, `teaches_enrollment(eid)`, `teaches_record(rid)`
+(teacher scope via TeacherAssignment), `enrollment_is_my_child(eid)`,
+`session_has_my_child(sid)` (parent scope via StudentParent). Reuses
+`is_academic_admin()`, `teaches_section()`, `is_my_parent_record()`.
+
+| Table | Policy | Cmd | Role | Rule |
+|---|---|---|---|---|
+| AttendanceSession | `attendance_admin_all` | ALL | authenticated | `is_academic_admin()` (USING + WITH CHECK) |
+| AttendanceSession | `teacher_read_sessions` | SELECT | authenticated | `teaches_section(sectionId)` |
+| AttendanceSession | `parent_read_sessions` | SELECT | authenticated | `session_has_my_child(id)` — only sessions containing their child |
+| AttendanceRecord | `attendance_admin_all` | ALL | authenticated | `is_academic_admin()` |
+| AttendanceRecord | `teacher_read_records` | SELECT | authenticated | `teaches_session(sessionId)` |
+| AttendanceRecord | `parent_read_records` | SELECT | authenticated | `enrollment_is_my_child(enrollmentId)` |
+| LeaveRequest | `attendance_admin_all` | ALL | authenticated | `is_academic_admin()` |
+| LeaveRequest | `parent_read_own_leaves` | SELECT | authenticated | `is_my_parent_record(parentId)` |
+| LeaveRequest | `teacher_read_section_leaves` | SELECT | authenticated | `teaches_enrollment(enrollmentId)` |
+| AttendanceCorrection | `attendance_admin_all` | ALL | authenticated | `is_academic_admin()` |
+| AttendanceCorrection | `requester_read_own_corrections` | SELECT | authenticated | `requestedByUserId = auth.uid()` |
+| AttendanceCorrection | `teacher_read_section_corrections` | SELECT | authenticated | `teaches_record(attendanceRecordId)` |
+| Holiday | `attendance_admin_all` | ALL | authenticated | `is_academic_admin()` |
+| Holiday | `authenticated_read_holidays` | SELECT | authenticated | `true` — non-sensitive calendar every portal renders |
+
+**Effect:** a parent cannot see another child's records, any correction, or
+another family's leave; a teacher sees only sessions/records/leaves/corrections
+of sections they teach; `anon` matches no policy → denied everywhere;
+`service_role` (app path) bypasses. Live-DB verification is the same pending
+gate as below (apply + probe during provisioning).
+
 ## M1 auth tables (migration `20260705020000_m1_rls_hardening`)
 
 Security-fix hardening: M1 shipped `School`/`User`/`DeviceToken`/`AuditLog` with

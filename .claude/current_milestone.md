@@ -4,9 +4,8 @@
 
 ## Current Step
 
-**Step 3 — Relationships ✅ (FK graph verified; DB_RELATIONSHIP_DIAGRAM
-updated to shipped ADR-011 model). STOPPED awaiting approval for
-Step 4 — RLS.**
+**Step 4 — RLS ✅ (migration `20260707000000_attendance_rls` +
+RLS_POLICIES.md). STOPPED awaiting approval for Step 5 — Business Layer.**
 
 ## Scope (M4)
 
@@ -32,7 +31,7 @@ Anonymous none.
 
 ## Workflow (stop after each step)
 
-1 Requirements ✅ (ADR-011) · 2 DB ✅ · 3 Relationships ✅ · 4 RLS ·
+1 Requirements ✅ (ADR-011) · 2 DB ✅ · 3 Relationships ✅ · 4 RLS ✅ ·
 5 Business ·
 6 API · 7 Mobile (teacher mark/history/corrections; parent
 calendar/leave) · 8 Web (dashboard, bulk entry, approvals, holidays,
