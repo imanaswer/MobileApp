@@ -70,30 +70,52 @@ erDiagram
     }
 ```
 
-## Attendance & leave (M3 attendance, M5 leave)
+## Attendance, leave, corrections, holidays (M4 — SHIPPED; ADR-011 supersedes the PRD §8.4 flat model)
 
 ```mermaid
 erDiagram
-    ENROLLMENT ||--o{ ATTENDANCE : ""
-    STAFF ||--o{ ATTENDANCE : "markedBy"
-    STUDENT ||--o{ LEAVE_APPLICATION : "year-independent"
-    USER ||--o{ LEAVE_APPLICATION : "appliedBy"
-    STAFF ||--o{ LEAVE_APPLICATION : "decidedBy (nullable)"
+    ACADEMIC_YEAR ||--o{ ATTENDANCE_SESSION : "Restrict"
+    SECTION ||--o{ ATTENDANCE_SESSION : "Restrict"
+    SUBJECT ||--o{ ATTENDANCE_SESSION : "Restrict; SUBJECT type only"
+    USER ||--o{ ATTENDANCE_SESSION : "markedBy (Restrict)"
+    ATTENDANCE_SESSION ||--o{ ATTENDANCE_RECORD : "Restrict"
+    ENROLLMENT ||--o{ ATTENDANCE_RECORD : "Restrict — NEVER Student"
+    ENROLLMENT ||--o{ LEAVE_REQUEST : "Restrict"
+    PARENT ||--o{ LEAVE_REQUEST : "Restrict"
+    USER ||--o{ LEAVE_REQUEST : "decidedBy (nullable, Restrict)"
+    ATTENDANCE_RECORD ||--o{ ATTENDANCE_CORRECTION : "Restrict"
+    USER ||--o{ ATTENDANCE_CORRECTION : "requestedBy + decidedBy (Restrict)"
+    ACADEMIC_YEAR ||--o{ HOLIDAY : "Cascade (calendar composition)"
 
-    ATTENDANCE {
-        date date "IST calendar date — @db.Date (decided v1.3)"
-        int period "0 = whole day; 1..N period-wise"
-        enum status "PRESENT|ABSENT|HALF_DAY|LEAVE|HOLIDAY"
-        string id "UK(enrollmentId, date, period)"
+    ATTENDANCE_SESSION {
+        date date "IST calendar date — @db.Date"
+        enum sessionType "MORNING|AFTERNOON|SUBJECT"
+        string subjectId "nullable — non-null IFF type SUBJECT (CHECK)"
+        enum status "OPEN|FINALIZED"
+        bool isHolidayOverride "explicit, audited"
+        string id "partial UKs: (section,date,type) WHERE subject NULL; (section,date,type,subject) WHERE NOT NULL"
     }
-    LEAVE_APPLICATION {
+    ATTENDANCE_RECORD {
+        enum status "PRESENT|ABSENT|LATE|HALF_DAY|LEAVE — no HOLIDAY value"
+        string id "UK(sessionId, enrollmentId)"
+    }
+    LEAVE_REQUEST {
         enum status "PENDING|APPROVED|REJECTED|CANCELLED"
-        date fromDate ""
-        date toDate ""
+        date fromDate "CHECK from <= to"
+        date toDate "EXCLUDE gist: no live-overlap per enrollment"
+    }
+    ATTENDANCE_CORRECTION {
+        enum fromStatus "before/after kept on the row"
+        enum toStatus "CHECK from <> to"
+        enum status "PENDING|APPROVED|REJECTED — partial UK: one PENDING per record"
+    }
+    HOLIDAY {
+        date date "UK(academicYearId, date)"
+        enum type "NATIONAL|SCHOOL|FESTIVAL|EMERGENCY_CLOSURE"
     }
 ```
 
-Leave→Attendance bridge (no FK): on APPROVED, service resolves `studentId → current ACTIVE Enrollment` and upserts `Attendance(LEAVE)` per school day (§8.7; school-day source = calendar model, REVIEW_FINDINGS B1).
+Shipped-vocabulary notes (ADR-011): attendance joins **Enrollment, never Student** — history survives promotion because the year's enrollment row is immutable after close. A holiday is the **absence of a session** (no HOLIDAY status; Holiday table resolves REVIEW_FINDINGS B1). `LeaveRequest` FKs Enrollment directly (supersedes the PRD's `studentId` keying); on APPROVED the service upserts LEAVE into existing sessions per school day and pre-fills future sessions at creation (the B2 invariant, restated for sessions). Cross-table service invariants (not FKs): session date within its year + year ACTIVE at creation; record's enrollment matches the session's section/year at marking; no session on a Holiday date unless `isHolidayOverride` (audited).
 
 ## Exams, marks, report cards (M4)
 
@@ -181,4 +203,4 @@ Standalone (loose refs only): `SCHOOL` (tenant root), `AUDIT_LOG(actorUserId, en
 
 | Cascade (composition) | Restrict (history/money) |
 |---|---|
-| Staff/Guardian→User, GuardianStudent, DeviceToken, Notification, GradeBand→Scale, ExamSubject→Exam, Message→Thread, FeeItem→Structure, InvoiceLine→Invoice | Mark, Attendance, Enrollment, Invoice, Payment, ReportCard, LeaveApplication, all academic structure |
+| Staff/Guardian→User, GuardianStudent, DeviceToken, Notification, GradeBand→Scale, ExamSubject→Exam, Message→Thread, FeeItem→Structure, InvoiceLine→Invoice, Holiday→AcademicYear (M4) | Mark, Enrollment, Invoice, Payment, ReportCard, all academic structure; **M4 shipped:** AttendanceSession (year/section/subject/markedBy), AttendanceRecord (session/enrollment), LeaveRequest (enrollment/parent/decidedBy), AttendanceCorrection (record/requestedBy/decidedBy) |
