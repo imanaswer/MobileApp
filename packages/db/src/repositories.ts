@@ -8,12 +8,29 @@ import {
   createAcademicYearRepository,
   type AcademicYearRepository,
 } from "./repositories/academic-year.repository";
+import {
+  createAttendanceCorrectionRepository,
+  type AttendanceCorrectionRepository,
+} from "./repositories/attendance-correction.repository";
+import {
+  createAttendanceRecordRepository,
+  type AttendanceRecordRepository,
+} from "./repositories/attendance-record.repository";
+import {
+  createAttendanceSessionRepository,
+  type AttendanceSessionRepository,
+} from "./repositories/attendance-session.repository";
 import { createAuditLogRepository, type AuditLogRepository } from "./repositories/audit.repository";
 import { createClassRepository, type ClassRepository } from "./repositories/class.repository";
 import {
   createEnrollmentRepository,
   type EnrollmentRepository,
 } from "./repositories/enrollment.repository";
+import { createHolidayRepository, type HolidayRepository } from "./repositories/holiday.repository";
+import {
+  createLeaveRequestRepository,
+  type LeaveRequestRepository,
+} from "./repositories/leave-request.repository";
 import { createParentRepository, type ParentRepository } from "./repositories/parent.repository";
 import { createSectionRepository, type SectionRepository } from "./repositories/section.repository";
 import { createStaffRepository, type StaffRepository } from "./repositories/staff.repository";
@@ -54,6 +71,11 @@ export * from "./repositories/parent.repository";
 export * from "./repositories/student-parent.repository";
 export * from "./repositories/staff.repository";
 export * from "./repositories/student-document.repository";
+export * from "./repositories/attendance-session.repository";
+export * from "./repositories/attendance-record.repository";
+export * from "./repositories/leave-request.repository";
+export * from "./repositories/attendance-correction.repository";
+export * from "./repositories/holiday.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */
@@ -72,6 +94,11 @@ export interface Repositories {
   studentParents: StudentParentRepository;
   staff: StaffRepository;
   studentDocuments: StudentDocumentRepository;
+  attendanceSessions: AttendanceSessionRepository;
+  attendanceRecords: AttendanceRecordRepository;
+  leaveRequests: LeaveRequestRepository;
+  attendanceCorrections: AttendanceCorrectionRepository;
+  holidays: HolidayRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -90,6 +117,11 @@ export function createRepositories(client: DbClient): Repositories {
     studentParents: createStudentParentRepository(client),
     staff: createStaffRepository(client),
     studentDocuments: createStudentDocumentRepository(client),
+    attendanceSessions: createAttendanceSessionRepository(client),
+    attendanceRecords: createAttendanceRecordRepository(client),
+    leaveRequests: createLeaveRequestRepository(client),
+    attendanceCorrections: createAttendanceCorrectionRepository(client),
+    holidays: createHolidayRepository(client),
   };
 }
 

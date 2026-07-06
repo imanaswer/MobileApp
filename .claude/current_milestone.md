@@ -4,8 +4,9 @@
 
 ## Current Step
 
-**Step 4 — RLS ✅ (migration `20260707000000_attendance_rls` +
-RLS_POLICIES.md). STOPPED awaiting approval for Step 5 — Business Layer.**
+**Step 5 — Business Layer ✅ (5 repositories + attendance/leave/correction/
+holiday services, M4 permissions, DTOs). STOPPED awaiting approval for
+Step 6 — API Layer.**
 
 ## Scope (M4)
 
@@ -32,7 +33,7 @@ Anonymous none.
 ## Workflow (stop after each step)
 
 1 Requirements ✅ (ADR-011) · 2 DB ✅ · 3 Relationships ✅ · 4 RLS ✅ ·
-5 Business ·
+5 Business ✅ ·
 6 API · 7 Mobile (teacher mark/history/corrections; parent
 calendar/leave) · 8 Web (dashboard, bulk entry, approvals, holidays,
 summary, export) · 9 Testing · 10 Documentation → deliverables report →

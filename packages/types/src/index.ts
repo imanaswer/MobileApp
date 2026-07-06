@@ -106,13 +106,7 @@ export type StudentDocumentTypeKey =
   | "PHOTO"
   | "OTHER";
 export type EnrollmentStatusKey =
-  | "ADMITTED"
-  | "ACTIVE"
-  | "PROMOTED"
-  | "RETAINED"
-  | "TRANSFERRED"
-  | "DROPPED"
-  | "ALUMNI";
+  "ADMITTED" | "ACTIVE" | "PROMOTED" | "RETAINED" | "TRANSFERRED" | "DROPPED" | "ALUMNI";
 
 export interface StudentDto {
   id: string;
@@ -187,4 +181,101 @@ export interface StudentDocumentDto {
   version: number;
   uploadedByUserId: string;
   uploadedAt: IsoUtcString;
+}
+
+/* ---- Attendance Management DTOs (M4, ADR-011). Attendance belongs to
+ * Enrollment, never Student. Calendar columns (session date, leave from/to,
+ * holiday date) are IST date strings; decision timestamps are UTC ISO. */
+
+export type AttendanceSessionTypeKey = "MORNING" | "AFTERNOON" | "SUBJECT";
+export type AttendanceSessionStatusKey = "OPEN" | "FINALIZED";
+export type AttendanceStatusKey = "PRESENT" | "ABSENT" | "LATE" | "HALF_DAY" | "LEAVE";
+export type LeaveRequestStatusKey = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED";
+export type AttendanceCorrectionStatusKey = "PENDING" | "APPROVED" | "REJECTED";
+export type HolidayTypeKey = "NATIONAL" | "SCHOOL" | "FESTIVAL" | "EMERGENCY_CLOSURE";
+
+export interface AttendanceSessionDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  sectionId: string;
+  date: IstDateString;
+  sessionType: AttendanceSessionTypeKey;
+  subjectId: string | null;
+  markedByUserId: string;
+  status: AttendanceSessionStatusKey;
+  isHolidayOverride: boolean;
+}
+
+export interface AttendanceRecordDto {
+  id: string;
+  schoolId: string;
+  sessionId: string;
+  enrollmentId: string;
+  status: AttendanceStatusKey;
+  note: string | null;
+}
+
+/** A record joined with its session's calendar context (history views). */
+export interface AttendanceRecordWithSessionDto extends AttendanceRecordDto {
+  date: IstDateString;
+  sessionType: AttendanceSessionTypeKey;
+  sessionStatus: AttendanceSessionStatusKey;
+  subjectId: string | null;
+}
+
+export interface LeaveRequestDto {
+  id: string;
+  schoolId: string;
+  enrollmentId: string;
+  parentId: string;
+  fromDate: IstDateString;
+  toDate: IstDateString;
+  reason: string;
+  status: LeaveRequestStatusKey;
+  decidedByUserId: string | null;
+  decidedAt: IsoUtcString | null;
+  decisionNote: string | null;
+  requestedAt: IsoUtcString;
+}
+
+export interface AttendanceCorrectionDto {
+  id: string;
+  schoolId: string;
+  attendanceRecordId: string;
+  requestedByUserId: string;
+  fromStatus: AttendanceStatusKey;
+  toStatus: AttendanceStatusKey;
+  reason: string;
+  status: AttendanceCorrectionStatusKey;
+  decidedByUserId: string | null;
+  decidedAt: IsoUtcString | null;
+  decisionNote: string | null;
+  requestedAt: IsoUtcString;
+}
+
+export interface HolidayDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  date: IstDateString;
+  name: string;
+  type: HolidayTypeKey;
+}
+
+/**
+ * Computed per-enrollment aggregate (not a stored table). Percentage policy
+ * (ADR-011): LATE counts present; HALF_DAY weighs 0.5; LEAVE (excused) is
+ * excluded from the denominator; ABSENT counts against.
+ */
+export interface AttendanceSummaryDto {
+  enrollmentId: string;
+  totalRecords: number;
+  present: number;
+  absent: number;
+  late: number;
+  halfDay: number;
+  leave: number;
+  /** 0–100, one decimal; null when no countable records exist. */
+  percentage: number | null;
 }
