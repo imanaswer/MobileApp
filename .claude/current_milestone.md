@@ -1,48 +1,56 @@
 # Current Milestone
 
-**M3 — People Management** (kickoff 2026-07-05)
+**M4 — Attendance Management** (kickoff 2026-07-06)
 
 ## Current Step
 
-**Steps 1–10 ✅ COMPLETE (2026-07-05) — deliverables reported; STOPPED awaiting
-user approval before M4 — Attendance.** Gates: typecheck 14/14 · lint 14/14 ·
-tests 20 files / 213 · web production build ✓ · mobile ios export ✓.
+**Step 1 — Requirements Analysis ✅ (ADR-011). STOPPED awaiting approval for
+Step 2 — Database Design.**
 
-## Scope (M3)
+## Scope (M4)
 
-`Student` (identity only), `Parent` + `StudentParent` junction (relationship
-enum, single primary), `Staff` (1:1 User employment profile), `Enrollment`
-(ADR-010 — owns year/class/section/rollNo, one per student per year),
-`StudentDocument` (metadata; bytes in the private `student-documents` bucket,
-signed URLs minted server-side per ADR-004).
+`AttendanceSession` (one marking event: year × section × date × sessionType ×
+subject? × teacher), `AttendanceRecord` (session × enrollment, status
+PRESENT/ABSENT/LATE/HALF_DAY/LEAVE), `LeaveRequest` (enrollment + parent,
+PENDING/APPROVED/REJECTED/CANCELLED), `AttendanceCorrection` (record-level,
+approval-gated), `Holiday` (year calendar). ADR-010 + ADR-011 are the
+architectural source of truth. **Attendance belongs to Enrollment, never
+Student.**
 
 ## Out of scope
 
-Attendance, homework, exams/marks, report cards, fees, timetable,
-communication, bulk import — later milestones.
+Homework, exams, marks, report cards, fees, timetable, notifications
+(absence push deferred to Notifications milestone).
 
 ## Roles
 
-SUPER_ADMIN / OFFICE_ADMIN full management · TEACHER reads students in sections
-they teach (+ own staff profile; PHOTO documents only) · PARENT reads own
-children (+ own parent record) · ACCOUNTANT none. Row scope lives in the
-business services; RLS is defense-in-depth.
+SUPER_ADMIN / OFFICE_ADMIN full management · TEACHER mark attendance +
+history for sections they teach (TeacherAssignment scope), submit
+corrections · PARENT view own children's attendance, submit leave requests ·
+Anonymous none.
 
 ## Workflow (stop after each step)
 
-1 Requirements ✅ (ADR-010) · 2 DB ✅ · 3 Relationships ✅ · 4 RLS ✅ ·
-5 Business ✅ · 6 API ✅ (`9fded51`) · 7 Mobile ✅ (`e5b7d28`) · 8 Web ✅
-(`6f17532`) · 9 Testing ✅ (`d1929eb`) · 10 Documentation ✅ → **STOP**.
+1 Requirements ✅ (ADR-011) · 2 DB · 3 Relationships · 4 RLS · 5 Business ·
+6 API · 7 Mobile (teacher mark/history/corrections; parent
+calendar/leave) · 8 Web (dashboard, bulk entry, approvals, holidays,
+summary, export) · 9 Testing · 10 Documentation → deliverables report →
+**STOP**.
 
 ## Invariants (enforce DB + business)
 
-Admission no unique/school · Aadhaar partial-unique · one enrollment per
-(student, year) · promotion = NEW enrollment, history never mutated · same-class
-transfer = in-place · rollNo needs section + unique per (year, section) · one
-primary contact per student · employeeId unique/school · all admin mutations
-audited in-transaction. M0–M2 frozen (critical bug/security fixes only).
+One session per (section, date, sessionType, subject) · one record per
+(session, enrollment) · no attendance on holidays unless explicitly
+overridden (audited) · leave approval writes LEAVE into covered
+sessions + pre-fills future ones · corrections require approval, never
+silent overwrites · records only for enrollments valid in the session's
+year/section · all mutations audited in-transaction. M0–M3 frozen
+(critical bug/security fixes only).
 
 ## Open items
 
-Private `student-documents` bucket needs manual provisioning
-(RUNBOOK_SUPABASE_SETUP.md §3b) before live document uploads.
+Leave approval authority: PRD §8.7 wanted the class teacher, but no
+isClassTeacher flag exists (deferred in M2) — M4 gives approval to
+SUPER_ADMIN/OFFICE_ADMIN only (web). Working-weekday config (is Saturday a
+school day?) still unconfirmed (Dev PRD §16.15) — M4 treats Mon–Fri +
+Holiday table as school days pending client answer.
