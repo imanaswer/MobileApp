@@ -54,21 +54,25 @@ model School {
 // `id` == Supabase `auth.users.id` — no separate PK, no default (the UID is
 // supplied at provisioning). Credentials/OTP live in Supabase; we store none.
 model User {
-  id                 String              @id
-  schoolId           String // loose tenant ref (ADR-008)
-  role               Role
-  status             UserStatus          @default(INVITED)
-  phone              String?             @unique
-  email              String?             @unique
-  locale             Locale              @default(EN)
-  lastLoginAt        DateTime?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  deviceTokens       DeviceToken[]
+  id                             String                 @id
+  schoolId                       String // loose tenant ref (ADR-008)
+  role                           Role
+  status                         UserStatus             @default(INVITED)
+  phone                          String?                @unique
+  email                          String?                @unique
+  locale                         Locale                 @default(EN)
+  lastLoginAt                    DateTime?
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @updatedAt
+  deviceTokens                   DeviceToken[]
   // Virtual back-relations only (no column/behavior change to the frozen M1 model).
-  teacherAssignments TeacherAssignment[]
-  staff              Staff? // M3: employment profile, 1:1 (userId unique on Staff)
-  parent             Parent? // M3: parent portal login, 1:1 (userId unique on Parent)
+  teacherAssignments             TeacherAssignment[]
+  staff                          Staff? // M3: employment profile, 1:1 (userId unique on Staff)
+  parent                         Parent? // M3: parent portal login, 1:1 (userId unique on Parent)
+  attendanceSessionsMarked       AttendanceSession[] // M4: sessions this user marked
+  attendanceCorrectionsRequested AttendanceCorrection[] @relation("CorrectionRequestedBy") // M4
+  attendanceCorrectionsDecided   AttendanceCorrection[] @relation("CorrectionDecidedBy") // M4
+  leaveRequestsDecided           LeaveRequest[] // M4: leave approvals/rejections by this user
   // + raw SQL: RLS ON — read-self + admin-read-all (m1_rls_hardening)
 
   @@index([schoolId, role])
@@ -104,16 +108,18 @@ enum AcademicYearStatus {
 // TIME axis root, e.g. "2026–27". Calendar dates are @db.Date (IST convention,
 // Dev PRD decision #22) so range logic can't drift by a UTC off-by-one.
 model AcademicYear {
-  id          String             @id @default(cuid())
-  schoolId    String // loose tenant ref (ADR-008)
-  name        String
-  startDate   DateTime           @db.Date
-  endDate     DateTime           @db.Date
-  status      AcademicYearStatus @default(PLANNED)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  terms       AcademicTerm[]
-  enrollments Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
+  id                 String              @id @default(cuid())
+  schoolId           String // loose tenant ref (ADR-008)
+  name               String
+  startDate          DateTime            @db.Date
+  endDate            DateTime            @db.Date
+  status             AcademicYearStatus  @default(PLANNED)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  terms              AcademicTerm[]
+  enrollments        Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
+  attendanceSessions AttendanceSession[] // M4: virtual back-relation only
+  holidays           Holiday[] // M4: virtual back-relation only
   // + raw SQL: UNIQUE (schoolId) WHERE status = 'ACTIVE'  — one ACTIVE year
   // + raw SQL: CHECK (startDate < endDate)
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration; defense-in-depth)
@@ -171,6 +177,7 @@ model Section {
   class              Class               @relation(fields: [classId], references: [id], onDelete: Restrict)
   teacherAssignments TeacherAssignment[]
   enrollments        Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
+  attendanceSessions AttendanceSession[] // M4: virtual back-relation only
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([classId, name])
@@ -185,6 +192,7 @@ model Subject {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   teacherAssignments TeacherAssignment[]
+  attendanceSessions AttendanceSession[] // M4: virtual back-relation only (SUBJECT sessions, future)
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([schoolId, name])
@@ -376,6 +384,7 @@ model Parent {
   updatedAt        DateTime         @updatedAt
   user             User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
   students         StudentParent[]
+  leaveRequests    LeaveRequest[] // M4: virtual back-relation only
   // + raw SQL: RLS ON — admin ALL; parent SELECT self (userId = auth.uid()) (people_rls, Step 4)
 
   @@index([schoolId])
@@ -433,20 +442,22 @@ model Staff {
 // section — a rollNo without a sectionId is invalid. Enforced by a CHECK below
 // (rollNo NULL OR sectionId NOT NULL) and by EnrollmentService on allocation.
 model Enrollment {
-  id             String           @id @default(cuid())
-  schoolId       String // loose tenant ref (ADR-008)
-  studentId      String
-  academicYearId String
-  classId        String
-  sectionId      String?
-  rollNo         Int? // set only once sectionId is assigned (see CHECK below)
-  status         EnrollmentStatus @default(ADMITTED)
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  student        Student          @relation(fields: [studentId], references: [id], onDelete: Restrict)
-  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  class          Class            @relation(fields: [classId], references: [id], onDelete: Restrict)
-  section        Section?         @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  id                String             @id @default(cuid())
+  schoolId          String // loose tenant ref (ADR-008)
+  studentId         String
+  academicYearId    String
+  classId           String
+  sectionId         String?
+  rollNo            Int? // set only once sectionId is assigned (see CHECK below)
+  status            EnrollmentStatus   @default(ADMITTED)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  student           Student            @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  academicYear      AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  class             Class              @relation(fields: [classId], references: [id], onDelete: Restrict)
+  section           Section?           @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  attendanceRecords AttendanceRecord[] // M4: virtual back-relation only (ADR-011)
+  leaveRequests     LeaveRequest[] // M4: virtual back-relation only
   // + raw SQL: partial unique — roll number unique per section per year:
   //   WHERE "sectionId" IS NOT NULL AND "rollNo" IS NOT NULL
   // + raw SQL: CHECK ("rollNo" IS NULL OR "sectionId" IS NOT NULL) — rollNo only after allocation
@@ -455,5 +466,211 @@ model Enrollment {
   @@unique([studentId, academicYearId]) // one enrollment per student per year (ADR-010)
   @@index([academicYearId, sectionId]) // section roster this year
   @@index([academicYearId, classId]) // grade roster this year
+  @@index([schoolId])
+}
+
+// ========================= Attendance Management (M4) =========================
+// ADR-011 is the source of truth: attendance belongs to Enrollment, NEVER
+// Student. Session-based model — AttendanceSession is one marking EVENT
+// (section × date × type × subject?); AttendanceRecord is one line per
+// enrollment. Holidays are calendar rows, not a status. Leave and corrections
+// are approval-gated workflow rows; history is never silently overwritten.
+
+// ---------- enums ----------
+enum AttendanceSessionType {
+  MORNING // daily attendance (the default event)
+  AFTERNOON // optional second daily event
+  SUBJECT // future-ready (ADR-011 §3); requires subjectId (CHECK below)
+}
+
+// Session lifecycle. While OPEN the marker edits records in place (re-save =
+// upsert). FINALIZED locks the session: record changes then require an
+// approved AttendanceCorrection.
+enum AttendanceSessionStatus {
+  OPEN
+  FINALIZED
+}
+
+// No HOLIDAY value on purpose (ADR-011 §4): a holiday is the ABSENCE of a
+// session (Holiday table), not a per-student mark. LATE counts present in
+// percentage math; HALF_DAY weighs 0.5. LEAVE rows are written by the leave
+// service on approval (ADR-011 §5), not hand-picked by teachers.
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  HALF_DAY
+  LEAVE
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED // withdrawn by the parent; reverts written LEAVE rows if it was APPROVED
+}
+
+enum AttendanceCorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum HolidayType {
+  NATIONAL
+  SCHOOL
+  FESTIVAL
+  EMERGENCY_CLOSURE
+}
+
+// ---------- attendance session (one marking event) ----------
+// Uniqueness "one session per (section, date, type, subject)" needs TWO partial
+// indexes (raw SQL) because subjectId is nullable and Postgres treats NULLs as
+// distinct: daily sessions dedupe on (section, date, type) WHERE subject NULL;
+// subject sessions on all four WHERE subject NOT NULL. markedBy references
+// User, not Staff — admins may mark and are not guaranteed Staff rows (B3).
+// classId is NOT carried: sectionId is non-null here, so class derives via
+// section.classId (the ADR-010 Alternative-B case where derivation is safe).
+// Service invariants (cross-table, not expressible as CHECKs): date within the
+// academic year's range; year is the ACTIVE year at creation; no session on a
+// Holiday date unless isHolidayOverride (audited).
+model AttendanceSession {
+  id                String                  @id @default(cuid())
+  schoolId          String // loose tenant ref (ADR-008)
+  academicYearId    String
+  sectionId         String
+  date              DateTime                @db.Date
+  sessionType       AttendanceSessionType
+  subjectId         String? // non-null IFF sessionType = SUBJECT (CHECK below)
+  markedByUserId    String
+  status            AttendanceSessionStatus @default(OPEN)
+  isHolidayOverride Boolean                 @default(false) // explicit, audited holiday override (ADR-011 §4)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  academicYear      AcademicYear            @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  section           Section                 @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  subject           Subject?                @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  markedBy          User                    @relation(fields: [markedByUserId], references: [id], onDelete: Restrict)
+  records           AttendanceRecord[]
+  // + raw SQL: partial unique — daily sessions:   (sectionId, date, sessionType) WHERE subjectId IS NULL
+  // + raw SQL: partial unique — subject sessions: (sectionId, date, sessionType, subjectId) WHERE subjectId IS NOT NULL
+  // + raw SQL: CHECK ((sessionType = 'SUBJECT') = (subjectId IS NOT NULL))
+  // + raw SQL: RLS ON — admin ALL; teacher own-section; parent via child (attendance_rls, Step 4)
+
+  @@index([sectionId, date]) // register lookup: "was 5-A marked today?"
+  @@index([academicYearId, date]) // dashboard: all sessions on a day / year sweep
+  @@index([markedByUserId, date]) // teacher marking history
+  @@index([schoolId])
+}
+
+// ---------- attendance record (one line per enrollment) ----------
+// FKs Enrollment, never Student (ADR-011 §1) — history survives promotion
+// because the year's enrollment row is immutable after close (§2). Restrict
+// (not Cascade) from session: records carry academic history; an empty mistake
+// session can be deleted, a marked one cannot. Service invariants: the
+// enrollment's sectionId/academicYearId match the session's at marking time;
+// enrollment status is markable (ACTIVE) — withdrawn students drop off rosters.
+model AttendanceRecord {
+  id           String                 @id @default(cuid())
+  schoolId     String // loose tenant ref (ADR-008)
+  sessionId    String
+  enrollmentId String
+  status       AttendanceStatus
+  note         String? // optional remark ("arrived 9:40", "left after lunch")
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  session      AttendanceSession      @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  enrollment   Enrollment             @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  corrections  AttendanceCorrection[]
+  // + raw SQL: RLS ON — mirrors session scope + parent own-child (attendance_rls, Step 4)
+
+  @@unique([sessionId, enrollmentId]) // a student is marked once per session
+  @@index([enrollmentId]) // student history + summary aggregation hot path
+  @@index([schoolId])
+}
+
+// ---------- leave request (parent-initiated, approval-gated) ----------
+// FKs Enrollment (ADR-011 §5; supersedes the PRD's studentId keying) + the
+// requesting Parent. Approval writes LEAVE into covered sessions and pre-fills
+// future ones; CANCELLED/REJECTED after approval reverts only leave-written
+// rows. Overlap guard (raw SQL EXCLUDE): an enrollment cannot hold two
+// PENDING/APPROVED leaves with intersecting date ranges — same btree_gist
+// idiom as AcademicTerm_no_overlap. decidedBy nullable until a decision.
+model LeaveRequest {
+  id              String             @id @default(cuid())
+  schoolId        String // loose tenant ref (ADR-008)
+  enrollmentId    String
+  parentId        String
+  fromDate        DateTime           @db.Date
+  toDate          DateTime           @db.Date
+  reason          String
+  status          LeaveRequestStatus @default(PENDING)
+  decidedByUserId String? // null before a decision
+  decidedAt       DateTime?
+  decisionNote    String? // e.g. rejection reason
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  enrollment      Enrollment         @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  parent          Parent             @relation(fields: [parentId], references: [id], onDelete: Restrict)
+  decidedBy       User?              @relation(fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  // + raw SQL: CHECK (fromDate <= toDate)
+  // + raw SQL: EXCLUDE gist — no overlapping PENDING/APPROVED leave per enrollment
+  // + raw SQL: RLS ON — admin ALL; parent own rows; teacher own-section read (attendance_rls, Step 4)
+
+  @@index([enrollmentId, status]) // child leave status + overlap prechecks
+  @@index([schoolId, status]) // admin pending-approval queue
+  @@index([parentId])
+}
+
+// ---------- attendance correction (append-only workflow) ----------
+// Corrections never overwrite history silently (ADR-011 §6): the row keeps the
+// before/after pair; approval updates the target record + AuditLog in ONE
+// transaction. One PENDING correction per record (partial unique) so approvals
+// can't race. requestedBy is a User (teacher within their sections, or admin).
+model AttendanceCorrection {
+  id                 String                     @id @default(cuid())
+  schoolId           String // loose tenant ref (ADR-008)
+  attendanceRecordId String
+  requestedByUserId  String
+  fromStatus         AttendanceStatus // record's status at request time
+  toStatus           AttendanceStatus // proposed replacement (CHECK: differs)
+  reason             String
+  status             AttendanceCorrectionStatus @default(PENDING)
+  decidedByUserId    String? // null before a decision
+  decidedAt          DateTime?
+  decisionNote       String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  attendanceRecord   AttendanceRecord           @relation(fields: [attendanceRecordId], references: [id], onDelete: Restrict)
+  requestedBy        User                       @relation("CorrectionRequestedBy", fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  decidedBy          User?                      @relation("CorrectionDecidedBy", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  // + raw SQL: partial unique — one PENDING correction per record: WHERE status = 'PENDING'
+  // + raw SQL: CHECK (fromStatus <> toStatus)
+  // + raw SQL: RLS ON — admin ALL; requester own rows; teacher own-section (attendance_rls, Step 4)
+
+  @@index([attendanceRecordId]) // correction chain of a record
+  @@index([requestedByUserId, status]) // teacher "my pending corrections"
+  @@index([schoolId, status]) // admin approval queue
+}
+
+// ---------- holiday (year calendar; resolves REVIEW_FINDINGS B1) ----------
+// Source of truth for non-working days: leave resolution skips these dates and
+// session creation on them is rejected unless explicitly overridden (audited).
+// One row per date per year — "is this date a holiday?" is the real query.
+// Cascade from AcademicYear (calendar composition, like AcademicTerm). Service
+// invariant: date within the year's range (cross-table, business layer).
+model Holiday {
+  id             String       @id @default(cuid())
+  schoolId       String // loose tenant ref (ADR-008)
+  academicYearId String
+  date           DateTime     @db.Date
+  name           String
+  type           HolidayType
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  // + raw SQL: RLS ON — admin ALL; authenticated read (attendance_rls, Step 4)
+
+  @@unique([academicYearId, date]) // one holiday row per date per year
   @@index([schoolId])
 }
