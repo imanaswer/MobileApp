@@ -13,6 +13,7 @@ export { updateProfile, type UpdateProfileInput } from "./services/profile";
 export { setRole, disableUser, enableUser } from "./services/admin";
 export * from "./services/academic";
 export * from "./services/people";
+export * from "./services/attendance";
 export {
   assertCan,
   assertScope,
