@@ -110,20 +110,52 @@ class-subject mapping are future work.
 
 | Procedure | T | Permission | Audit | Notes |
 |---|---|---|---|---|
-| `academic.holidays.*` (list/create/delete) | Q/M | `academic:manage` | ✓ | school calendar (Dev PRD §8.19); optional class scope |
+| ~~`academic.holidays.*`~~ | Q/M | `academic:manage` | ✓ | **shipped in M4 as `holiday.*`** (attendance section); working-day calendar, ADR-011 §9 |
 | `academic.settings.get/update` | Q/M | `academic:manage` | ✓ | typed `SchoolSettings` (attendance mode, periods, cutoff, working weekdays) |
 | `classSubjects.*` (class↔subject mapping) | Q/M | `academic:manage` | ✓ | with class-teacher flag on assignments |
 | `enrollment.promoteBulk` | M | `enrollment:manage` | ✓ | retain/transfer overrides; dry-run mode recommended |
 
-## attendance (M4 — next)
+## attendance (M4 — implemented, ADR-011)
 
-| Procedure | T | Permission | Audit | Notif |
+Four flat routers on the **protected** gate. Attendance keys to **Enrollment,
+never Student** (history survives promotion). A register is an `AttendanceSession`
+(the event) holding many `AttendanceRecord`s; ownership **derives from
+TeacherAssignment** (not stored). Lifecycle is forward-only `DRAFT → SUBMITTED →
+LOCKED`; after LOCK a record changes only via an approved correction. Every
+mutation writes `AuditLog` in the same transaction. Concurrency-safe: session
+create (DB partial-unique), record mark (idempotent upsert), and state
+transitions + correction approval (guarded conditional updates → `Conflict` on a
+lost race). Dates transform to `@db.Date` at the Zod boundary (`istDateSchema`).
+
+| Procedure | T | Permission | Audit | Notes |
 |---|---|---|---|---|
-| `attendance.markBulk` | M | `attendance:mark` | ✓ (changed rows) | – (absence push is the job's) |
-| `attendance.getByDivisionDate` | Q | `attendance:read` | – | – |
-| `attendance.studentSummary` | Q | `attendance:read` | – | – (daily/monthly/term %) |
+| `attendance.openSession` | M | `attendance:mark` | ✓ | opens a DRAFT register; rejected on a holiday or a duplicate `(section,date,type,subject)`; teacher → own section |
+| `attendance.findSession` | Q | `attendance:read` | – | resolve the register (or null) **without** creating one — the marking screen's open-vs-resume decision |
+| `attendance.roster` | Q | `attendance:read` | – | ACTIVE enrollments + existing marks + **leave-derived suggested default** (no eager write); teacher own-section |
+| `attendance.mark` | M | `attendance:mark` | ✓ (bulk, one row) | idempotent upsert per `(session, enrollment)`; **DRAFT only**; each enrollment must be ACTIVE + in the section; bad row rolls the batch back |
+| `attendance.submit` | M | `attendance:mark` | ✓ | DRAFT → SUBMITTED (guarded); stamps `submittedBy/At` |
+| `attendance.lock` | M | `attendance:mark` | ✓ | SUBMITTED → LOCKED (guarded); stamps `lockedBy/At` |
+| `attendance.records` | Q | `attendance:read` | – | a session's marks; teacher own-section |
+| `attendance.history` | Q | `attendance:read` | – | one enrollment's records over a range; parent own-child, teacher own-section |
+| `attendance.summary` | Q | `attendance:read` | – | **compute-on-read** % (no table/cron); PRESENT/LATE=1, HALF_DAY=0.5, LEAVE excluded (ADR-011 §10) |
+| `leave.create` | M | `leave:apply` | ✓ | parent applies for own child; PENDING; writes no attendance |
+| `leave.decide` | M | `leave:decide` | ✓ | approve/reject; **writes no attendance record** (§7) |
+| `leave.cancel` | M | `leave:apply` | ✓ | parent cancels own PENDING request |
+| `leave.listByEnrollment` | Q | `leave:read` | – | parent own-child, teacher own-section |
+| `leave.listPending` | Q | `leave:decide` | – | school-wide approval queue, enriched with student name |
+| `attendanceCorrection.submit` | M | `attendance:correct:submit` | ✓ | immutable request snapshotting `previousStatus`; teacher own-section |
+| `attendanceCorrection.decide` | M | `attendance:correct:decide` | ✓ | approve applies `requestedStatus` (optimistic-guarded, guarded-once); reject leaves the record untouched |
+| `attendanceCorrection.listPending` | Q | `attendance:correct:decide` | – | approval queue, enriched with student name + record date |
+| `attendanceCorrection.listMine` | Q | `attendance:correct:submit` | – | the actor's own submitted corrections + status (mobile) |
+| `holiday.list` | Q | `holiday:read` | – | year calendar; readable by all in-scope roles |
+| `holiday.create` | M | `academic:manage` | ✓ | one per `(year, date)`; curates the working-day calendar |
+| `holiday.delete` | M | `academic:manage` | ✓ | – |
 
-`markBulk` upserts on `[enrollmentId, date, period]` — idempotent, safe for offline replay.
+Superseded from the v1.2 draft: the single `attendance.markBulk` on
+`[enrollmentId, date, period]` — the Session/Record split replaces it (ADR-011).
+Absence-push and scheduled %-rollup jobs remain future (notification/analytics
+milestones); **subject/period attendance** is schema-ready (`sessionType=SUBJECT`)
+but daily-first in the UI.
 
 ## exams (M4)
 

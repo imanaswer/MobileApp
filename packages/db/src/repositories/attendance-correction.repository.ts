@@ -28,7 +28,13 @@ export interface AttendanceCorrectionRepository {
   /** Corrections raised by a given staff member (their own submissions). */
   listByRequester(requestedByStaffId: string): Promise<AttendanceCorrection[]>;
   create(input: CreateAttendanceCorrectionInput): Promise<AttendanceCorrection>;
-  decide(id: string, data: DecideAttendanceCorrectionInput): Promise<AttendanceCorrection>;
+  /**
+   * Guarded decision: applies only if the row is still PENDING (conditional
+   * UPDATE with a row lock). Returns the decided row, or `null` when another
+   * approver already decided — so concurrent approvals can't double-apply the
+   * record change or double-audit.
+   */
+  decide(id: string, data: DecideAttendanceCorrectionInput): Promise<AttendanceCorrection | null>;
 }
 
 export function createAttendanceCorrectionRepository(
@@ -52,14 +58,16 @@ export function createAttendanceCorrectionRepository(
         orderBy: { createdAt: "desc" },
       }),
     create: (input) => client.attendanceCorrection.create({ data: input }),
-    decide: (id, data) =>
-      client.attendanceCorrection.update({
-        where: { id },
+    decide: async (id, data) => {
+      const { count } = await client.attendanceCorrection.updateMany({
+        where: { id, status: "PENDING" },
         data: {
           status: data.status,
           decidedByStaffId: data.decidedByStaffId,
           decidedAt: data.decidedAt,
         },
-      }),
+      });
+      return count === 0 ? null : client.attendanceCorrection.findUnique({ where: { id } });
+    },
   };
 }

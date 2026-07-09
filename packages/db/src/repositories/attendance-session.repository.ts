@@ -18,8 +18,8 @@ export interface CreateAttendanceSessionInput {
   createdByStaffId: string;
 }
 
-export interface UpdateAttendanceSessionInput {
-  status?: AttendanceSessionStatus | undefined;
+export interface TransitionAttendanceSessionInput {
+  status: AttendanceSessionStatus;
   submittedByStaffId?: string | null | undefined;
   submittedAt?: Date | null | undefined;
   lockedByStaffId?: string | null | undefined;
@@ -37,7 +37,17 @@ export interface AttendanceSessionRepository {
     subjectId: string | null,
   ): Promise<AttendanceSession | null>;
   create(input: CreateAttendanceSessionInput): Promise<AttendanceSession>;
-  update(id: string, data: UpdateAttendanceSessionInput): Promise<AttendanceSession>;
+  /**
+   * Guarded state transition: applies `data` only if the row is still in
+   * `fromStatus` (a conditional UPDATE that takes a row lock). Returns the new
+   * row, or `null` when another writer already moved it — so concurrent
+   * submit/lock can't double-transition or double-audit.
+   */
+  transition(
+    id: string,
+    fromStatus: AttendanceSessionStatus,
+    data: TransitionAttendanceSessionInput,
+  ): Promise<AttendanceSession | null>;
 }
 
 export function createAttendanceSessionRepository(client: DbClient): AttendanceSessionRepository {
@@ -59,11 +69,11 @@ export function createAttendanceSessionRepository(client: DbClient): AttendanceS
           createdByStaffId: input.createdByStaffId,
         },
       }),
-    update: (id, data) =>
-      client.attendanceSession.update({
-        where: { id },
+    transition: async (id, fromStatus, data) => {
+      const { count } = await client.attendanceSession.updateMany({
+        where: { id, status: fromStatus },
         data: {
-          ...(data.status !== undefined ? { status: data.status } : {}),
+          status: data.status,
           ...(data.submittedByStaffId !== undefined
             ? { submittedByStaffId: data.submittedByStaffId }
             : {}),
@@ -71,6 +81,8 @@ export function createAttendanceSessionRepository(client: DbClient): AttendanceS
           ...(data.lockedByStaffId !== undefined ? { lockedByStaffId: data.lockedByStaffId } : {}),
           ...(data.lockedAt !== undefined ? { lockedAt: data.lockedAt } : {}),
         },
-      }),
+      });
+      return count === 0 ? null : client.attendanceSession.findUnique({ where: { id } });
+    },
   };
 }

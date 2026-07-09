@@ -90,6 +90,9 @@ export async function decideCorrection(
         decidedByStaffId: staffId,
         decidedAt: new Date(),
       });
+      if (!after) {
+        throw new ConflictError("Correction was already decided");
+      }
       await recordAudit(ctx, repos, {
         action: "ATTENDANCE_CORRECTION_REJECT",
         entityType: "AttendanceCorrection",
@@ -107,12 +110,18 @@ export async function decideCorrection(
   }
 
   return ctx.withTransaction(async (repos) => {
-    await repos.attendanceRecords.updateStatus(record.id, correction.requestedStatus);
+    // Claim the correction first (guarded PENDING→APPROVED). A concurrent approver
+    // that already claimed it gets null → Conflict, so the record change + audit
+    // apply exactly once.
     const after = await repos.attendanceCorrections.decide(correction.id, {
       status: "APPROVED",
       decidedByStaffId: staffId,
       decidedAt: new Date(),
     });
+    if (!after) {
+      throw new ConflictError("Correction was already decided");
+    }
+    await repos.attendanceRecords.updateStatus(record.id, correction.requestedStatus);
     await recordAudit(ctx, repos, {
       action: "ATTENDANCE_CORRECTION_APPROVE",
       entityType: "AttendanceRecord",

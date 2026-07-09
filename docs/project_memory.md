@@ -4,14 +4,14 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Milestone
 
-**M3 — People Management** (kicked off 2026-07-05; scope = students, parents +
-links, staff profiles, enrollment per ADR-010, student documents — see
-`docs/milestones/M3.md`)
+**M4 — Attendance Management** (scope = AttendanceSession + AttendanceRecord,
+LeaveRequest, AttendanceCorrection, Holiday, compute-on-read summary; ADR-011 —
+attendance keys to Enrollment, never Student — see `docs/milestones/M4.md`)
 
 ## Current Step
 
-**M3 Steps 1–10 COMPLETE (2026-07-05)** — deliverables reported; **STOPPED
-awaiting user approval before M4 — Attendance**.
+**M4 Steps 1–10 COMPLETE** — deliverables reported; **STOPPED awaiting user
+approval before M5 — Homework & Assignments**.
 
 ## Completed
 
@@ -75,6 +75,22 @@ awaiting user approval before M4 — Attendance**.
   `features/people-management.md`, status, milestone, memory); no new ADR
   (ADR-010 + ADR-004 cover the decisions)
 
+- ✓ **M4 Steps 1–10 (Attendance, ADR-011)** — **Step 1** ADR-011 (Session/Record
+  on Enrollment; audit actors not owner; immutable corrections; leave-as-default;
+  DRAFT→SUBMITTED→LOCKED; working-day calendar) + PERMISSIONS_MATRIX. **2–4**
+  migrations `20260707000000_attendance_management` (5 models/6 enums, two
+  partial-unique register indexes, empirically drift-checked) + relationships
+  (attendance Restrict→Enrollment) + `20260707010000_attendance_rls`. **5** 4
+  services (attendance/leave/correction/holiday) — B3 staff-actor, leave biases
+  roster default only, compute-on-read summary. **6** 4 thin routers + Zod. **7**
+  mobile teacher mark/history/corrections + parent attendance/calendar/leave
+  (added `attendance.findSession`, `attendanceCorrection.listMine`, `Record.date`).
+  **8** web `/attendance/*` dashboard (bulk mark, filters, date picker, CSV,
+  approval queues, holidays; added `leave.listPending` + enriched correction
+  queue). **9** 392 tests incl. real Promise.all concurrency + state-machine +
+  authorization matrices; **concurrency hardening (real defect):** guarded
+  conditional transitions on submit/lock + correction approval. **10** docs.
+
 - ✓ **M1 RLS hardening** (security-fix exception, 2026-07-05): M1 auth tables shipped with no RLS. Migration `20260705020000_m1_rls_hardening` enables RLS (not FORCE) on School/User/DeviceToken/AuditLog with read-only policies (`user_read_self` + `is_admin()` reads; owner-only device tokens; admin-only School/AuditLog) — stops parent/teacher user enumeration; no write policies (writes stay service_role); anon denied. Defense-in-depth only. **Blocking pre-apply gate:** confirm live Prisma role bypasses RLS before applying or auth locks out (see `docs/RLS_POLICIES.md`). All 80 tests still green.
 
 ## Frozen Modules (read-only — see workflow.md)
@@ -85,6 +101,7 @@ awaiting user approval before M4 — Attendance**.
 - Mobile auth (`apps/mobile/src/{app,lib,stores,providers}`), Web auth (`apps/web` auth routes + middleware + `src/lib/supabase`)
 - M2 academic structure (schema/migrations, `services/academic`, academic routers, `/academic/*` web, mobile academic screens)
 - M3 people management freezes on approval (schema/migrations, `services/people`, people routers, `/people/*` web, mobile people screens)
+- M4 attendance freezes on approval (schema/migrations, `services/attendance`, attendance/leave/correction/holiday routers, `/attendance/*` web, mobile attendance screens)
 
 > Frozen = amend only for a critical bug, a security fix (Step 9 may amend), or explicit user approval.
 
@@ -104,16 +121,18 @@ awaiting user approval before M4 — Attendance**.
 
 ## Current Status
 
-M0/M1/M1.5/M2 **approved & frozen**. **M3 People Management complete (Steps
-1–10, 2026-07-05), awaiting approval:** Student identity + Enrollment placement
-(ADR-010 — one row per student per year, in-place same-class transfer, new-row
-promotion, dual-write withdraw), Parent↔Student junction with relationship enum
-+ single primary, Staff 1:1 User, StudentDocument metadata over the private
-`student-documents` bucket with server-minted signed URLs (ADR-004; teacher
-sees PHOTO only). Row scope in the business layer (teacher → own sections,
-parent → own children) + RLS defense-in-depth. Web `/people/*` full CRUD,
-mobile read-only screens. Verified **typecheck 14/14, lint 14/14, tests 20
-files / 213 total, web production build, mobile ios export**.
+M0/M1/M1.5/M2 **approved & frozen**; M3 People Management complete (awaiting
+approval). **M4 Attendance complete (Steps 1–10), awaiting approval:** the
+Session/Record model on Enrollment (ADR-011 — history survives promotion),
+DRAFT→SUBMITTED→LOCKED registers, idempotent bulk marking, leave (biases the
+marking default, never eager-writes), immutable corrections (approval updates
+the record once, audited), a working-day holiday calendar, and a compute-on-read
+attendance summary. Ownership derives from TeacherAssignment; row scope (teacher
+→ own sections, parent → own children) in the business layer + RLS
+defense-in-depth. Web `/attendance/*` admin dashboard (bulk mark, filters, CSV,
+approval queues, holidays), mobile teacher-marking + parent-view/leave screens.
+Concurrency-hardened (guarded transitions). Verified **typecheck ✓, lint ✓,
+tests 392 total, web production build, mobile ios export**.
 
 ## Known Blockers / Notes
 
@@ -124,7 +143,7 @@ files / 213 total, web production build, mobile ios export**.
 
 ## Next Task
 
-**STOPPED — M3 deliverables reported; waiting for user approval before M4 —
-Attendance** (marks against Enrollment rows; absence notifications). Before
-live document uploads: create the private `student-documents` bucket
-(runbook §3b).
+**STOPPED — M4 deliverables reported; waiting for user approval before M5 —
+Homework & Assignments** (hangs off Enrollment/section, same patterns). Open
+sign-off: **holiday = hard block, no override in M4** (ADR-011 §9). Before live
+document uploads: create the private `student-documents` bucket (runbook §3b).

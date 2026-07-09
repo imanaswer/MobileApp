@@ -1,10 +1,15 @@
 # Status — Attendance
 
-- **Status:** Not started
-- **Current milestone:** later (after People) — attendance + push + absence job
-- **Completion:** 0%
-- **Dependencies:** Authentication (frozen), People (Students/Enrollment), Notifications
-- **Frozen?** No
-- **Known issues:** period-wise vs daily leave invariant to confirm (REVIEW_FINDINGS B2); `Attendance.period @default(0)` sentinel; `@db.Date`.
-- **Next work:** its milestone — bulk mark (upsert on `[enrollmentId, date, period]`), auto %, absence push.
-- **Spec:** Dev PRD v1.3 §8.4.
+- **Status:** Implemented (M4 Steps 1–10 complete, awaiting approval)
+- **Current milestone:** M4 — Attendance Management
+- **Completion:** 100% of M4 scope (session/record model, leave, corrections, holidays, compute-on-read summary)
+- **Dependencies:** Authentication (frozen), Academic structure (M2, frozen), People/Enrollment (M3), a `Staff` row per marking user (REVIEW_FINDINGS B3 provisioning invariant)
+- **Frozen?** Not yet (freezes on M4 approval)
+- **Known issues / limitations:**
+  - **Holiday = hard block, no override in M4** — an admin cannot record attendance on a holiday even for an emergency make-up day (the working-day override layer is designed-in but unbuilt, ADR-011 §9). **Needs sign-off.**
+  - Daily-session teacher scope is section-level (any assignment), not class-teacher — the class-teacher flag is still deferred (M3 open item).
+  - Absence-push and scheduled %-rollup jobs are out of M4 (notification/analytics milestones).
+  - Subject/period attendance is schema-ready (`sessionType=SUBJECT`) but daily-first in the UI.
+  - Mobile calendar is a chronological list (not a grid); `todayIst()` uses the device locale (fine for a single-tz IST school).
+- **Next work:** M5 — Homework & Assignments (hangs off Enrollment/section, same patterns).
+- **Spec:** M4 kickoff brief · ADR-011 · `docs/features/attendance.md`.

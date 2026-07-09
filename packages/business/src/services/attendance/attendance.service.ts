@@ -353,7 +353,12 @@ async function transitionSession(
       : { status: t.to, lockedByStaffId: staffId, lockedAt: now };
 
   return ctx.withTransaction(async (repos) => {
-    const after = await repos.attendanceSessions.update(session.id, stamp);
+    // Guarded transition: only succeeds if still in `from`; a concurrent writer
+    // that already moved it gets null → Conflict (no double-transition/audit).
+    const after = await repos.attendanceSessions.transition(session.id, t.from, stamp);
+    if (!after) {
+      throw new ConflictError(`Register was already ${t.to.toLowerCase()}`);
+    }
     await recordAudit(ctx, repos, {
       action: t.action,
       entityType: "AttendanceSession",
