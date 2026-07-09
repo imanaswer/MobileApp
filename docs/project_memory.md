@@ -4,18 +4,20 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Milestone
 
-**M5 — Examination & Assessment** (scope = Exam + Assessment + ExamSection
-(register) + Mark (snapshot) + GradeScale/GradeBand + central grade compute +
-GPA foundation; ADR-012 extends ADR-011 — marks key to Enrollment, never Student;
-lock-per-register / publish-per-exam — see `docs/milestones/M5.md`). **Numbering
-note:** PRD v1.3 planned M5 = Homework; this project built M5 = Examination, so
-the PRD homework/communication plan shifts out by one (unbuilt planning-doc tags
-left as-is pending renumbering).
+**M6 — Homework & Assignment Management** (scope = Homework + HomeworkAttachment +
+HomeworkSubmission (per **Enrollment**, never Student) + SubmissionAttachment +
+HomeworkFeedback; ADR-013 extends ADR-010/011/012 + ADR-004 storage. Lifecycles:
+homework `DRAFT→PUBLISHED→CLOSED` (audited reopen), submission
+`SUBMITTED→RETURNED→REVIEWED` (in-place resubmit, attempt counter). Parents submit
+for children — no student login. **Brief overrides PRD decision #13:** submissions
+are core, not distribution-only, no `homework-uploads` flag). **Numbering:** M6
+here = PRD-planned homework milestone, shifted by the M5 renumbering.
 
 ## Current Step
 
-**M5 Steps 1–10 COMPLETE** — deliverables reported; **STOPPED awaiting user
-approval before the next milestone**.
+**M6 Step 1 (Requirements Analysis) COMPLETE — ADR-013 written; STOPPED awaiting
+approval before Step 2 (DB design).** M6 kickoff was read as implicit approval of
+M5 → M3/M4/M5 now frozen.
 
 ## Completed
 
@@ -120,9 +122,9 @@ approval before the next milestone**.
 - Business auth services (`packages/business/{auth,services}`), API auth router (`packages/api`)
 - Mobile auth (`apps/mobile/src/{app,lib,stores,providers}`), Web auth (`apps/web` auth routes + middleware + `src/lib/supabase`)
 - M2 academic structure (schema/migrations, `services/academic`, academic routers, `/academic/*` web, mobile academic screens)
-- M3 people management freezes on approval (schema/migrations, `services/people`, people routers, `/people/*` web, mobile people screens)
-- M4 attendance freezes on approval (schema/migrations, `services/attendance`, attendance/leave/correction/holiday routers, `/attendance/*` web, mobile attendance screens)
-- M5 examination freezes on approval (schema/migrations `2026070900/0100`, `services/exam`, `@repo/core/grade`, exam/assessment/mark/gradeScale routers, `/exams/*` web, mobile exam screens)
+- M3 people management (schema/migrations, `services/people`, people routers, `/people/*` web, mobile people screens) — frozen at M6 kickoff (implicit M5 approval)
+- M4 attendance (schema/migrations, `services/attendance`, attendance/leave/correction/holiday routers, `/attendance/*` web, mobile attendance screens) — frozen at M6 kickoff
+- M5 examination (schema/migrations `2026070900/0100`, `services/exam`, `@repo/core/grade`, exam/assessment/mark/gradeScale routers, `/exams/*` web, mobile exam screens) — frozen at M6 kickoff
 
 > Frozen = amend only for a critical bug, a security fix (Step 9 may amend), or explicit user approval.
 
@@ -165,9 +167,10 @@ tasks** (business 207, api 266, validation 50); mobile ios export ✓ (Step 7).
 
 ## Next Task
 
-**STOPPED — M5 (Examination & Assessment) deliverables reported; waiting for user
-approval before the next milestone.** Open reconciliation: PRD v1.3 planned M5 =
-Homework, but this project built M5 = Examination, so the homework/communication
-plan shifts out by one (renumbering pending an explicit decision). Prior open
+**STOPPED — M6 Step 1 (Requirements Analysis / ADR-013) reported; waiting for user
+approval before Step 2 (DB design).** Surfaced for sign-off: brief overrides PRD
+distribution-only homework (#13); OA gets `homework:manage`; content frozen at
+publish (dueDate extend-only); no resubmit after REVIEWED; new private
+`homework-files` bucket (user provisions before live uploads). Prior open
 sign-offs still stand: **holiday = hard block in M4** (ADR-011 §9); before live
 document uploads create the private `student-documents` bucket (runbook §3b).
