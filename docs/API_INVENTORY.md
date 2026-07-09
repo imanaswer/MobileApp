@@ -157,17 +157,50 @@ Absence-push and scheduled %-rollup jobs remain future (notification/analytics
 milestones); **subject/period attendance** is schema-ready (`sessionType=SUBJECT`)
 but daily-first in the UI.
 
-## exams (M4)
+## exams — Examination & Assessment (M5, ADR-012 · implemented)
 
-| Procedure | T | Permission | Audit | Notif |
+Four flat routers (`exam/assessment/mark/gradeScale`) on the **protected** gate.
+Marks key to **Enrollment, never Student** (ADR-010; results survive promotion).
+Hierarchy `Exam → Assessment (Exam×Subject) → ExamSection (the register, per
+section) → Mark (per enrollment)`. **Two grains:** a register **LOCKs** per
+ExamSection (`DRAFT → SUBMITTED → LOCKED`, forward-only, guarded); an exam
+**PUBLISHes** per Exam (exposes every LOCKED section at once — parents never see a
+partial exam). Grade/percentage is computed centrally (`@repo/core/grade`) and
+**snapshotted onto Mark at lock**; GradeScale edits never mutate a locked result;
+GPA reads snapshots only. Ownership **derives from TeacherAssignment** (teacher →
+own subject×section; admins bypass). Every mutation writes `AuditLog` in the same
+transaction. Register create is race-safe (`ensure` upsert); transitions are
+guarded (→ `Conflict` on a lost race). Publish sends **no notification** (M5
+excludes notifications — brief overrides Dev PRD §7).
+
+| Procedure | T | Permission | Audit | Notes |
 |---|---|---|---|---|
-| `exams.createExam` / `defineExamSubjects` | M | `exam:manage` | ✓ | – |
-| `exams.gradeScale.*` (CRUD scales/bands) | Q/M | `exam:manage` | ✓ | – |
-| `exams.enterMarksBulk` | M | `marks:enter` | ✓ (per mark edit) | – |
-| `exams.getMarks` / `results` | Q | `marks:read` | – | – |
-| `exams.publishResults` | M | `exam:manage` | ✓ | ✓ push "marks published" — **adopted v1.3** (Dev PRD §7): marks become parent-visible only on publish |
-| `exams.generateReportCard` | M | `reportcard:generate` | ✓ | – (upsert per ADR-009) |
-| `exams.getReportCard` | Q | `reportcard:read` | – | – (mints signed URL, B7) |
+| `exam.create` | M | `exam:manage` | ✓ | admin; validates year + optional grade scale in-school |
+| `exam.update` | M | `exam:manage` | ✓ | blocked once published (definition frozen) |
+| `exam.publish` | M | `exam:manage` | ✓ | exposes all LOCKED sections; guarded (double-publish → `Conflict`); **no notification** |
+| `exam.get` | Q | `exam:manage` | – | one exam (admin detail page) |
+| `exam.list` | Q | `exam:manage` | – | a year's exams (admin dashboard) |
+| `exam.registers` | Q | `exam:manage` | – | every register under an exam, name-enriched — oversight + the publish locked-vs-total count (R3); admins have no `TeacherAssignment` so `mark.markable` is empty for them |
+| `exam.delete` | M | `exam:manage` | ✓ | rejected if the exam is published or any child section is LOCKED (R5 guard) |
+| `assessment.create` | M | `exam:manage` | ✓ | Exam×Subject; `maxTheory` + nullable `maxPractical` + `passMark`; blocked on a published exam |
+| `assessment.list` | Q | `exam:manage` | – | an exam's assessments |
+| `assessment.delete` | M | `exam:manage` | ✓ | same published/locked guard |
+| `mark.markable` | Q | `marks:enter` | – | teacher's active-year (assessment×section) targets + register status/id (mobile discovery) |
+| `mark.save` | M | `marks:enter` | ✓ | teacher own subject×section; **DRAFT only**; auto-creates the register on first save (race-safe); validates R4 (obtained ≤ max), theory-only, absent-no-marks, cross-year |
+| `mark.submit` | M | `marks:enter` | ✓ | DRAFT → SUBMITTED (guarded) |
+| `mark.lock` | M | `exam:manage` | ✓ | admin; SUBMITTED → LOCKED; computes + **snapshots** grade in one tx; rejects an incomplete register or a non-absent %→no-band gap |
+| `mark.unlock` | M | `exam:manage` | ✓ | admin; LOCKED → DRAFT; **requires a reason** (audited); post-publish fix = unlock→edit→lock→publish |
+| `mark.listByRegister` | Q | `marks:read` | – | the marking grid — a register's marks; admin or owning teacher |
+| `mark.listByEnrollment` | Q | `marks:read` | – | one enrollment's marks; **parent → published+LOCKED own-child only**; subject/exam name-enriched |
+| `mark.gpa` | Q | `marks:read` | – | enrollment GPA from snapshots only; parent published-only; null when the scale has no points |
+| `mark.deleteRegister` | M | `exam:manage` | ✓ | same published/locked guard |
+| `gradeScale.create` | M | `exam:manage` | ✓ | percent bands + nullable `gradePoint`; non-overlap (DB `EXCLUDE` + friendly precheck) |
+| `gradeScale.list` | Q | `exam:manage` | – | the school's grade scales |
+
+**Not built in M5** (design-compatible, later milestones): report cards
+(`generateReportCard`/`getReportCard`, ADR-009), publish-*notify* (no
+notifications in M5), CGPA-across-years (foundation only — GPA is active-year;
+snapshots enable the aggregate), exam attempts/re-exams.
 
 ## homework / leave / announcements / messages (M5)
 

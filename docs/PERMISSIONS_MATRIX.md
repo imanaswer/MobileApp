@@ -57,17 +57,25 @@ SA = Super Admin, OA = Office Admin, T = Teacher, P = Parent, AC = Accountant. C
 - Note B3: marking + correction actors need a `Staff` row (session `createdBy/submittedBy/lockedBy`, correction `requestedBy/decidedBy` — ADR-011 §4) — provisioning must guarantee one for every SA/OA/T user.
 - Holidays are managed under `academic:manage` (working-day calendar, ADR-011 §9).
 
-### Exams & marks (M4)
+### Exams & marks (M5, ADR-012 · implemented)
 
 | Permission | SA | OA | T | P | AC |
 |---|---|---|---|---|---|
-| `exam:manage` (create exam, define subjects, grade scales, publish results) | any | school — **decided v1.3 default**: exam definition is academic structure (Dev PRD §5 grants OA structure management); mark *entry* stays teacher/SA-only | – | – | – |
-| `marks:enter` | any | – | ownSubject | – | – |
-| `marks:read` | any | school | ownDivision | ownChild | – |
-| `reportcard:generate` | any | school | classTeacher — **decided v1.3 default** (class teacher prepares/prints their division's cards; generation is idempotent upsert, ADR-009) | – | – |
-| `reportcard:read` | any | school | ownDivision | ownChild | – |
+| `exam:manage` (create/update/delete exams + assessments + grade scales; lock/unlock registers; publish) | any | school | – | – | – |
+| `marks:enter` (save + submit a register) | any | school | ownSubject×Section (owns via `TeacherAssignment`; register lock is admin-only) | – | – |
+| `marks:read` (marks/grades/GPA) | any | school | ownSection | ownChild — **published + LOCKED only** (never a partial/in-flight result) | – |
 
-### Homework, leave, communication (M5)
+- Ownership is **derived from `TeacherAssignment(teacher, subject, section)`**, never stored (ADR-012 §9); admins bypass scope. Mark/register actors are a **`Staff` row** (B3 — via `Staff.userId`), same as attendance.
+- Two grains: a register **locks** per `ExamSection` (admin), an exam **publishes** per `Exam` (admin) — publish exposes all LOCKED sections at once; grade/percentage is **snapshotted at lock** and GradeScale edits never mutate history.
+- OA/SA hold `marks:enter`/`marks:read` school-wide but have no `TeacherAssignment`, so day-to-day entry is teacher-driven (mobile); admins enter/oversee via the web console (find-or-create register).
+- **Not built in M5** (later milestones): `reportcard:generate`/`reportcard:read` (report-card PDFs, ADR-009), publish-notify (no notifications in M5), CGPA-across-years.
+
+### Homework, leave, communication (PRD-planned M5 — NOT built)
+
+> Numbering note: this project built **M5 = Examination & Assessment** (above); the
+> PRD's homework/communication plan shifts out by one. Tags left as-is pending an
+> explicit renumbering decision (see `docs/milestones/M5.md`).
+
 
 | Permission | SA | OA | T | P | AC |
 |---|---|---|---|---|---|

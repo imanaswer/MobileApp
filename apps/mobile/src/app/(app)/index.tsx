@@ -25,6 +25,8 @@ export default function AppHome() {
     role !== undefined && can(role, PERMISSIONS.ATTENDANCE_CORRECT_SUBMIT);
   const canApplyLeave = role !== undefined && can(role, PERMISSIONS.LEAVE_APPLY);
   const canReadAttendance = role !== undefined && can(role, PERMISSIONS.ATTENDANCE_READ);
+  const canEnterMarks = role !== undefined && can(role, PERMISSIONS.MARK_ENTER);
+  const canReadMarks = role !== undefined && can(role, PERMISSIONS.MARK_READ);
 
   return (
     <View className="flex-1 items-center justify-center gap-4 bg-background p-6">
@@ -67,6 +69,16 @@ export default function AppHome() {
           <Text className="px-1 text-xs text-muted-foreground">
             Open a student to view their attendance & calendar.
           </Text>
+        </View>
+      ) : null}
+
+      {canEnterMarks || (canReadMarks && role === "PARENT") ? (
+        <View className="w-full gap-2">
+          <Text className="text-sm font-medium text-muted-foreground">Examinations</Text>
+          {canEnterMarks ? <NavLink href="/exam/markable" label="Enter marks" /> : null}
+          {canReadMarks && role === "PARENT" ? (
+            <NavLink href="/exam/children" label="Marks & grades" />
+          ) : null}
         </View>
       ) : null}
 

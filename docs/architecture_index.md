@@ -23,8 +23,10 @@ All ADRs live in `docs/architecture/`.
 - ADR-007 — Audit log (attendance/leave/correction mutations)
 
 **Exams / marks / report cards**
-- ADR-009 — ReportCard.examId optional + partial unique index
-- ADR-007 — Audit log (marks mutations)
+- ADR-012 — Examination & Assessment (Exam→Assessment→ExamSection→Mark on Enrollment; lock-per-register / publish-per-exam; grade snapshots; GPA from snapshots; derived ownership) — **M5, implemented**
+- ADR-009 — ReportCard.examId optional + partial unique index (report cards — future)
+- ADR-010 — Enrollment is the mark key (results survive promotion; CGPA aggregates a student's enrollments)
+- ADR-007 — Audit log (exam/mark mutations)
 
 **Homework (attachments)**
 - ADR-004 — Private Supabase Storage + signed URLs

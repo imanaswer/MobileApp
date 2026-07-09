@@ -106,13 +106,7 @@ export type StudentDocumentTypeKey =
   | "PHOTO"
   | "OTHER";
 export type EnrollmentStatusKey =
-  | "ADMITTED"
-  | "ACTIVE"
-  | "PROMOTED"
-  | "RETAINED"
-  | "TRANSFERRED"
-  | "DROPPED"
-  | "ALUMNI";
+  "ADMITTED" | "ACTIVE" | "PROMOTED" | "RETAINED" | "TRANSFERRED" | "DROPPED" | "ALUMNI";
 
 export interface StudentDto {
   id: string;
@@ -294,4 +288,127 @@ export interface AttendanceSummaryDto {
   leave: number;
   countableDays: number;
   percentage: number | null;
+}
+
+/* ---------- Examination & Assessment (M5, ADR-012) ---------- */
+export type ExamTypeKey =
+  | "UNIT_TEST"
+  | "MONTHLY"
+  | "MID_TERM"
+  | "HALF_YEARLY"
+  | "MODEL"
+  | "ANNUAL"
+  | "PRACTICAL"
+  | "CUSTOM";
+export type ExamSectionStatusKey = "DRAFT" | "SUBMITTED" | "LOCKED";
+
+export interface ExamDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  gradeScaleId: string | null;
+  name: string;
+  type: ExamTypeKey;
+  displayOrder: number;
+  startDate: IstDateString | null;
+  endDate: IstDateString | null;
+  isPublished: boolean;
+  publishedAt: IsoUtcString | null;
+  publishedByStaffId: string | null;
+}
+
+export interface AssessmentDto {
+  id: string;
+  schoolId: string;
+  examId: string;
+  subjectId: string;
+  maxTheory: number;
+  maxPractical: number | null;
+  passMark: number;
+  displayOrder: number;
+}
+
+export interface ExamSectionDto {
+  id: string;
+  schoolId: string;
+  assessmentId: string;
+  sectionId: string;
+  status: ExamSectionStatusKey;
+  createdByStaffId: string;
+  submittedByStaffId: string | null;
+  lockedByStaffId: string | null;
+  submittedAt: IsoUtcString | null;
+  lockedAt: IsoUtcString | null;
+  unlockedByStaffId: string | null;
+  unlockedAt: IsoUtcString | null;
+  unlockReason: string | null;
+}
+
+/** A mark + its frozen result snapshot (null until the register is LOCKED). */
+export interface MarkDto {
+  id: string;
+  schoolId: string;
+  examSectionId: string;
+  assessmentId: string;
+  enrollmentId: string;
+  theoryObtained: number | null;
+  practicalObtained: number | null;
+  isAbsent: boolean;
+  totalObtained: number | null;
+  percentage: number | null;
+  gradeBandId: string | null;
+  gradeLetter: string | null;
+  gradePoint: number | null;
+  // Enriched on the enrollment (parent) read so a client that can't read the
+  // admin-gated exam/subject catalogs can still label rows; null on register reads.
+  subjectName: string | null;
+  examName: string | null;
+}
+
+/** A teacher's markable (assessment × section) target for the active year. */
+export interface MarkableAssessmentDto {
+  assessmentId: string;
+  examId: string;
+  examName: string;
+  subjectId: string;
+  subjectName: string;
+  sectionId: string;
+  sectionName: string;
+  maxTheory: number;
+  maxPractical: number | null;
+  registerStatus: ExamSectionStatusKey | "NONE";
+  examSectionId: string | null; // the register id once it exists (resume + submit)
+}
+
+/**
+ * One register (ExamSection) under an exam, name-enriched for the admin
+ * oversight/publish view. Admins can't reach a teacher's `markable` list (no
+ * TeacherAssignment), so this enumerates the registers that actually exist for an
+ * exam with their status — the lock/unlock surface + the publish locked-vs-total
+ * count (ADR-012 R3).
+ */
+export interface ExamRegisterDto {
+  examSectionId: string;
+  assessmentId: string;
+  subjectId: string;
+  subjectName: string;
+  sectionId: string;
+  sectionName: string;
+  status: ExamSectionStatusKey;
+}
+
+export interface GradeBandDto {
+  id: string;
+  grade: string;
+  minPercent: number;
+  maxPercent: number;
+  gradePoint: number | null;
+}
+
+export interface GradeScaleDto {
+  id: string;
+  schoolId: string;
+  name: string;
+  isDefault: boolean;
+  bands: GradeBandDto[];
 }

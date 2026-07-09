@@ -9,6 +9,10 @@ import {
   type AcademicYearRepository,
 } from "./repositories/academic-year.repository";
 import {
+  createAssessmentRepository,
+  type AssessmentRepository,
+} from "./repositories/assessment.repository";
+import {
   createAttendanceCorrectionRepository,
   type AttendanceCorrectionRepository,
 } from "./repositories/attendance-correction.repository";
@@ -26,11 +30,21 @@ import {
   createEnrollmentRepository,
   type EnrollmentRepository,
 } from "./repositories/enrollment.repository";
+import {
+  createExamSectionRepository,
+  type ExamSectionRepository,
+} from "./repositories/exam-section.repository";
+import { createExamRepository, type ExamRepository } from "./repositories/exam.repository";
+import {
+  createGradeScaleRepository,
+  type GradeScaleRepository,
+} from "./repositories/grade-scale.repository";
 import { createHolidayRepository, type HolidayRepository } from "./repositories/holiday.repository";
 import {
   createLeaveRequestRepository,
   type LeaveRequestRepository,
 } from "./repositories/leave-request.repository";
+import { createMarkRepository, type MarkRepository } from "./repositories/mark.repository";
 import { createParentRepository, type ParentRepository } from "./repositories/parent.repository";
 import { createSectionRepository, type SectionRepository } from "./repositories/section.repository";
 import { createStaffRepository, type StaffRepository } from "./repositories/staff.repository";
@@ -76,6 +90,11 @@ export * from "./repositories/attendance-record.repository";
 export * from "./repositories/leave-request.repository";
 export * from "./repositories/attendance-correction.repository";
 export * from "./repositories/holiday.repository";
+export * from "./repositories/exam.repository";
+export * from "./repositories/assessment.repository";
+export * from "./repositories/exam-section.repository";
+export * from "./repositories/mark.repository";
+export * from "./repositories/grade-scale.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */
@@ -99,6 +118,11 @@ export interface Repositories {
   leaveRequests: LeaveRequestRepository;
   attendanceCorrections: AttendanceCorrectionRepository;
   holidays: HolidayRepository;
+  exams: ExamRepository;
+  assessments: AssessmentRepository;
+  examSections: ExamSectionRepository;
+  marks: MarkRepository;
+  gradeScales: GradeScaleRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -122,6 +146,11 @@ export function createRepositories(client: DbClient): Repositories {
     leaveRequests: createLeaveRequestRepository(client),
     attendanceCorrections: createAttendanceCorrectionRepository(client),
     holidays: createHolidayRepository(client),
+    exams: createExamRepository(client),
+    assessments: createAssessmentRepository(client),
+    examSections: createExamSectionRepository(client),
+    marks: createMarkRepository(client),
+    gradeScales: createGradeScaleRepository(client),
   };
 }
 

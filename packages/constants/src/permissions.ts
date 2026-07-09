@@ -79,6 +79,16 @@ export const PERMISSIONS = {
   LEAVE_READ: "leave:read",
   /** Read the holiday calendar (all in-scope roles). Writes use ACADEMIC_MANAGE. */
   HOLIDAY_READ: "holiday:read",
+
+  /* ---- Examination & Assessment (M5, ADR-012). Mark ENTRY carries own-section
+   * scope (added in Step 5); exam/assessment/grade-scale MANAGE + publish + delete
+   * is admin-only (PERMISSIONS_MATRIX §Exams — exam:manage). */
+  /** Manage exams/assessments/grade-scales + publish + delete. Admin-only. */
+  EXAM_MANAGE: "exam:manage",
+  /** Enter/submit marks for a register. Teacher → own subject×section (service scope). */
+  MARK_ENTER: "marks:enter",
+  /** Read marks/grades/GPA. Teacher → own section; parent → own child PUBLISHED only (service scope). */
+  MARK_READ: "marks:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -140,6 +150,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     ...PEOPLE_MANAGE,
     ...PEOPLE_READ,
     ...ATTENDANCE_MANAGE,
+    PERMISSIONS.EXAM_MANAGE,
+    PERMISSIONS.MARK_ENTER,
+    PERMISSIONS.MARK_READ,
   ],
   // OFFICE_ADMIN: full academic + People management (M3) + Attendance (M4), school-wide.
   OFFICE_ADMIN: [
@@ -149,6 +162,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     ...PEOPLE_MANAGE,
     ...PEOPLE_READ,
     ...ATTENDANCE_MANAGE,
+    PERMISSIONS.EXAM_MANAGE,
+    PERMISSIONS.MARK_ENTER,
+    PERMISSIONS.MARK_READ,
   ],
   // TEACHER: reads academic structure + reads students/enrollments/documents in
   // their OWN sections and their OWN staff profile (row-scope in the service).
@@ -167,6 +183,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.ATTENDANCE_CORRECT_SUBMIT,
     PERMISSIONS.LEAVE_READ,
     PERMISSIONS.HOLIDAY_READ,
+    // M5: enters + submits marks for own assigned subject×section (register lock is admin-only).
+    PERMISSIONS.MARK_ENTER,
+    PERMISSIONS.MARK_READ,
   ],
   // PARENT: reads only their OWN children (students/enrollments/documents) and
   // their OWN parent record (row-scope in the service). M4: reads own child's
@@ -181,6 +200,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.LEAVE_APPLY,
     PERMISSIONS.LEAVE_READ,
     PERMISSIONS.HOLIDAY_READ,
+    // M5: reads own child's PUBLISHED marks/grades only (service scope), never edits.
+    PERMISSIONS.MARK_READ,
   ],
   ACCOUNTANT: [...SELF_PROFILE],
 };

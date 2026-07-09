@@ -358,3 +358,90 @@ export const createHolidayInput = z.object({
   date: istDateSchema,
   type: holidayTypeSchema,
 });
+
+/* ---------- Examination & Assessment (M5, ADR-012) ---------- */
+export const examTypeSchema = z.enum([
+  "UNIT_TEST",
+  "MONTHLY",
+  "MID_TERM",
+  "HALF_YEARLY",
+  "MODEL",
+  "ANNUAL",
+  "PRACTICAL",
+  "CUSTOM",
+]);
+
+/** Single-id inputs. */
+export const examIdInput = z.object({ examId: idSchema });
+export const assessmentIdInput = z.object({ assessmentId: idSchema });
+export const examSectionIdInput = z.object({ examSectionId: idSchema });
+
+const displayOrderSchema = z.number().int().min(0);
+const maxMarkSchema = z.number().int().min(0);
+const obtainedSchema = z.number().min(0);
+
+/* Exam */
+export const createExamInput = z.object({
+  academicYearId: idSchema,
+  gradeScaleId: idSchema.optional(),
+  name: nameSchema,
+  type: examTypeSchema,
+  displayOrder: displayOrderSchema.optional(),
+  startDate: istDateSchema.optional(),
+  endDate: istDateSchema.optional(),
+});
+export const updateExamInput = z.object({
+  examId: idSchema,
+  name: nameSchema.optional(),
+  type: examTypeSchema.optional(),
+  displayOrder: displayOrderSchema.optional(),
+  gradeScaleId: idSchema.nullable().optional(),
+  startDate: istDateSchema.nullable().optional(),
+  endDate: istDateSchema.nullable().optional(),
+});
+
+/* Assessment */
+export const createAssessmentInput = z.object({
+  examId: idSchema,
+  subjectId: idSchema,
+  maxTheory: maxMarkSchema,
+  maxPractical: maxMarkSchema.nullable().optional(),
+  passMark: maxMarkSchema,
+  displayOrder: displayOrderSchema.optional(),
+});
+
+/* Marks */
+export const saveMarksInput = z.object({
+  assessmentId: idSchema,
+  sectionId: idSchema,
+  marks: z
+    .array(
+      z.object({
+        enrollmentId: idSchema,
+        theoryObtained: obtainedSchema.nullable().optional(),
+        practicalObtained: obtainedSchema.nullable().optional(),
+        isAbsent: z.boolean().optional(),
+      }),
+    )
+    .min(1),
+});
+export const unlockRegisterInput = z.object({
+  examSectionId: idSchema,
+  reason: z.string().trim().min(1).max(500),
+});
+
+/* Grade scale */
+export const createGradeScaleInput = z.object({
+  name: nameSchema,
+  isDefault: z.boolean(),
+  bands: z
+    .array(
+      z.object({
+        grade: z.string().trim().min(1).max(10),
+        minPercent: z.number().min(0),
+        maxPercent: z.number().min(0),
+        gradePoint: z.number().min(0).nullable().optional(),
+      }),
+    )
+    .min(1),
+});

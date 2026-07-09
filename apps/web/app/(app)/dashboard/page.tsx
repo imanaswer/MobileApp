@@ -86,6 +86,14 @@ export default function DashboardPage() {
           Attendance
         </Link>
       ) : null}
+      {can(me.data.role, PERMISSIONS.EXAM_MANAGE) ? (
+        <Link
+          href="/exams"
+          className="min-h-11 self-start rounded-md border border-border px-4 py-2 font-medium text-foreground"
+        >
+          Examinations
+        </Link>
+      ) : null}
       <button
         type="button"
         onClick={() => void handleLogout()}

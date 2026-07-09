@@ -15,6 +15,7 @@ import {
   leaveRouter,
 } from "./routers/attendance";
 import { authRouter } from "./routers/auth";
+import { assessmentRouter, examRouter, gradeScaleRouter, markRouter } from "./routers/exam";
 import {
   enrollmentRouter,
   parentRouter,
@@ -54,6 +55,10 @@ export const appRouter = router({
   leave: leaveRouter,
   attendanceCorrection: attendanceCorrectionRouter,
   holiday: holidayRouter,
+  exam: examRouter,
+  assessment: assessmentRouter,
+  mark: markRouter,
+  gradeScale: gradeScaleRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -4,14 +4,18 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Milestone
 
-**M4 — Attendance Management** (scope = AttendanceSession + AttendanceRecord,
-LeaveRequest, AttendanceCorrection, Holiday, compute-on-read summary; ADR-011 —
-attendance keys to Enrollment, never Student — see `docs/milestones/M4.md`)
+**M5 — Examination & Assessment** (scope = Exam + Assessment + ExamSection
+(register) + Mark (snapshot) + GradeScale/GradeBand + central grade compute +
+GPA foundation; ADR-012 extends ADR-011 — marks key to Enrollment, never Student;
+lock-per-register / publish-per-exam — see `docs/milestones/M5.md`). **Numbering
+note:** PRD v1.3 planned M5 = Homework; this project built M5 = Examination, so
+the PRD homework/communication plan shifts out by one (unbuilt planning-doc tags
+left as-is pending renumbering).
 
 ## Current Step
 
-**M4 Steps 1–10 COMPLETE** — deliverables reported; **STOPPED awaiting user
-approval before M5 — Homework & Assignments**.
+**M5 Steps 1–10 COMPLETE** — deliverables reported; **STOPPED awaiting user
+approval before the next milestone**.
 
 ## Completed
 
@@ -91,6 +95,22 @@ approval before M5 — Homework & Assignments**.
   authorization matrices; **concurrency hardening (real defect):** guarded
   conditional transitions on submit/lock + correction approval. **10** docs.
 
+- ✓ **M5 Steps 1–10 (Examination & Assessment, ADR-012)** — **Step 1** ADR-012
+  (Exam→Assessment→ExamSection→Mark on Enrollment; two grains lock-per-register /
+  publish-per-exam; grade snapshots; derived ownership; naming diverges from PRD)
+  + 15 refinements. **2–4** migrations `20260709000000_examination_assessment` (5
+  models + 2 enums, GradeBand non-overlap `EXCLUDE`, 15 constraint proofs) +
+  relationships (Cascade chain + R5 published-data deletion guard, built early) +
+  `20260709010000_exam_rls` (12/12 read + 15/15 write isolation proven). **5** 5
+  services + central `@repo/core/grade`; race-safe register `ensure` (real race
+  hardened); lock snapshots grade in-tx. **6** 4 thin routers (21 procedures) +
+  Zod. **7** mobile teacher mark-entry + parent results (added `mark.markable` +
+  DTO name enrichment). **8** web `/exams/*` admin console (dashboard, assessment
+  CRUD, marks grid, lock/unlock, publish with R3 count, grade scales; added
+  `exam.get` + `exam.registers`). **9** +60 tests → business 207 / api 266 /
+  validation 50 (35/35 turbo tasks); authorization matrix + `listExamRegisters`
+  mutation-checked; no defects. **10** docs.
+
 - ✓ **M1 RLS hardening** (security-fix exception, 2026-07-05): M1 auth tables shipped with no RLS. Migration `20260705020000_m1_rls_hardening` enables RLS (not FORCE) on School/User/DeviceToken/AuditLog with read-only policies (`user_read_self` + `is_admin()` reads; owner-only device tokens; admin-only School/AuditLog) — stops parent/teacher user enumeration; no write policies (writes stay service_role); anon denied. Defense-in-depth only. **Blocking pre-apply gate:** confirm live Prisma role bypasses RLS before applying or auth locks out (see `docs/RLS_POLICIES.md`). All 80 tests still green.
 
 ## Frozen Modules (read-only — see workflow.md)
@@ -102,6 +122,7 @@ approval before M5 — Homework & Assignments**.
 - M2 academic structure (schema/migrations, `services/academic`, academic routers, `/academic/*` web, mobile academic screens)
 - M3 people management freezes on approval (schema/migrations, `services/people`, people routers, `/people/*` web, mobile people screens)
 - M4 attendance freezes on approval (schema/migrations, `services/attendance`, attendance/leave/correction/holiday routers, `/attendance/*` web, mobile attendance screens)
+- M5 examination freezes on approval (schema/migrations `2026070900/0100`, `services/exam`, `@repo/core/grade`, exam/assessment/mark/gradeScale routers, `/exams/*` web, mobile exam screens)
 
 > Frozen = amend only for a critical bug, a security fix (Step 9 may amend), or explicit user approval.
 
@@ -121,18 +142,19 @@ approval before M5 — Homework & Assignments**.
 
 ## Current Status
 
-M0/M1/M1.5/M2 **approved & frozen**; M3 People Management complete (awaiting
-approval). **M4 Attendance complete (Steps 1–10), awaiting approval:** the
-Session/Record model on Enrollment (ADR-011 — history survives promotion),
-DRAFT→SUBMITTED→LOCKED registers, idempotent bulk marking, leave (biases the
-marking default, never eager-writes), immutable corrections (approval updates
-the record once, audited), a working-day holiday calendar, and a compute-on-read
-attendance summary. Ownership derives from TeacherAssignment; row scope (teacher
-→ own sections, parent → own children) in the business layer + RLS
-defense-in-depth. Web `/attendance/*` admin dashboard (bulk mark, filters, CSV,
-approval queues, holidays), mobile teacher-marking + parent-view/leave screens.
-Concurrency-hardened (guarded transitions). Verified **typecheck ✓, lint ✓,
-tests 392 total, web production build, mobile ios export**.
+M0/M1/M1.5/M2 **approved & frozen**; M3 People + M4 Attendance complete (awaiting
+approval). **M5 Examination & Assessment complete (Steps 1–10), awaiting
+approval:** `Exam → Assessment → ExamSection (register) → Mark` on Enrollment
+(ADR-012 — results survive promotion), forward-only `DRAFT→SUBMITTED→LOCKED` lock
+per register + publish per exam (parents never see a partial), central grade
+compute **snapshotted at lock** (GradeScale edits never mutate history),
+configurable grade scales, GPA from snapshots. Ownership derives from
+TeacherAssignment (admins bypass); row scope + RLS defense-in-depth (12/12 read +
+15/15 write proven). Teacher mobile mark-entry + parent results; web `/exams/*`
+admin console (dashboard, assessment CRUD, marks grid, lock/unlock, publish with
+R3 count, grade-scale management, CSV). Race-safe register create (real race
+hardened); guarded transitions. Verified **typecheck ✓, lint ✓, 35/35 turbo
+tasks** (business 207, api 266, validation 50); mobile ios export ✓ (Step 7).
 
 ## Known Blockers / Notes
 
@@ -143,7 +165,9 @@ tests 392 total, web production build, mobile ios export**.
 
 ## Next Task
 
-**STOPPED — M4 deliverables reported; waiting for user approval before M5 —
-Homework & Assignments** (hangs off Enrollment/section, same patterns). Open
-sign-off: **holiday = hard block, no override in M4** (ADR-011 §9). Before live
-document uploads: create the private `student-documents` bucket (runbook §3b).
+**STOPPED — M5 (Examination & Assessment) deliverables reported; waiting for user
+approval before the next milestone.** Open reconciliation: PRD v1.3 planned M5 =
+Homework, but this project built M5 = Examination, so the homework/communication
+plan shifts out by one (renumbering pending an explicit decision). Prior open
+sign-offs still stand: **holiday = hard block in M4** (ADR-011 §9); before live
+document uploads create the private `student-documents` bucket (runbook §3b).

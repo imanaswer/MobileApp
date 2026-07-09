@@ -42,13 +42,18 @@ describe("authorization policy", () => {
       PERMISSIONS.LEAVE_APPLY,
       PERMISSIONS.LEAVE_READ,
       PERMISSIONS.HOLIDAY_READ,
+      // M5: read own child's PUBLISHED marks/grades only (row-scoped in service).
+      PERMISSIONS.MARK_READ,
     ]);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.USER_SET_ROLE);
+    expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.EXAM_MANAGE);
   });
 
   it("canAny / canAll combine permission checks", () => {
     expect(canAny("TEACHER", [PERMISSIONS.USER_DISABLE, PERMISSIONS.PROFILE_READ_SELF])).toBe(true);
-    expect(canAll("TEACHER", [PERMISSIONS.USER_DISABLE, PERMISSIONS.PROFILE_READ_SELF])).toBe(false);
+    expect(canAll("TEACHER", [PERMISSIONS.USER_DISABLE, PERMISSIONS.PROFILE_READ_SELF])).toBe(
+      false,
+    );
     expect(canAll("SUPER_ADMIN", [PERMISSIONS.USER_DISABLE, PERMISSIONS.AUDIT_READ])).toBe(true);
   });
 });

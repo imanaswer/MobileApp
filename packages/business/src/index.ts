@@ -14,6 +14,7 @@ export { setRole, disableUser, enableUser } from "./services/admin";
 export * from "./services/academic";
 export * from "./services/people";
 export * from "./services/attendance";
+export * from "./services/exam";
 export {
   assertCan,
   assertScope,

@@ -116,6 +116,7 @@ model AcademicYear {
   enrollments        Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
   holidays           Holiday[] // M4: virtual back-relation only (no change to frozen M2 model)
   attendanceSessions AttendanceSession[] // M4: virtual back-relation only
+  exams              Exam[] // M5: virtual back-relation only
   // + raw SQL: UNIQUE (schoolId) WHERE status = 'ACTIVE'  — one ACTIVE year
   // + raw SQL: CHECK (startDate < endDate)
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration; defense-in-depth)
@@ -174,6 +175,7 @@ model Section {
   teacherAssignments TeacherAssignment[]
   enrollments        Enrollment[] // M3: virtual back-relation only (no change to frozen M2 model)
   attendanceSessions AttendanceSession[] // M4: virtual back-relation only
+  examSections       ExamSection[] // M5: virtual back-relation only
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([classId, name])
@@ -189,6 +191,7 @@ model Subject {
   updatedAt          DateTime            @updatedAt
   teacherAssignments TeacherAssignment[]
   attendanceSessions AttendanceSession[] // M4: virtual back-relation only
+  assessments        Assessment[] // M5: virtual back-relation only
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([schoolId, name])
@@ -409,26 +412,33 @@ model StudentParent {
 // DESCRIPTIVE only: a teacher's read-scope derives from TeacherAssignment→Section,
 // never from Staff. Named Staff (not TeacherProfile) for forward-consistency.
 model Staff {
-  id                   String                 @id @default(cuid())
-  schoolId             String // loose tenant ref (ADR-008)
-  userId               String                 @unique
-  employeeId           String
-  department           String?
-  qualification        String?
-  experienceYears      Int?
-  joiningDate          DateTime?              @db.Date
-  bio                  String?
-  photoPath            String? // PRIVATE storage path, signed on read (ADR-004)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                    String                 @id @default(cuid())
+  schoolId              String // loose tenant ref (ADR-008)
+  userId                String                 @unique
+  employeeId            String
+  department            String?
+  qualification         String?
+  experienceYears       Int?
+  joiningDate           DateTime?              @db.Date
+  bio                   String?
+  photoPath             String? // PRIVATE storage path, signed on read (ADR-004)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   // M4: virtual back-relations only — attendance audit actors + correction actors (no DB change to this frozen M3 model)
-  sessionsCreated      AttendanceSession[]    @relation("SessionCreatedBy")
-  sessionsSubmitted    AttendanceSession[]    @relation("SessionSubmittedBy")
-  sessionsLocked       AttendanceSession[]    @relation("SessionLockedBy")
-  correctionsRequested AttendanceCorrection[] @relation("CorrectionRequestedBy")
-  correctionsDecided   AttendanceCorrection[] @relation("CorrectionDecidedBy")
-  leavesDecided        LeaveRequest[]
+  sessionsCreated       AttendanceSession[]    @relation("SessionCreatedBy")
+  sessionsSubmitted     AttendanceSession[]    @relation("SessionSubmittedBy")
+  sessionsLocked        AttendanceSession[]    @relation("SessionLockedBy")
+  correctionsRequested  AttendanceCorrection[] @relation("CorrectionRequestedBy")
+  correctionsDecided    AttendanceCorrection[] @relation("CorrectionDecidedBy")
+  leavesDecided         LeaveRequest[]
+  // M5: virtual back-relations only — exam publish + exam-section audit actors + mark entry
+  examsPublished        Exam[]                 @relation("ExamPublishedBy")
+  examSectionsCreated   ExamSection[]          @relation("ExamSectionCreatedBy")
+  examSectionsSubmitted ExamSection[]          @relation("ExamSectionSubmittedBy")
+  examSectionsLocked    ExamSection[]          @relation("ExamSectionLockedBy")
+  examSectionsUnlocked  ExamSection[]          @relation("ExamSectionUnlockedBy")
+  marksEntered          Mark[]                 @relation("MarkEnteredBy")
   // + raw SQL: RLS ON — admin ALL; staff SELECT self (userId = auth.uid()) (people_rls, Step 4)
 
   @@unique([schoolId, employeeId])
@@ -461,6 +471,7 @@ model Enrollment {
   section           Section?           @relation(fields: [sectionId], references: [id], onDelete: Restrict)
   attendanceRecords AttendanceRecord[] // M4: virtual back-relation only
   leaveRequests     LeaveRequest[] // M4: virtual back-relation only
+  marks             Mark[] // M5: virtual back-relation only
   // + raw SQL: partial unique — roll number unique per section per year:
   //   WHERE "sectionId" IS NOT NULL AND "rollNo" IS NOT NULL
   // + raw SQL: CHECK ("rollNo" IS NULL OR "sectionId" IS NOT NULL) — rollNo only after allocation
@@ -673,4 +684,233 @@ model Holiday {
 
   @@unique([academicYearId, date]) // one holiday per calendar day per year
   @@index([schoolId])
+}
+
+// ========================= Examination & Assessment (M5) =========================
+// ADR-012 is the source of truth (extends ADR-011's register pattern). Marks key
+// to Enrollment, NEVER Student (ADR-010 §8) so GPA/CGPA aggregate across years.
+// Grain: Exam (event) → Assessment (Exam × Subject, the definition) → ExamSection
+// (Assessment × Section, the REGISTER holding lifecycle + derived ownership; the
+// AttendanceSession analog) → Mark (per Enrollment; the AttendanceRecord analog +
+// an immutable result snapshot). Ownership is DERIVED from TeacherAssignment,
+// never stored; ExamSection persists only WHO ACTED (created/submitted/locked/
+// unlocked). Two axes: LOCK per ExamSection (immutability), PUBLISH per Exam
+// (parent visibility). All dates @db.Date (IST, no UTC off-by-one).
+
+// ---------- enums ----------
+// Explicit exam kinds (ADR-012 §5, replaces the PRD's generic `category String`).
+// CUSTOM is the open escape hatch so a new exam kind needs no migration.
+enum ExamType {
+  UNIT_TEST
+  MONTHLY
+  MID_TERM
+  HALF_YEARLY
+  MODEL
+  ANNUAL
+  PRACTICAL
+  CUSTOM
+}
+
+// Register lifecycle — forward-only, audited, identical shape to
+// AttendanceSessionStatus. LOCKED marks change only via the audited unlock
+// workflow (ADR-012 §8); there is no MarkCorrection entity.
+enum ExamSectionStatus {
+  DRAFT
+  SUBMITTED
+  LOCKED
+}
+
+// ---------- exam (the event; owns publication) ----------
+// School + AcademicYear scoped. Publication is an EXAM-level concern (ADR-012 §2):
+// exam.publish exposes every LOCKED ExamSection beneath it at once — parents never
+// see a partially-published exam. LOCK stays per ExamSection. gradeScaleId is
+// nullable: the grade service resolves it, else the school's default GradeScale;
+// LOCK hard-requires a resolvable scale (a grade cannot be snapshotted without one).
+model Exam {
+  id                 String       @id @default(cuid())
+  schoolId           String // loose tenant ref (ADR-008)
+  academicYearId     String
+  gradeScaleId       String? // null → fall back to the school's isDefault scale at compute time
+  name               String
+  type               ExamType
+  displayOrder       Int          @default(0) // UI order — never alphabetical (ADR-012 §6)
+  startDate          DateTime?    @db.Date
+  endDate            DateTime?    @db.Date
+  isPublished        Boolean      @default(false)
+  publishedAt        DateTime? // stamped on publish
+  publishedByStaffId String? // WHO published (audit actor, not an owner)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  academicYear       AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  gradeScale         GradeScale?  @relation(fields: [gradeScaleId], references: [id], onDelete: Restrict)
+  publishedBy        Staff?       @relation("ExamPublishedBy", fields: [publishedByStaffId], references: [id], onDelete: Restrict)
+  assessments        Assessment[]
+  // + raw SQL: RLS ON — admin ALL; teacher SELECT (own-assigned via assessment→section); parent SELECT published (exam_rls, Step 4)
+
+  @@unique([academicYearId, name]) // one exam name per year
+  @@index([schoolId])
+  @@index([academicYearId, displayOrder]) // ordered exam list for a year
+}
+
+// ---------- assessment (Exam × Subject — the paper definition) ----------
+// Uses Subject DIRECTLY (ADR-012 §3 — no ClassSubject, which was never built).
+// School/year-wide: a subject's max marks don't vary by section. maxPractical is
+// NULLABLE (ADR-012 §7) — a null means "theory-only", distinct from a practical
+// worth zero. Cross-year consistency (Assessment's exam ↔ marks' enrollments) is a
+// SERVICE invariant at the enrollment boundary (ADR-012 §10) — Subject is
+// year-agnostic so it cannot be a FK. Cascade from Exam: deleting an (unpublished,
+// unlocked) exam definition removes its assessments; published/locked deletion is
+// blocked at the business layer, not by onDelete (ADR-012 risk R3, Step 3/5).
+model Assessment {
+  id           String        @id @default(cuid())
+  schoolId     String // loose tenant ref (ADR-008)
+  examId       String
+  subjectId    String
+  maxTheory    Int
+  maxPractical Int? // null = theory-only (ADR-012 §7); denominator uses maxTheory + COALESCE(maxPractical,0)
+  passMark     Int
+  displayOrder Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  exam         Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  subject      Subject       @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  examSections ExamSection[]
+  marks        Mark[]
+  // + raw SQL: CHECK ("maxTheory" >= 0 AND ("maxPractical" IS NULL OR "maxPractical" >= 0)
+  //            AND "passMark" >= 0 AND "passMark" <= "maxTheory" + COALESCE("maxPractical", 0))
+  // + raw SQL: RLS ON — admin ALL; teacher SELECT own-assigned-subject; parent SELECT published (exam_rls, Step 4)
+
+  @@unique([examId, subjectId]) // a subject appears once per exam
+  @@index([subjectId])
+  @@index([schoolId])
+}
+
+// ---------- exam section (Assessment × Section — THE REGISTER) ----------
+// Direct analog of AttendanceSession: it holds the DRAFT→SUBMITTED→LOCKED
+// lifecycle + WHO ACTED, and ownership DERIVES from TeacherAssignment(teacher,
+// subject, section) at authz time (ADR-012 §9) — never stored. Unlock is an
+// audited workflow (unlockedBy/At/Reason + AuditLog); it re-opens a LOCKED
+// register so marks can be corrected, then re-locked (ADR-012 §8). All *ByStaffId
+// are audit actors, all Restrict; the actor needs a Staff row (B3 invariant).
+model ExamSection {
+  id                 String            @id @default(cuid())
+  schoolId           String // loose tenant ref (ADR-008)
+  assessmentId       String
+  sectionId          String
+  status             ExamSectionStatus @default(DRAFT)
+  createdByStaffId   String
+  submittedByStaffId String? // stamped on DRAFT→SUBMITTED
+  lockedByStaffId    String? // stamped on SUBMITTED→LOCKED
+  submittedAt        DateTime?
+  lockedAt           DateTime?
+  unlockedByStaffId  String? // stamped on the audited unlock (LOCKED→DRAFT)
+  unlockedAt         DateTime?
+  unlockReason       String? // required by the service on unlock (ADR-012 §8)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  assessment         Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  section            Section           @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  createdBy          Staff             @relation("ExamSectionCreatedBy", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  submittedBy        Staff?            @relation("ExamSectionSubmittedBy", fields: [submittedByStaffId], references: [id], onDelete: Restrict)
+  lockedBy           Staff?            @relation("ExamSectionLockedBy", fields: [lockedByStaffId], references: [id], onDelete: Restrict)
+  unlockedBy         Staff?            @relation("ExamSectionUnlockedBy", fields: [unlockedByStaffId], references: [id], onDelete: Restrict)
+  marks              Mark[]
+  // + raw SQL: RLS ON — admin ALL; teacher own-assigned-section; parent none (exam_rls, Step 4)
+
+  @@unique([assessmentId, sectionId]) // one register per assessment per section
+  @@index([sectionId])
+  @@index([status])
+  @@index([schoolId])
+}
+
+// ---------- mark (one student's result within a register) ----------
+// enrollmentId is the ONLY link to a student (ADR-010 §8) — no studentId column;
+// this is what lets GPA aggregate one enrollment and CGPA aggregate a student's
+// enrollments across years. Carries BOTH examSectionId (register/lifecycle owner,
+// Cascade — lock/unlock finds its marks here) AND a denormalized assessmentId: the
+// natural key is (assessment, enrollment), which stays correct across a mid-year
+// section transfer where (examSection, enrollment) would not (dual-FK idiom, ADR-010
+// §3). theoryObtained/practicalObtained/isAbsent are editable in DRAFT; the SNAPSHOT
+// fields (totalObtained, percentage, gradeBand*, grade*Snapshot) are computed and
+// frozen at LOCK so a later GradeScale edit can never mutate a settled result
+// (ADR-012 §3-4). gradeBandId is SetNull (provenance only — the letter/point
+// snapshots are the source of truth, so a band may be reorganized/deleted).
+model Mark {
+  id                  String      @id @default(cuid())
+  schoolId            String // loose tenant ref (ADR-008)
+  examSectionId       String
+  assessmentId        String // denormalized natural key (= examSection.assessmentId; service invariant)
+  enrollmentId        String
+  theoryObtained      Float? // editable in DRAFT
+  practicalObtained   Float? // editable in DRAFT; null when the assessment is theory-only
+  isAbsent            Boolean     @default(false)
+  totalObtained       Float? // snapshot @lock — stored for read-convenience (= theory+practical)
+  percentage          Float? // snapshot @lock — immutability-critical (depends on Assessment max marks)
+  gradeBandId         String? // snapshot @lock — provenance FK (SetNull); letter/point below are authoritative
+  gradeLetterSnapshot String? // snapshot @lock — the frozen grade letter (e.g. "A+")
+  gradePointSnapshot  Float? // snapshot @lock — nullable (scale may omit points → GPA "not available")
+  enteredByStaffId    String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  examSection         ExamSection @relation(fields: [examSectionId], references: [id], onDelete: Cascade)
+  assessment          Assessment  @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  enrollment          Enrollment  @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  gradeBand           GradeBand?  @relation(fields: [gradeBandId], references: [id], onDelete: SetNull)
+  enteredBy           Staff       @relation("MarkEnteredBy", fields: [enteredByStaffId], references: [id], onDelete: Restrict)
+  // + raw SQL: CHECK ("theoryObtained" IS NULL OR "theoryObtained" >= 0)
+  // + raw SQL: CHECK ("practicalObtained" IS NULL OR "practicalObtained" >= 0)
+  // + raw SQL: CHECK ("percentage" IS NULL OR ("percentage" >= 0 AND "percentage" <= 100))
+  // + raw SQL: CHECK (NOT "isAbsent" OR ("theoryObtained" IS NULL AND "practicalObtained" IS NULL))
+  //            — an absent mark carries no obtained marks (structural, like M4's single-status enum)
+  // + raw SQL: RLS ON — admin ALL; teacher own-assigned-section; parent own-child PUBLISHED (exam_rls, Step 4)
+
+  @@unique([assessmentId, enrollmentId]) // one mark per student per assessment (ADR-012 §1, transfer-safe)
+  @@index([examSectionId]) // register roster (hot path: marks grid for one section)
+  @@index([enrollmentId]) // student's marks — GPA/CGPA + future report card (ADR-009)
+  @@index([schoolId])
+}
+
+// ---------- grade scale + bands (configurable A+→E; ADR-012 §3) ----------
+// School-scoped catalog. Exactly one default per school (partial unique, mirrors
+// the ACTIVE-year idiom) so the Exam.gradeScaleId fallback is deterministic.
+model GradeScale {
+  id        String      @id @default(cuid())
+  schoolId  String // loose tenant ref (ADR-008)
+  name      String
+  isDefault Boolean     @default(false)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  bands     GradeBand[]
+  exams     Exam[]
+  // + raw SQL: partial unique — one default per school:  UNIQUE ("schoolId") WHERE "isDefault"
+  // + raw SQL: RLS ON — admin ALL; teacher/parent SELECT (read-only, grades reference it) (exam_rls, Step 4)
+
+  @@unique([schoolId, name])
+  @@index([schoolId])
+}
+
+// A percent band → grade letter (+ optional grade point for GPA). Bands within a
+// scale must NOT overlap — enforced at the DB by a gist EXCLUDE (raw SQL), the same
+// idiom AcademicTerm uses for date ranges (btree_gist already enabled). Ranges are
+// half-open [minPercent, maxPercent); the top band's maxPercent uses a >100 sentinel
+// (e.g. 100.01) so a perfect 100 still lands in a band (ADR-012 §3). A complete
+// scale covers [0,100]; a percentage in no band is a misconfigured scale → the grade
+// service rejects at LOCK (Step 5).
+model GradeBand {
+  id           String     @id @default(cuid())
+  gradeScaleId String
+  grade        String // A+, A, B+ ... E  (CONFIGURABLE — never hardcoded)
+  minPercent   Float // inclusive lower bound
+  maxPercent   Float // exclusive upper bound (top band uses a >100 sentinel)
+  gradePoint   Float? // null → this scale has no GPA points
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  gradeScale   GradeScale @relation(fields: [gradeScaleId], references: [id], onDelete: Cascade)
+  marks        Mark[]
+  // + raw SQL: CHECK ("minPercent" >= 0 AND "maxPercent" > "minPercent")
+  // + raw SQL: EXCLUDE USING gist ("gradeScaleId" WITH =, numrange("minPercent","maxPercent",'[)') WITH &&)
+  //            — non-overlapping bands per scale (the "grade boundary" edge case, Step 9)
+
+  @@unique([gradeScaleId, grade]) // a grade letter appears once per scale
+  @@index([gradeScaleId])
 }

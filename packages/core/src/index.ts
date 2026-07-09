@@ -63,3 +63,11 @@ export class ValidationError extends DomainError {
 }
 
 export { can, canAny, canAll, getPermissions } from "./authorization";
+export {
+  bandForPercentage,
+  computeGpa,
+  computeMarkResult,
+  type GradeBandInput,
+  type MarkComputeInput,
+  type MarkResult,
+} from "./grade";
