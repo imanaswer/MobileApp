@@ -86,7 +86,7 @@ Every screen, keyed by the IDs used in `NAVIGATION_MAP.md` and `USER_FLOWS.md`. 
 | WEB-SET-01 | School settings | branding, locale default, typed settings (attendance mode, cutoff, working days — B4), holiday calendar (B1) | M2/M3 |
 | WEB-SET-02 | Feature flags | super admin toggle (audited) | M1 |
 | WEB-FEE-01..04 | Fee structures / invoices / dues / payments | **flag: fees**; receipt PDFs | GL |
-| WEB-TT-01 | Timetable builder | division×day×period grid; clash detection; publish | flag |
+| WEB-TT-01..03 | Timetable console (**M9, implemented**) | admin (`timetable:manage`): (01) bell schedule & period CRUD; (02) section grid = periods×Mon–Sat, click-cell→modal (drag-free), conflict warnings, CSV; (03) teacher read view + CSV. Year/class/section filters. **No flag** (ADR-017 §4) | M9 |
 | WEB-ANA-01 | Analytics | attendance trends, result distribution | flag |
 
 ## Cross-cutting screen requirements
@@ -100,3 +100,7 @@ Every screen, keyed by the IDs used in `NAVIGATION_MAP.md` and `USER_FLOWS.md`. 
    greeting + today-context (a teacher's sections / a parent's children) + permission-gated nav cards (F1/F7);
    the M0 placeholder is gone. Report-card / class-teacher / student-profile screens now render **names**
    (Staff.name + server-enriched exam/term/student/class/section names), not raw ids (F2–F5).
+7. **M9 (implemented):** mobile **`(app)/timetable/index.tsx`** — read-only weekly timetable (teacher own
+   slots / parent child's section, weekday-grouped, enriched DTO — no id lookups); the Home dashboard gains a
+   **"Today's schedule"** card + Timetable nav, gated on `timetable:read`. Web timetable console = WEB-TT-01..03
+   above (admin `timetable:manage`).

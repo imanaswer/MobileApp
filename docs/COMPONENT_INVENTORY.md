@@ -53,7 +53,7 @@ Component catalog for `packages/ui` (shared tokens/primitives) and app-level dom
 | `LanguageSwitcher` | welcome, settings, web topbar | | M1 |
 | `OfflineBanner` + `SyncQueueIndicator` | teacher attendance | `offline` flag (OFFLINE_STRATEGY) | flag |
 | `FeeInvoiceCard` / `PaymentSheet` (Razorpay) / `ReceiptViewer` | fees screens | **flag: fees** | GL |
-| `TimetableGrid` (builder + read views) | WEB-TT-01, mobile read | clash highlighting | flag |
+| `TimetableGrid` (**M9, implemented**) | WEB-TT-01..03 (`components/timetable/ui.tsx`) | periods×Mon–Sat; break rows span; click-cell→modal editor OR read-only; empty cells clickable. Also `YearSelect`, `downloadCsv`/`entriesToCsv`. Mobile read view is a plain screen (`(app)/timetable`). **No flag** (ADR-017 §4); conflict warnings via mutation errors, not client prediction | M9 |
 | `TrendChart` / `DistributionChart` | WEB-ANA-01 | **flag: analytics** | flag |
 
 ## Rules

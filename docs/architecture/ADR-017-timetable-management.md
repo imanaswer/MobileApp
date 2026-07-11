@@ -1,6 +1,6 @@
 # ADR-017 — Timetable Management — M9
 
-**Status:** Proposed — **M9 Step 1 (design)** · **Date:** 2026-07-11 · **Deciders:** Architecture, Product
+**Status:** Accepted — **M9 implemented** (Steps 1–10; awaiting milestone approval) · **Date:** 2026-07-11 · **Deciders:** Architecture, Product
 **Related:** ADR-002 (business layer is the authorization gate) · ADR-003 (repositories; Prisma only in `packages/db`) · ADR-006 (feature flags) · ADR-007 (AuditLog in-transaction) · ADR-008 (loose `schoolId`) ·
 ADR-011/012/013 (**ownership derived from `TeacherAssignment`, never stored**; the register/derived-owner idiom reused here) · ADR-015 (ClassTeacherAssignment — **explicitly NOT a timetable-ownership source**) ·
 DATABASE_CONVENTIONS (§3 anticipated `TimetablePeriod[divisionId,dayOfWeek,periodNo]`; enums, `@db.Time`, partial-unique "one default", Restrict) · PERMISSIONS_MATRIX (`timetable:manage`/`timetable:read` under the `timetable` add-on flag — adopted v1.3) · CODING_STANDARDS §1/§4 (DTOs, layering)

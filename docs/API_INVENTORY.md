@@ -315,6 +315,25 @@ provisioned for it), report-card notifications, CGPA-across-years snapshot, bili
 | `flags.list` | Q | authenticated | clients need flags to render nav |
 | `flags.set` | M | `flags:manage` | ✓ audit |
 
+## Timetable (M9, ADR-017 — implemented)
+
+Permission-only (**no feature flag** — ADR-017 §4). Ownership derives from `TeacherAssignment`
+(never `ClassTeacherAssignment`); every mutation audits in-tx. Reads default `academicYearId` to the
+ACTIVE year (parents have no `academic:read`); teacher reads default to the caller (own slots only).
+Enriched DTOs carry subject/teacher/section names + period timing (batched, no N+1 — ADR-016).
+
+| Procedure | T | Permission | Notes |
+|---|---|---|---|
+| `bellSchedule.getForYear` | Q | `timetable:read` | the year's single schedule, or null |
+| `bellSchedule.create` / `update` | M | `timetable:manage` | one per year (unique); ✓ audit |
+| `period.list` | Q | `timetable:read` | ordered by `order` |
+| `period.create` / `update` / `delete` | M | `timetable:manage` | overlap/order/time validated; delete blocked if referenced; ✓ audit |
+| `timetable.createEntry` / `updateEntry` / `deleteEntry` | M | `timetable:manage` | conflict + ownership + cross-year + break checks; ✓ audit |
+| `timetable.bySection` | Q | `timetable:read` | admin any; parent own child's section |
+| `timetable.byTeacher` | Q | `timetable:read` | admin any teacher; teacher own only |
+| `timetable.forParent` | Q | `timetable:read` | parent's children's section grids |
+| `timetable.today` | Q | `timetable:read` | IST weekday; teacher own / parent child |
+
 ## Add-on routers (flag-gated: check flag → FORBIDDEN when off)
 
 | Procedure | Flag | T | Permission | Audit | Notif |
@@ -323,7 +342,7 @@ provisioned for it), report-card notifications, CGPA-across-years snapshot, bili
 | `fees.createOrder` | `fees` | M | `fees:pay` | ✓ | – (Razorpay order) |
 | `fees.verifyPayment` | `fees` | M | `fees:pay` | ✓ | ✓ receipt |
 | `fees.reminders.send` | `fees` | M | `fees:manage` | ✓ | ✓ push+SMS/WA |
-| `timetable.*` CRUD + `publish` | `timetable` | Q/M | `timetable:*` | ✓ (publish) | publish → push |
+| ~~`timetable.* CRUD + publish` (`timetable` flag)~~ | — | — | — | — | **SUPERSEDED** by the Timetable section above (M9/ADR-017 — permission-only, no publish/notify) |
 | `analytics.attendanceTrends` / `resultDistribution` / `classPerformance` | `analytics` | Q | `analytics:view` | – | – |
 
 ## Non-tRPC HTTP routes

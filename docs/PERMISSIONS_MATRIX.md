@@ -147,6 +147,26 @@ Notes:
 | `message:send` | any | – | own threads | own threads | – |
 | `notification:manage_own` (list, markRead, register/deregister device) | self | self | self | self | self |
 
+### Timetable Management (M9, ADR-017 — implemented)
+
+Built as **M9** (see `docs/milestones/M9.md`). **Permission-only — the `timetable` flag is NOT used**
+(ADR-017 §4: no `FeatureFlag` infrastructure exists; a flag table would break M9's "only additive
+timetable tables" proof — the ADR-013/M6 precedent of shipping a matrix-flagged feature as core). Ownership
+derives from `TeacherAssignment(teacher, subject, section)` — **never** `ClassTeacherAssignment`. Row scope
+enforced in the service; RLS is defense-in-depth (isolation proven: Teacher A ≠ Teacher B, parent ≠ other section).
+
+| Permission | SA | OA | T | P | AC |
+|---|---|---|---|---|---|
+| `timetable:manage` (bell schedule / periods / entries) | any | school | – | – | – |
+| `timetable:read` | any | school | **own slots** (`teacherId = self`) | ownChild's section | – |
+
+Notes:
+- **Teacher read = own slots only** (narrows the PRD's `ownDivision`) — the isolation proof "Teacher A cannot
+  read Teacher B" forces `teacherId = auth.uid()` at the row level; a teacher does **not** see the full section
+  grid in M9. A **parent** sees the child's whole section grid (all teachers) — the deliberate asymmetry.
+- **Reads default to the ACTIVE year** server-side (a parent has no `academic:read` to supply a year).
+- **Not built in M9** (deferred): notifications, substitute teachers, recurring/template timetables.
+
 ### Add-ons (feature-flag gated first, then permission)
 
 | Permission | Flag | SA | OA | T | P | AC |
@@ -154,8 +174,7 @@ Notes:
 | `fees:manage` (structures, invoices, reminders) | `fees` | any | – | – | – | school |
 | `fees:view` | `fees` | any | school | – | ownChild (own invoices) | school |
 | `fees:pay` | `fees` | – | – | – | ownChild | – |
-| `timetable:manage` | `timetable` | any | school | – | – | – |
-| `timetable:read` | `timetable` | any | school | ownDivision | ownChild | – |
+| ~~`timetable:manage` / `timetable:read` (`timetable` flag)~~ | — | — | — | — | — | **implemented in M9 permission-only** — see the Timetable section above |
 | `analytics:view` | `analytics` | any | – (**decided v1.3**: Dev PRD §8.16 scopes dashboards to the principal; extend to OA later only if asked) | – | – | – |
 | `flags:manage` | — | any | – | – | – | – |
 

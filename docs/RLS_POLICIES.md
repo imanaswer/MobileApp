@@ -79,3 +79,24 @@ Also run `\dp "User"` to confirm the `authenticated` GRANT that made these
 policies necessary. Structurally verified (`prisma validate`); the three live
 checks (service_role works / anon denied / authenticated cannot enumerate) are
 **pending live verification**.
+
+## M9 timetable tables (migration `20260711020000_timetable_rls`)
+
+Defense-in-depth (ADR-002/017 §3); the business layer is the gate. App reaches these tables as
+`service_role` (BYPASSRLS). New helper `public.is_my_child_section(sec)` (SECURITY DEFINER,
+`search_path=''`) — true when a parent has a child enrolled in `sec` (mirrors `is_my_child_enrollment`).
+
+| Table | Policy | Cmd | Role | Rule |
+|---|---|---|---|---|
+| BellSchedule | `timetable_admin_all` | ALL | authenticated | `is_academic_admin()` |
+| BellSchedule | `read_ref` | SELECT | authenticated | `true` (read-only reference) |
+| Period | `timetable_admin_all` / `read_ref` | ALL / SELECT | authenticated | `is_academic_admin()` / `true` |
+| TimetableEntry | `timetable_admin_all` | ALL | authenticated | `is_academic_admin()` |
+| TimetableEntry | `teacher_read_own` | SELECT | authenticated | `teacherId = auth.uid()` |
+| TimetableEntry | `parent_read_child_section` | SELECT | authenticated | `is_my_child_section("sectionId")` |
+
+**Anon:** no policy → denied everywhere. **Isolation PROVEN live** (M9 Step 4, `m9_verify`, rolled back):
+Teacher A sees only own rows (**cannot read Teacher B**); Teacher B likewise (A ≠ B); parent sees only the
+child's section (**cannot read another section**); admin all; anon 0; BellSchedule/Period readable by
+teacher + parent, not anon. `service_role` bypasses so the app path is unaffected. Zero schema drift after
+enabling RLS.

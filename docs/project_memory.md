@@ -225,14 +225,27 @@ tasks** (business 207, api 266, validation 50); mobile ios export ✓ (Step 7).
 
 ## Next Task
 
-**STOPPED — M7 (Report Cards & Academic Results, ADR-014) COMPLETE, all 10 steps
-shipped; awaiting milestone approval to freeze.** M7 is purely additive over the frozen
-M1–M6.5 (`+ReportCard` table/enums, 3 permissions, 1 additive `reportCard.listForSection`
-read; no existing schema/service/contract/RLS change). Before live PDF generation, provision
-the private **report-card bucket** and build the renderer (bilingual en+ml) — a runbook step,
-like `homework-files` in M6; `pdfPath` + the column are already provisioned. Deferred: report-card
-notifications, CGPA-across-years, cross-year student trail. Known limitations in
-`docs/features/report-cards.md` / `docs/status/ReportCards.md`.
+**STOPPED — M9 (Timetable Management, ADR-017) COMPLETE, all 10 steps shipped;
+awaiting milestone approval to freeze.** A new read-mostly domain, purely additive over frozen
+M1–M8: `+BellSchedule/Period/TimetableEntry` tables + `Weekday` enum, two adopted `timetable:*`
+permission constants, three tRPC routers, mobile read screen + web admin console. **No frozen-table
+change** (proven by `migrate diff` — zero drift), **no new RLS policy shape**, **no new permission
+grant**. Ownership derives from `TeacherAssignment` (never `ClassTeacherAssignment`); double-booking
+structurally impossible (two DB uniques); every mutation audited in-tx. **Permission-only, NO feature
+flag** (ADR-017 §4 — no flag infra exists; the ADR-013/M6 precedent). Gate green: lint 14/14 · typecheck
+14/14 · test 7/7 (business 348, api 318) · db:validate ✓ · mobile typecheck ✓ · web build ✓ (with env).
+RLS isolation + delete-rule probes proven live on `m9_verify`. Deferred: notifications, substitute
+teachers, recurring templates, multiple bell schedules/year. Limitations in
+`docs/features/timetable.md` / `docs/status/Timetable.md`.
+
+<details><summary>Prior — M7 next-task note</summary>
+
+**M7 (Report Cards & Academic Results, ADR-014) COMPLETE, all 10 steps shipped.** Purely additive over
+frozen M1–M6.5 (`+ReportCard` table/enums, 3 permissions, 1 additive `reportCard.listForSection` read).
+Before live PDF generation, provision the private report-card bucket + build the renderer (bilingual
+en+ml). Deferred: report-card notifications, CGPA-across-years, cross-year student trail.
+
+</details>
 
 <details><summary>Prior — M6 next-task note</summary>
 
