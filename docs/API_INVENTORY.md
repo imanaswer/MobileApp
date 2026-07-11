@@ -355,6 +355,29 @@ parents (`HOMEWORK_PUBLISHED`); exam publish → exam-section teachers (`EXAM_PU
 the card's parents (`REPORT_CARD_PUBLISHED`); announcement → admin-chosen scope (`ANNOUNCEMENT`). Timetable
 (`TIMETABLE_UPDATED`) + study material (`STUDY_MATERIAL`) types reserved, no M10 source (ADR-018 deviations).
 
+## Announcements & Calendar (M11 — ADR-019, implemented; permission-only)
+
+Persistent school communication. Thin transport → business enforces permission, targeting/visibility, lifecycle,
+storage signing, in-tx audit, and the optional post-commit M10 notification. `announcement.publish` reuses the M10
+`createBulkNotification` (best-effort; `notify:false` = silent). Attachment mints run full authz before any URL
+exists (ADR-004). Per-user announcement targeting is a business filter (RLS is coarse; ADR-019 §6).
+
+| Procedure | T | Permission | Notes |
+|---|---|---|---|
+| `announcement.list` | Q | `announcement:read` | role-aware: admin all-of-status; teacher DRAFT→own; else published+targeted (repo WHERE) |
+| `announcement.get` | Q | `announcement:read` | targeting-gated (404, no existence leak) |
+| `announcement.create` | M | manage / draft | admin any scope; teacher own SECTION/CLASS; DRAFT; ✓ audit |
+| `announcement.update` | M | manage / draft (own draft) | DRAFT-only (published immutable); ✓ audit |
+| `announcement.publish` | M | `announcement:manage` | SA/OA; DRAFT→PUBLISHED; optional M10 notify (`notify` arg); ✓ audit |
+| `announcement.archive` | M | `announcement:manage` | SA/OA; PUBLISHED→ARCHIVED (soft delete); ✓ audit |
+| `announcement.delete` | M | manage / draft (own draft) | DRAFT-only hard delete (+ attachments, one tx); ✓ audit |
+| `announcement.attachmentUploadUrl` | M | `announcement:read` (+author) | mint signed upload (DRAFT-only, count-guarded) |
+| `announcement.attachmentAdd` | M | `announcement:read` (+author) | persist metadata (DRAFT-only); ✓ audit |
+| `announcement.attachmentDownloadUrl` | M | `announcement:read` | mint signed read **after** full targeting check (R4 guard) |
+| `announcement.attachmentRemove` | M | `announcement:read` (+author) | DRAFT-only; ✓ audit |
+| `calendar.get` / `month` / `range` / `upcoming` | Q | `calendar:read` | all in-scope roles; school-wide (no targeting) |
+| `calendar.create` / `update` / `delete` | M | `academic:manage` | admin; range-validated; ✓ audit |
+
 ## Add-on routers (flag-gated: check flag → FORBIDDEN when off)
 
 | Procedure | Flag | T | Permission | Audit | Notif |

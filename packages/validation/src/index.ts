@@ -679,3 +679,110 @@ export const createAnnouncementInput = z
     message: "sectionId is required for a SECTION announcement",
     path: ["sectionId"],
   });
+
+/* ---- announcements, circulars & calendar (M11, ADR-019) ---- */
+const announcementScopeSchema = z.enum(["WHOLE_SCHOOL", "CLASS", "SECTION", "TEACHERS", "PARENTS"]);
+const announcementStatusSchema = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
+const calendarEventTypeSchema = z.enum(["HOLIDAY", "EVENT", "EXAM", "MEETING", "OTHER"]);
+
+/** Validated YYYY-MM-DD string — NOT transformed to Date (the calendar service parses
+ *  it and gives friendly domain errors; string ISO dates also compare lexically). */
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Expected YYYY-MM-DD")
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00.000Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, "Invalid calendar date");
+
+/** CLASS/SECTION scopes require a targetId (a Class/Section id); others must omit it. */
+export const createAnnouncementDraftInput = z
+  .object({
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(5000),
+    scope: announcementScopeSchema,
+    targetId: idSchema.optional(),
+    academicYearId: idSchema.optional(),
+  })
+  .refine((v) => !(v.scope === "SECTION" || v.scope === "CLASS") || !!v.targetId, {
+    message: "targetId is required for a CLASS or SECTION announcement",
+    path: ["targetId"],
+  });
+
+export const updateAnnouncementInput = z.object({
+  id: idSchema,
+  title: z.string().min(1).max(200).optional(),
+  body: z.string().min(1).max(5000).optional(),
+  scope: announcementScopeSchema.optional(),
+  targetId: idSchema.nullable().optional(),
+});
+
+export const publishAnnouncementInput = z.object({
+  id: idSchema,
+  notify: z.boolean().optional(),
+});
+
+export const listAnnouncementsInput = z.object({
+  status: announcementStatusSchema.optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  before: z.string().datetime().optional(),
+});
+
+export const mintAnnouncementUploadUrlInput = z.object({
+  announcementId: idSchema,
+  fileName: z.string().min(1).max(255),
+  mimeType: z.string().min(1).max(150),
+  sizeBytes: z.number().int().positive(),
+});
+
+export const addAnnouncementAttachmentInput = z.object({
+  announcementId: idSchema,
+  path: z.string().min(1).max(500),
+  fileName: z.string().min(1).max(255),
+  sizeBytes: z.number().int().positive(),
+});
+
+export const createCalendarEventInput = z
+  .object({
+    title: z.string().min(1).max(200),
+    description: z.string().max(2000).nullable().optional(),
+    eventType: calendarEventTypeSchema,
+    startDate: calendarDateSchema,
+    endDate: calendarDateSchema,
+    isAllDay: z.boolean().optional(),
+    academicYearId: idSchema.optional(),
+  })
+  .refine((v) => v.endDate >= v.startDate, {
+    message: "endDate must not be before startDate",
+    path: ["endDate"],
+  });
+
+export const updateCalendarEventInput = z.object({
+  id: idSchema,
+  title: z.string().min(1).max(200).optional(),
+  description: z.string().max(2000).nullable().optional(),
+  eventType: calendarEventTypeSchema.optional(),
+  startDate: calendarDateSchema.optional(),
+  endDate: calendarDateSchema.optional(),
+  isAllDay: z.boolean().optional(),
+});
+
+export const listCalendarRangeInput = z.object({
+  from: calendarDateSchema,
+  to: calendarDateSchema,
+  academicYearId: idSchema.optional(),
+  eventType: calendarEventTypeSchema.optional(),
+});
+
+export const listCalendarMonthInput = z.object({
+  year: z.number().int().min(2000).max(2100),
+  month: z.number().int().min(1).max(12),
+  academicYearId: idSchema.optional(),
+  eventType: calendarEventTypeSchema.optional(),
+});
+
+export const listUpcomingCalendarInput = z.object({
+  limit: z.number().int().min(1).max(100).optional(),
+  academicYearId: idSchema.optional(),
+  eventType: calendarEventTypeSchema.optional(),
+});

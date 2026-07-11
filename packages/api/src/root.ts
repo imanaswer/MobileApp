@@ -8,6 +8,7 @@ import {
   subjectRouter,
   teacherAssignmentRouter,
 } from "./routers/academic";
+import { announcementRouter } from "./routers/announcement";
 import {
   attendanceCorrectionRouter,
   attendanceRouter,
@@ -15,6 +16,7 @@ import {
   leaveRouter,
 } from "./routers/attendance";
 import { authRouter } from "./routers/auth";
+import { calendarRouter } from "./routers/calendar";
 import { classTeacherRouter } from "./routers/class-teacher";
 import { assessmentRouter, examRouter, gradeScaleRouter, markRouter } from "./routers/exam";
 import { homeworkRouter, submissionRouter } from "./routers/homework";
@@ -72,6 +74,8 @@ export const appRouter = router({
   period: periodRouter,
   timetable: timetableRouter,
   notification: notificationRouter,
+  announcement: announcementRouter,
+  calendar: calendarRouter,
 });
 
 export type AppRouter = typeof appRouter;

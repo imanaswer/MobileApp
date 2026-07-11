@@ -1,5 +1,5 @@
 import type { NotificationDto } from "@repo/types";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
 
 import { deepLinkForType, timeAgo } from "../../../components/notifications-ui";
@@ -32,7 +32,9 @@ export default function NotificationsScreen() {
     if (!n.isRead) {
       markRead.mutate({ id: n.id });
     }
-    const href = deepLinkForType(n.type);
+    // Prefer the event's own deep link (M11 announcements carry /announcements/:id);
+    // fall back to the type default (M10).
+    const href = (n.actionUrl as Href | null) ?? deepLinkForType(n.type);
     if (href) {
       router.push(href);
     }

@@ -124,6 +124,8 @@ model AcademicYear {
   classTeacherAssignments ClassTeacherAssignment[] // M7 foundation: virtual back-relation only
   bellSchedules           BellSchedule[] // M9: virtual back-relation only (one per year, DB unique)
   timetableEntries        TimetableEntry[] // M9: virtual back-relation only
+  announcements           Announcement[] // M11: virtual back-relation only (no change to frozen M2 model)
+  calendarEvents          SchoolCalendarEvent[] // M11: virtual back-relation only
   // + raw SQL: UNIQUE (schoolId) WHERE status = 'ACTIVE'  — one ACTIVE year
   // + raw SQL: CHECK (startDate < endDate)
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration; defense-in-depth)
@@ -431,51 +433,55 @@ model StudentParent {
 // DESCRIPTIVE only: a teacher's read-scope derives from TeacherAssignment→Section,
 // never from Staff. Named Staff (not TeacherProfile) for forward-consistency.
 model Staff {
-  id                          String                   @id @default(cuid())
-  schoolId                    String // loose tenant ref (ADR-008)
-  userId                      String                   @unique
-  name                        String // display name — one field, Indian-name-friendly (ADR-016); backfilled then NOT NULL
-  employeeId                  String
-  department                  String?
-  qualification               String?
-  experienceYears             Int?
-  joiningDate                 DateTime?                @db.Date
-  bio                         String?
-  photoPath                   String? // PRIVATE storage path, signed on read (ADR-004)
-  createdAt                   DateTime                 @default(now())
-  updatedAt                   DateTime                 @updatedAt
-  user                        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                              String                   @id @default(cuid())
+  schoolId                        String // loose tenant ref (ADR-008)
+  userId                          String                   @unique
+  name                            String // display name — one field, Indian-name-friendly (ADR-016); backfilled then NOT NULL
+  employeeId                      String
+  department                      String?
+  qualification                   String?
+  experienceYears                 Int?
+  joiningDate                     DateTime?                @db.Date
+  bio                             String?
+  photoPath                       String? // PRIVATE storage path, signed on read (ADR-004)
+  createdAt                       DateTime                 @default(now())
+  updatedAt                       DateTime                 @updatedAt
+  user                            User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
   // M4: virtual back-relations only — attendance audit actors + correction actors (no DB change to this frozen M3 model)
-  sessionsCreated             AttendanceSession[]      @relation("SessionCreatedBy")
-  sessionsSubmitted           AttendanceSession[]      @relation("SessionSubmittedBy")
-  sessionsLocked              AttendanceSession[]      @relation("SessionLockedBy")
-  correctionsRequested        AttendanceCorrection[]   @relation("CorrectionRequestedBy")
-  correctionsDecided          AttendanceCorrection[]   @relation("CorrectionDecidedBy")
-  leavesDecided               LeaveRequest[]
+  sessionsCreated                 AttendanceSession[]      @relation("SessionCreatedBy")
+  sessionsSubmitted               AttendanceSession[]      @relation("SessionSubmittedBy")
+  sessionsLocked                  AttendanceSession[]      @relation("SessionLockedBy")
+  correctionsRequested            AttendanceCorrection[]   @relation("CorrectionRequestedBy")
+  correctionsDecided              AttendanceCorrection[]   @relation("CorrectionDecidedBy")
+  leavesDecided                   LeaveRequest[]
   // M5: virtual back-relations only — exam publish + exam-section audit actors + mark entry
-  examsPublished              Exam[]                   @relation("ExamPublishedBy")
-  examSectionsCreated         ExamSection[]            @relation("ExamSectionCreatedBy")
-  examSectionsSubmitted       ExamSection[]            @relation("ExamSectionSubmittedBy")
-  examSectionsLocked          ExamSection[]            @relation("ExamSectionLockedBy")
-  examSectionsUnlocked        ExamSection[]            @relation("ExamSectionUnlockedBy")
-  marksEntered                Mark[]                   @relation("MarkEnteredBy")
+  examsPublished                  Exam[]                   @relation("ExamPublishedBy")
+  examSectionsCreated             ExamSection[]            @relation("ExamSectionCreatedBy")
+  examSectionsSubmitted           ExamSection[]            @relation("ExamSectionSubmittedBy")
+  examSectionsLocked              ExamSection[]            @relation("ExamSectionLockedBy")
+  examSectionsUnlocked            ExamSection[]            @relation("ExamSectionUnlockedBy")
+  marksEntered                    Mark[]                   @relation("MarkEnteredBy")
   // M6: virtual back-relations only — homework lifecycle + review audit actors
-  homeworkCreated             Homework[]               @relation("HomeworkCreatedBy")
-  homeworkPublished           Homework[]               @relation("HomeworkPublishedBy")
-  homeworkClosed              Homework[]               @relation("HomeworkClosedBy")
-  homeworkReopened            Homework[]               @relation("HomeworkReopenedBy")
-  homeworkAttachmentsUploaded HomeworkAttachment[]     @relation("HomeworkAttachmentUploadedBy")
-  submissionsReviewed         HomeworkSubmission[]     @relation("SubmissionReviewedBy")
-  homeworkFeedbackAuthored    HomeworkFeedback[]       @relation("HomeworkFeedbackAuthor")
+  homeworkCreated                 Homework[]               @relation("HomeworkCreatedBy")
+  homeworkPublished               Homework[]               @relation("HomeworkPublishedBy")
+  homeworkClosed                  Homework[]               @relation("HomeworkClosedBy")
+  homeworkReopened                Homework[]               @relation("HomeworkReopenedBy")
+  homeworkAttachmentsUploaded     HomeworkAttachment[]     @relation("HomeworkAttachmentUploadedBy")
+  submissionsReviewed             HomeworkSubmission[]     @relation("SubmissionReviewedBy")
+  homeworkFeedbackAuthored        HomeworkFeedback[]       @relation("HomeworkFeedbackAuthor")
   // M6.5: virtual back-relation only — class-teacher assignments this staff performed (audit actor)
-  classTeacherAssignmentsMade ClassTeacherAssignment[] @relation("ClassTeacherAssignedBy")
+  classTeacherAssignmentsMade     ClassTeacherAssignment[] @relation("ClassTeacherAssignedBy")
   // M7: virtual back-relations only — report-card lifecycle audit actors (B3)
-  reportCardsCreated          ReportCard[]             @relation("ReportCardCreatedBy")
-  reportCardsSubmitted        ReportCard[]             @relation("ReportCardSubmittedBy")
-  reportCardsApproved         ReportCard[]             @relation("ReportCardApprovedBy")
-  reportCardsPublished        ReportCard[]             @relation("ReportCardPublishedBy")
-  reportCardsReopened         ReportCard[]             @relation("ReportCardReopenedBy")
-  reportCardsRevoked          ReportCard[]             @relation("ReportCardRevokedBy")
+  reportCardsCreated              ReportCard[]             @relation("ReportCardCreatedBy")
+  reportCardsSubmitted            ReportCard[]             @relation("ReportCardSubmittedBy")
+  reportCardsApproved             ReportCard[]             @relation("ReportCardApprovedBy")
+  reportCardsPublished            ReportCard[]             @relation("ReportCardPublishedBy")
+  reportCardsReopened             ReportCard[]             @relation("ReportCardReopenedBy")
+  reportCardsRevoked              ReportCard[]             @relation("ReportCardRevokedBy")
+  // M11: virtual back-relations only — announcement + calendar authorship/upload audit actors (B3)
+  announcementsCreated            Announcement[]           @relation("AnnouncementCreatedBy")
+  announcementAttachmentsUploaded AnnouncementAttachment[] @relation("AnnouncementAttachmentUploadedBy")
+  calendarEventsCreated           SchoolCalendarEvent[]    @relation("CalendarEventCreatedBy")
   // + raw SQL: RLS ON — admin ALL; staff SELECT self (userId = auth.uid()) (people_rls, Step 4)
 
   @@unique([schoolId, employeeId])
@@ -1518,4 +1524,121 @@ model NotificationRecipient {
   @@unique([notificationId, userId]) // one copy per user per event (idempotency floor)
   @@index([userId, isRead, createdAt]) // unread list + badge (hot path)
   @@index([notificationId])
+}
+
+// ============ Announcements, Circulars & School Calendar (M11) ============
+// ADR-019 is the source of truth. Persistent school communication over frozen M1–M10:
+// an Announcement (DRAFT→PUBLISHED→ARCHIVED) with file attachments, and a
+// SchoolCalendarEvent (holidays/events/exams/meetings). Purely additive — three tables,
+// three enums, one private bucket (announcement-attachments, ADR-004). On PUBLISH an
+// announcement OPTIONALLY emits an M10 Notification(type=ANNOUNCEMENT) via the canonical
+// *AndNotify path (ADR-018 §3) — reusing M10, NOT editing it. Teachers DRAFT (own-section,
+// announcement:draft); admins PUBLISH (announcement:manage). All FKs Restrict (brief).
+// Every mutation writes AuditLog in the same transaction (ADR-007).
+
+enum AnnouncementStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Audience of an announcement. targetId (loose polymorphic, no FK) names the Class
+// (CLASS) or Section (SECTION); NULL for WHOLE_SCHOOL/TEACHERS/PARENTS. Visibility is
+// resolved in the business layer (RLS is coarse defense-in-depth; ADR-019 §5/§6). No
+// CUSTOM audience in M11 (would need an AnnouncementRecipient table — future-additive).
+enum AnnouncementScope {
+  WHOLE_SCHOOL
+  CLASS
+  SECTION
+  TEACHERS
+  PARENTS
+}
+
+enum CalendarEventType {
+  HOLIDAY
+  EVENT
+  EXAM
+  MEETING
+  OTHER
+}
+
+// A persistent school announcement / circular (ADR-019 §1). Lifecycle DRAFT→PUBLISHED→
+// ARCHIVED; publishedAt is stamped at publish and kept through archive (CHECK below —
+// the ReportCard published-stamp idiom). scope + targetId decide WHO sees it (business-
+// resolved). createdByStaffId is the B3 actor (→ Staff, Restrict). schoolId loose
+// (ADR-008); academicYear Restrict. Published content is immutable (edit before publish);
+// DRAFT hard-deletes, PUBLISHED archives (ADR-019 §4).
+model Announcement {
+  id               String                   @id @default(cuid())
+  schoolId         String // loose tenant ref (ADR-008)
+  academicYearId   String
+  title            String
+  body             String
+  status           AnnouncementStatus       @default(DRAFT)
+  scope            AnnouncementScope
+  targetId         String? // loose polymorphic (DATABASE_CONVENTIONS §2, line 18): Class.id (CLASS) / Section.id (SECTION); NULL otherwise
+  publishedAt      DateTime? // stamped at DRAFT→PUBLISHED, kept through ARCHIVED (CHECK below)
+  createdByStaffId String
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  academicYear     AcademicYear             @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  createdBy        Staff                    @relation("AnnouncementCreatedBy", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  attachments      AnnouncementAttachment[]
+  // + raw SQL: CHECK — ("publishedAt" IS NOT NULL) = ("status" IN ('PUBLISHED','ARCHIVED'))  [DRAFT ⟹ null; published-once keeps the stamp]
+  // + raw SQL: RLS ON — admin ALL; teacher/parent SELECT PUBLISHED only; anon none (announcement_calendar_rls, Step 3)
+
+  @@index([status, publishedAt]) // the published feed (brief)
+  @@index([scope, status]) // scoped-feed filter (brief)
+  @@index([schoolId])
+  @@index([academicYearId])
+}
+
+// One file attached to an announcement (ADR-019 §1). path = PRIVATE bucket
+// (announcement-attachments) path, signed on read after an announcement:read + scope
+// check (ADR-004) — never a URL. add/remove only while the announcement is DRAFT.
+// announcement Restrict (brief — no Cascade; a DRAFT delete removes children then parent
+// in one service tx). uploadedByStaffId → Staff (B3 actor), Restrict.
+model AnnouncementAttachment {
+  id                String       @id @default(cuid())
+  announcementId    String
+  path              String // PRIVATE bucket path, signed on read (ADR-004)
+  fileName          String
+  sizeBytes         Int
+  uploadedByStaffId String
+  createdAt         DateTime     @default(now())
+  announcement      Announcement @relation(fields: [announcementId], references: [id], onDelete: Restrict)
+  uploadedBy        Staff        @relation("AnnouncementAttachmentUploadedBy", fields: [uploadedByStaffId], references: [id], onDelete: Restrict)
+  // + raw SQL: RLS ON — admin ALL; teacher/parent SELECT iff its announcement is PUBLISHED; anon none (announcement_calendar_rls, Step 3)
+
+  @@index([announcementId])
+}
+
+// A school calendar entry (ADR-019 §1): holiday / event / exam / meeting / other.
+// Date-only range (@db.Date; CHECK endDate >= startDate). isAllDay defaults true (M11
+// scope has no clock times — a timed-event upgrade is future-additive). EXAM events are
+// created MANUALLY, NOT synced from frozen M5 (ADR-019 deviation #5). createdByStaffId
+// B3 actor (→ Staff, Restrict); academicYear Restrict; schoolId loose. Admin CRUD;
+// teacher/parent READ (calendar:read). Every mutation writes AuditLog in the same tx.
+model SchoolCalendarEvent {
+  id               String            @id @default(cuid())
+  schoolId         String // loose tenant ref (ADR-008)
+  academicYearId   String
+  title            String
+  description      String?
+  eventType        CalendarEventType
+  startDate        DateTime          @db.Date
+  endDate          DateTime          @db.Date
+  isAllDay         Boolean           @default(true)
+  createdByStaffId String
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  academicYear     AcademicYear      @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  createdBy        Staff             @relation("CalendarEventCreatedBy", fields: [createdByStaffId], references: [id], onDelete: Restrict)
+  // + raw SQL: CHECK — "endDate" >= "startDate"
+  // + raw SQL: RLS ON — admin ALL; teacher/parent SELECT (read-only reference); anon none (announcement_calendar_rls, Step 3)
+
+  @@index([startDate]) // upcoming events (brief)
+  @@index([eventType, startDate]) // exam schedule / holidays (brief)
+  @@index([schoolId])
+  @@index([academicYearId])
 }

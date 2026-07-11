@@ -54,6 +54,9 @@ describe("authorization policy", () => {
       PERMISSIONS.TIMETABLE_READ,
       // M10: own in-app notification inbox (self-scope in service).
       PERMISSIONS.NOTIFICATION_MANAGE_OWN,
+      // M11: read announcements (targeted in service) + read the school calendar.
+      PERMISSIONS.ANNOUNCEMENT_READ,
+      PERMISSIONS.CALENDAR_READ,
     ]);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.USER_SET_ROLE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.ANNOUNCEMENT_SEND);

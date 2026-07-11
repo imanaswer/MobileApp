@@ -165,6 +165,34 @@ Notes:
 - **Not built in M10** (deferred): push/SMS/WhatsApp delivery, notification preferences, timetable/study-material
   notification sources.
 
+### Announcements, Circulars & Calendar (M11, ADR-019 — implemented)
+
+Built as **M11** (see `docs/milestones/M11.md`). **Permission-only — no feature flag.** Persistent communication
+over frozen M1–M10; a published announcement optionally emits an M10 notification. The `manage`/`draft`/`read`
+split mirrors the M7 report-card `manage`/`remark`/`read` shape. Calendar **writes reuse `academic:manage`**
+(the holiday/M6.5 precedent — no new write permission). Per-user announcement targeting is a **business-layer**
+filter; RLS is coarse defense-in-depth (admin ALL / authenticated published-only / anon none).
+
+| Permission | SA | OA | T | P | AC |
+|---|---|---|---|---|---|
+| `announcement:manage` (create/update/**publish**/archive/delete + attachments, any scope) | any | school | – | – | – |
+| `announcement:draft` (create/update/delete **DRAFT** + attachments; own SECTION/CLASS; **no publish/archive**) | – | – | ownSection | – | – |
+| `announcement:read` (targeted feed) | any | school | targeted (own drafts + published for own section-class + groups) | ownChild (published for child's section-class + WHOLE_SCHOOL/PARENTS) | – |
+| `calendar:read` (school calendar) | any | school | school | school | – |
+| calendar writes → `academic:manage` | any | school | – | – | – |
+
+Notes:
+- **Teachers draft, admins publish** (Step-1 approval) — a teacher's `announcement:draft` stops short of the
+  publish/archive lifecycle; an admin publishes it. Teacher draft scope is narrowed to sections/classes they teach.
+- **`announcement:read` is targeted in the service** — the `get`/attachment paths 404 an out-of-scope reader (no
+  existence leak; the R4 attachment guard); the feed pushes the targeting predicate into the repo WHERE.
+- **`calendar:read` is required** — parents hold no `academic:read`, and `holiday:read` is holiday-only; the school
+  calendar (events/exams/meetings) needs its own cross-role read. **Accountants** hold neither M11 read (out of scope).
+- M10's `announcement:send` stays separate/frozen (the ephemeral quick-blast); M11's `Announcement` is the
+  persistent system of record. The old planned `announcement:read`/`:create:*` rows are now realised by M11.
+- **Not built in M11** (deferred): CUSTOM (hand-picked) audiences, timed (non-all-day) calendar events, M5→calendar
+  exam sync, published-announcement correction/versioning.
+
 ### Timetable Management (M9, ADR-017 — implemented)
 
 Built as **M9** (see `docs/milestones/M9.md`). **Permission-only — the `timetable` flag is NOT used**

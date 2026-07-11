@@ -702,3 +702,55 @@ export interface NotificationDto {
   isArchived: boolean;
   archivedAt: IsoUtcString | null;
 }
+
+// ---------------------------------------------------------------------------
+// Announcements, Circulars & School Calendar (M11, ADR-019)
+// ---------------------------------------------------------------------------
+
+export type AnnouncementStatusKey = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type AnnouncementScopeKey = "WHOLE_SCHOOL" | "CLASS" | "SECTION" | "TEACHERS" | "PARENTS";
+export type CalendarEventTypeKey = "HOLIDAY" | "EVENT" | "EXAM" | "MEETING" | "OTHER";
+
+/** A file attached to an announcement (ADR-019 §1). `id` is the attachment row id
+ *  (the handle for downloadUrl/remove); the storage path is never exposed. */
+export interface AnnouncementAttachmentDto {
+  id: string;
+  announcementId: string;
+  fileName: string;
+  sizeBytes: number;
+  createdAt: IsoUtcString;
+}
+
+/** A persistent school announcement / circular (ADR-019 §1). `targetId` is the
+ *  Class (CLASS) or Section (SECTION) id the scope points at, else null. */
+export interface AnnouncementDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  title: string;
+  body: string;
+  status: AnnouncementStatusKey;
+  scope: AnnouncementScopeKey;
+  targetId: string | null;
+  publishedAt: IsoUtcString | null;
+  createdByStaffId: string;
+  createdAt: IsoUtcString;
+  updatedAt: IsoUtcString;
+  attachments: AnnouncementAttachmentDto[];
+}
+
+/** A school calendar entry (ADR-019 §1). Dates are calendar-date strings (YYYY-MM-DD). */
+export interface CalendarEventDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  title: string;
+  description: string | null;
+  eventType: CalendarEventTypeKey;
+  startDate: string;
+  endDate: string;
+  isAllDay: boolean;
+  createdByStaffId: string;
+  createdAt: IsoUtcString;
+  updatedAt: IsoUtcString;
+}

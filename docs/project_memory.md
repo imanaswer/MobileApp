@@ -225,6 +225,25 @@ tasks** (business 207, api 266, validation 50); mobile ios export ✓ (Step 7).
 
 ## Next Task
 
+**STOPPED — M11 (Announcements, Circulars & School Calendar, ADR-019) COMPLETE, all 9 steps shipped;
+awaiting milestone approval to freeze.** Persistent school communication over frozen M1–M10: `+Announcement`
+(DRAFT→PUBLISHED→ARCHIVED) + `+AnnouncementAttachment` (private bucket, signed-on-read) + `+SchoolCalendarEvent`
+(holiday/event/exam/meeting) tables, 3 enums, 4 permissions (`announcement:read`/`manage`/`draft`, `calendar:read`;
+calendar writes reuse `academic:manage`), `announcement.*` (11) + `calendar.*` (7) routers, mobile feed/detail/draft
++ calendar, web console (Draft/Published/Archive + attachment uploads) + calendar (month grid + CSV). Publish
+**optionally** emits an M10 `Notification(type=ANNOUNCEMENT)` (best-effort, reuses `createBulkNotification`;
+`notify:false`=silent). **Teachers draft, admins publish.** Per-user announcement targeting is a **business filter**;
+RLS is **coarse** (admin ALL / authenticated published-only / anon none) — proven, plus list WHERE-clause proven
+empirically. **No CUSTOM audience, no push/SMS/email/chat.** **Permission-only, NO feature flag.** Purely additive
+(3 tables + 3 enums, `migrate diff` zero-ALTER, zero drift, fresh deploy). Gate green: lint/typecheck/test **35/35**
+(business 403, api 339) · db:validate ✓ · mobile typecheck ✓ · web build ✓ (35/35 pages, `/announcements` +
+`/calendar`). One disclosed touch of the M10 mobile inbox (`open()` prefers `actionUrl`) for announcement
+deep-linking. Deferred: CUSTOM audiences, timed calendar events, M5→calendar exam sync, announcement correction.
+Runbook: provision the `announcement-attachments` bucket before live uploads. Docs: `docs/features/announcements.md`
++ `calendar.md`, `docs/status/Announcements.md` + `Calendar.md`, `docs/milestones/M11.md`.
+
+<details><summary>Prior — M10 next-task note</summary>
+
 **STOPPED — M10 (Notifications & Communication, ADR-018) COMPLETE, all 10 steps shipped;
 awaiting milestone approval to freeze.** A complete **in-app** notification system, purely additive over
 frozen M1–M9: `+Notification/NotificationRecipient` tables + `NotificationType/NotificationPriority` enums,
@@ -240,6 +259,8 @@ typecheck ✓ · web build ✓ (`/notifications`). RLS isolation proven live on 
 parent ≠ other). Deferred: timetable auto-emit (reserved `TIMETABLE_UPDATED`), study-material source, push/SMS
 delivery (the ADR-005 seam), notification preferences. Limitations in `docs/features/notifications.md` /
 `docs/status/Notifications.md`.
+
+</details>
 
 <details><summary>Prior — M9 next-task note</summary>
 

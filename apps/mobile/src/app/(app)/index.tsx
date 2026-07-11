@@ -36,6 +36,8 @@ export default function AppHome() {
   const canReadReportCards = has(PERMISSIONS.REPORT_CARD_READ);
   const canReadTimetable = has(PERMISSIONS.TIMETABLE_READ);
   const showTimetable = canReadTimetable && (role === "TEACHER" || isParent);
+  const canReadAnnouncements = has(PERMISSIONS.ANNOUNCEMENT_READ);
+  const canReadCalendar = has(PERMISSIONS.CALENDAR_READ);
 
   // Today-context, from existing queries only.
   const children = trpc.student.list.useQuery(undefined, { enabled: isParent });
@@ -168,6 +170,13 @@ export default function AppHome() {
               href="/timetable"
               label={isParent ? "My children’s timetable" : "My weekly timetable"}
             />
+          </NavCard>
+        ) : null}
+
+        {canReadAnnouncements || canReadCalendar ? (
+          <NavCard title="Communication">
+            {canReadAnnouncements ? <NavLink href="/announcements" label="Announcements" /> : null}
+            {canReadCalendar ? <NavLink href="/calendar" label="School calendar" /> : null}
           </NavCard>
         ) : null}
 

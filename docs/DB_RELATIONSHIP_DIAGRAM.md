@@ -375,3 +375,15 @@ business guard, not a DB rule.
 EXISTS recipient row; isolation proven (Teacher A ≠ Teacher B, parent ≠ other parent).
 `@@unique(notificationId, userId)` is the one-copy-per-user idempotency floor; `delete()`
 hard-removes the caller's own recipient row (leaf), archive = reversible soft delete.
+
+**M11 note (ADR-019):** three additive tables, **all FKs Restrict** (no Cascade —
+brief). `Announcement → AcademicYear` + `→ Staff` (createdBy); `AnnouncementAttachment
+→ Announcement` + `→ Staff` (uploadedBy) — no `schoolId` on the attachment (tenant via
+parent). `SchoolCalendarEvent → AcademicYear` + `→ Staff` (createdBy). `schoolId` loose
+(ADR-008); `Announcement.targetId` is a **loose polymorphic** Class/Section ref (no FK —
+DATABASE_CONVENTIONS §2 line 18). Back-relations added to frozen `AcademicYear`/`Staff`
+are virtual (no SQL column) → `migrate diff` is zero-ALTER. CHECKs: Announcement
+`publishedAt NOT NULL ⟺ status IN (PUBLISHED,ARCHIVED)`; SchoolCalendarEvent `endDate ≥
+startDate`. RLS is **coarse** (admin ALL / authenticated published-or-read / anon none) —
+a DRAFT delete removes attachments then the row in one service tx (Restrict); per-user
+announcement targeting is a business-layer filter, not a DB rule.

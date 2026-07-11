@@ -116,6 +116,22 @@ export default function DashboardPage() {
           Timetable
         </Link>
       ) : null}
+      {can(me.data.role, PERMISSIONS.ANNOUNCEMENT_READ) ? (
+        <Link
+          href="/announcements"
+          className="min-h-11 self-start rounded-md border border-border px-4 py-2 font-medium text-foreground"
+        >
+          Announcements
+        </Link>
+      ) : null}
+      {can(me.data.role, PERMISSIONS.CALENDAR_READ) ? (
+        <Link
+          href="/calendar"
+          className="min-h-11 self-start rounded-md border border-border px-4 py-2 font-medium text-foreground"
+        >
+          School calendar
+        </Link>
+      ) : null}
       <button
         type="button"
         onClick={() => void handleLogout()}

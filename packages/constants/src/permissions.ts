@@ -133,6 +133,22 @@ export const PERMISSIONS = {
   NOTIFICATION_MANAGE_OWN: "notification:manage_own",
   /** Compose + send an ANNOUNCEMENT notification (admin). SUPER_ADMIN / OFFICE_ADMIN. */
   ANNOUNCEMENT_SEND: "announcement:send",
+
+  /* ---- M11 Announcements, Circulars & Calendar (ADR-019) — permission-only. ---- */
+  /** Read the persistent announcement feed. Teacher/parent reads carry business
+   * targeting (WHOLE_SCHOOL / their section-class / role group); admin reads all. */
+  ANNOUNCEMENT_READ: "announcement:read",
+  /** Full announcement lifecycle: create/update/publish/archive/delete + attachments.
+   * SUPER_ADMIN / OFFICE_ADMIN, any scope. Publish + archive are admin-only (ADR-019 §7). */
+  ANNOUNCEMENT_MANAGE: "announcement:manage",
+  /** Author DRAFT announcements for OWN sections (create/update/delete draft + attachments;
+   * NO publish, NO archive). TEACHER only; scoped to owned SECTION/CLASS in the service —
+   * the report_card:remark shape (ADR-019 §7). */
+  ANNOUNCEMENT_DRAFT: "announcement:draft",
+  /** Read the school calendar (holidays/events/exams/meetings). All in-scope roles —
+   * parents hold no academic:read, so this is the cross-role calendar read. Writes ride
+   * academic:manage (holiday/M6.5 precedent). */
+  CALENDAR_READ: "calendar:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -211,6 +227,10 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // M10: own inbox + announcement authorship, school-wide (ADR-018).
     PERMISSIONS.NOTIFICATION_MANAGE_OWN,
     PERMISSIONS.ANNOUNCEMENT_SEND,
+    // M11: full announcement lifecycle + read + calendar read, school-wide (ADR-019).
+    PERMISSIONS.ANNOUNCEMENT_MANAGE,
+    PERMISSIONS.ANNOUNCEMENT_READ,
+    PERMISSIONS.CALENDAR_READ,
   ],
   // OFFICE_ADMIN: full academic + People management (M3) + Attendance (M4), school-wide.
   OFFICE_ADMIN: [
@@ -237,6 +257,10 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // M10: own inbox + announcement authorship, school-wide (ADR-018).
     PERMISSIONS.NOTIFICATION_MANAGE_OWN,
     PERMISSIONS.ANNOUNCEMENT_SEND,
+    // M11: full announcement lifecycle + read + calendar read, school-wide (ADR-019).
+    PERMISSIONS.ANNOUNCEMENT_MANAGE,
+    PERMISSIONS.ANNOUNCEMENT_READ,
+    PERMISSIONS.CALENDAR_READ,
   ],
   // TEACHER: reads academic structure + reads students/enrollments/documents in
   // their OWN sections and their OWN staff profile (row-scope in the service).
@@ -273,6 +297,11 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.TIMETABLE_READ,
     // M10: own in-app inbox (self-scope). No announcement authorship.
     PERMISSIONS.NOTIFICATION_MANAGE_OWN,
+    // M11: reads announcements (targeted in service) + authors DRAFTs for own sections
+    // (no publish/archive — admin-only); reads the calendar (ADR-019 §7).
+    PERMISSIONS.ANNOUNCEMENT_READ,
+    PERMISSIONS.ANNOUNCEMENT_DRAFT,
+    PERMISSIONS.CALENDAR_READ,
   ],
   // PARENT: reads only their OWN children (students/enrollments/documents) and
   // their OWN parent record (row-scope in the service). M4: reads own child's
@@ -299,6 +328,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.TIMETABLE_READ,
     // M10: own in-app inbox (self-scope). No announcement authorship.
     PERMISSIONS.NOTIFICATION_MANAGE_OWN,
+    // M11: reads announcements (targeted in service) + reads the calendar (ADR-019 §7).
+    PERMISSIONS.ANNOUNCEMENT_READ,
+    PERMISSIONS.CALENDAR_READ,
   ],
   ACCOUNTANT: [...SELF_PROFILE, PERMISSIONS.NOTIFICATION_MANAGE_OWN],
 };

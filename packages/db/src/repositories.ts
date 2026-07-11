@@ -9,6 +9,14 @@ import {
   type AcademicYearRepository,
 } from "./repositories/academic-year.repository";
 import {
+  createAnnouncementAttachmentRepository,
+  type AnnouncementAttachmentRepository,
+} from "./repositories/announcement-attachment.repository";
+import {
+  createAnnouncementRepository,
+  type AnnouncementRepository,
+} from "./repositories/announcement.repository";
+import {
   createAssessmentRepository,
   type AssessmentRepository,
 } from "./repositories/assessment.repository";
@@ -29,6 +37,10 @@ import {
   createBellScheduleRepository,
   type BellScheduleRepository,
 } from "./repositories/bell-schedule.repository";
+import {
+  createCalendarEventRepository,
+  type CalendarEventRepository,
+} from "./repositories/calendar-event.repository";
 import {
   createClassTeacherAssignmentRepository,
   type ClassTeacherAssignmentRepository,
@@ -152,6 +164,9 @@ export * from "./repositories/period.repository";
 export * from "./repositories/timetable-entry.repository";
 export * from "./repositories/notification.repository";
 export * from "./repositories/notification-recipient.repository";
+export * from "./repositories/announcement.repository";
+export * from "./repositories/announcement-attachment.repository";
+export * from "./repositories/calendar-event.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */
@@ -192,6 +207,9 @@ export interface Repositories {
   timetableEntries: TimetableEntryRepository;
   notifications: NotificationRepository;
   notificationRecipients: NotificationRecipientRepository;
+  announcements: AnnouncementRepository;
+  announcementAttachments: AnnouncementAttachmentRepository;
+  calendarEvents: CalendarEventRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -232,6 +250,9 @@ export function createRepositories(client: DbClient): Repositories {
     timetableEntries: createTimetableEntryRepository(client),
     notifications: createNotificationRepository(client),
     notificationRecipients: createNotificationRecipientRepository(client),
+    announcements: createAnnouncementRepository(client),
+    announcementAttachments: createAnnouncementAttachmentRepository(client),
+    calendarEvents: createCalendarEventRepository(client),
   };
 }
 

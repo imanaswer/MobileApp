@@ -40,7 +40,9 @@ Every screen, keyed by the IDs used in `NAVIGATION_MAP.md` and `USER_FLOWS.md`. 
 | ID | Screen | APIs | MS |
 |---|---|---|---|
 | MOB-MSG-01 | Message thread | `messages.*` | M5 |
-| MOB-NOT-01 | Notification inbox (**M10, implemented**) | home-header bell + unread badge (`notification.unreadCount`); `(app)/notifications` list (`notification.list`, pull-to-refresh) — tap = markRead + deep-link to destination screen, per-row archive, mark-all-read | M10 |
+| MOB-NOT-01 | Notification inbox (**M10, implemented**) | home-header bell + unread badge (`notification.unreadCount`); `(app)/notifications` list (`notification.list`, pull-to-refresh) — tap = markRead + deep-link (`actionUrl` → e.g. `/announcements/:id`, else type default), per-row archive, mark-all-read | M10 |
+| MOB-ANN-01 | Announcements (**M11, implemented**) | `(app)/announcements` feed (`announcement.list`, published+targeted) + detail (`get`, attachment downloads); authors get a Drafts tab + create/edit draft (`create`/`update`); permission-gated home nav | M11 |
+| MOB-CAL-01 | School calendar (**M11, implemented**) | `(app)/calendar` — Upcoming (`calendar.upcoming`) / Month (`calendar.month`) with a type filter (covers upcoming holidays + exam schedule); read-only (`calendar:read`) | M11 |
 | MOB-SET-01 | Settings | locale → `profile.update`; logout (token dereg) | M1 |
 
 ## Web — auth & shell
@@ -88,6 +90,8 @@ Every screen, keyed by the IDs used in `NAVIGATION_MAP.md` and `USER_FLOWS.md`. 
 | WEB-FEE-01..04 | Fee structures / invoices / dues / payments | **flag: fees**; receipt PDFs | GL |
 | WEB-TT-01..03 | Timetable console (**M9, implemented**) | admin (`timetable:manage`): (01) bell schedule & period CRUD; (02) section grid = periods×Mon–Sat, click-cell→modal (drag-free), conflict warnings, CSV; (03) teacher read view + CSV. Year/class/section filters. **No flag** (ADR-017 §4) | M9 |
 | WEB-NOT-01 | Notifications (**M10, implemented**) | dashboard-header bell + unread badge + recent-notifications dropdown; `/notifications` page — inbox (mark read + deep-link, archive, mark-all-read) + admin announcement composer (`announcement:send`): bulk whole-school or one section, priority, recipient-count confirmation | M10 |
+| WEB-ANN-01 | Announcement console (**M11, implemented**) | `/announcements` — Drafts/Published/Archive tabs + scope filter; composer creates/edits drafts (admin full scope + class/section pickers; teacher own sections), **attachment upload/remove/download** (DRAFT), lifecycle (publish/archive admin-only, delete author draft). `announcement:read`/`manage`/`draft`. **No flag** | M11 |
+| WEB-CAL-01 | Calendar management (**M11, implemented**) | `/calendar` — month grid + event list + type filter; admin (`academic:manage`) create/edit/delete (native date inputs); **CSV export** (`calendar:read`). **No flag** | M11 |
 | WEB-ANA-01 | Analytics | attendance trends, result distribution | flag |
 
 ## Cross-cutting screen requirements
@@ -109,3 +113,8 @@ Every screen, keyed by the IDs used in `NAVIGATION_MAP.md` and `USER_FLOWS.md`. 
    header (every role — `notification:manage_own`); MOB-NOT-01 / WEB-NOT-01 above are the inboxes. Tapping a
    notification marks it read and deep-links to the destination screen (by type — mobile routes are studentId-
    keyed, so it routes to the section, not the raw entity). Admins compose announcements on WEB-NOT-01.
+9. **M11 (implemented):** persistent Announcements (MOB-ANN-01 / WEB-ANN-01) + School calendar (MOB-CAL-01 /
+   WEB-CAL-01), gated on `announcement:read` / `calendar:read` in the home/dashboard nav. Announcement
+   notifications now deep-link to `/announcements/:id` (the M10 inbox prefers the event `actionUrl`). Authoring:
+   teachers draft (own sections), admins publish; web is the full console (attachment uploads, class/section
+   targeting), mobile is lighter.
