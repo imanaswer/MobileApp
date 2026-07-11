@@ -110,6 +110,9 @@ function makeCtx(user: Principal) {
     enrollments: {
       listBySection: vi.fn(async (): Promise<Enrollment[]> => [enrollmentRow]),
     },
+    students: {
+      listByIds: vi.fn(async () => [{ id: "st-1", firstName: "Asha", lastName: "Nair" }]),
+    },
     reportCards: {
       listByEnrollment: vi.fn(async (): Promise<ReportCard[]> => [cardRow]),
     },

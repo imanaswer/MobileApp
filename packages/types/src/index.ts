@@ -100,6 +100,8 @@ export interface ClassTeacherAssignmentDto {
   assignedAt: string;
   /** Staff id of the acting admin who assigned/replaced (audit actor). */
   createdByStaffId: string;
+  /** Display name of the assigned teacher (Staff.name via teacherId→userId; ADR-016). */
+  teacherName: string;
 }
 
 /* ---- People Management DTOs (M3). Student is identity-only; Enrollment owns
@@ -147,6 +149,21 @@ export interface EnrollmentDto {
   sectionId: string | null;
   rollNo: number | null;
   status: EnrollmentStatusKey;
+}
+
+/** A section-roster row enriched with the student's display name (M8, ADR-016; sectionRoster). */
+export interface EnrollmentRosterRowDto extends EnrollmentDto {
+  studentName: string;
+}
+
+/**
+ * An enrollment-history row enriched with class/section display names (M8, ADR-016;
+ * enrollment.listByStudent). The label join happens INSIDE the parent-scoped enrollment
+ * read (via repositories, not the academic service) — so parents get labels without `academic:read`.
+ */
+export interface EnrollmentHistoryRowDto extends EnrollmentDto {
+  className: string;
+  sectionName: string | null;
 }
 
 export interface ParentDto {
@@ -483,6 +500,12 @@ export interface ReportCardDto {
   classTeacherRemark: string | null;
   principalRemark: string | null;
   promotionDecision: PromotionDecisionKey | null;
+  // read-populated display labels (joined at read time via repositories; NULL on mutation
+  // returns — ADR-016). examName/termName are null iff the corresponding scope id is null;
+  // classTeacherName resolves the remark author (submittedByStaffId → Staff.name).
+  examName: string | null;
+  termName: string | null;
+  classTeacherName: string | null;
   // snapshot (frozen at approve) — rank is all-or-nothing (null unless GPA computable)
   rank: number | null;
   rankScope: RankScopeKey | null;
@@ -511,6 +534,12 @@ export interface ReportCardDto {
   revokedByStaffId: string | null;
   revokedAt: IsoUtcString | null;
   revokeReason: string | null;
+}
+
+/** A report card enriched for the section console — carries the student's name + roll (M8; listForSection). */
+export interface SectionReportCardRowDto extends ReportCardDto {
+  studentName: string;
+  rollNo: number | null;
 }
 
 /**

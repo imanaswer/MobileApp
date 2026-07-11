@@ -1,7 +1,12 @@
 import { PERMISSIONS } from "@repo/constants";
 import { ConflictError, ForbiddenError, ValidationError } from "@repo/core";
 import type { ReportCardKind } from "@repo/db";
-import type { PromotionDecisionKey, ReportCardDto, ReportCardKindKey } from "@repo/types";
+import type {
+  PromotionDecisionKey,
+  ReportCardDto,
+  ReportCardKindKey,
+  SectionReportCardRowDto,
+} from "@repo/types";
 
 import { assertCan } from "../../authorization";
 import type { ServiceContext } from "../../context";
@@ -17,6 +22,8 @@ import {
   mapReportCard,
   recordAudit,
   resolveActingStaffId,
+  resolveCardNames,
+  resolveCardNamesBatch,
 } from "./scope";
 import { assembleSnapshot } from "./snapshot";
 
@@ -466,7 +473,7 @@ export async function getReportCard(ctx: ServiceContext, id: string): Promise<Re
   assertCan(ctx.user, PERMISSIONS.REPORT_CARD_READ);
   const card = await loadReportCardInSchool(ctx, id);
   await assertReportCardReadScope(ctx, card);
-  return mapReportCard(card);
+  return mapReportCard(card, await resolveCardNames(ctx, card));
 }
 
 /**
@@ -486,14 +493,16 @@ export async function listReportCardsForEnrollment(
       return [];
     }
     const rows = await ctx.repositories.reportCards.listPublishedByEnrollment(enrollmentId);
-    return rows.map(mapReportCard);
+    const names = await resolveCardNamesBatch(ctx, rows);
+    return rows.map((c, i) => mapReportCard(c, names[i]));
   }
   if (!isFullAccess(ctx)) {
     // TEACHER — only the assigned class teacher of this enrollment.
     await assertClassTeacherOfEnrollment(ctx, enrollmentId);
   }
   const rows = await ctx.repositories.reportCards.listByEnrollment(enrollmentId);
-  return rows.map(mapReportCard);
+  const names = await resolveCardNamesBatch(ctx, rows);
+  return rows.map((c, i) => mapReportCard(c, names[i]));
 }
 
 /**
@@ -509,7 +518,7 @@ export async function listReportCardsForEnrollment(
 export async function listReportCardsForSection(
   ctx: ServiceContext,
   input: { academicYearId: string; sectionId: string },
-): Promise<ReportCardDto[]> {
+): Promise<SectionReportCardRowDto[]> {
   assertCan(ctx.user, PERMISSIONS.REPORT_CARD_READ);
   if (!isFullAccess(ctx)) {
     const classTeacher = await ctx.repositories.classTeacherAssignments.findBySectionYear(
@@ -524,8 +533,25 @@ export async function listReportCardsForSection(
     input.academicYearId,
     input.sectionId,
   );
+  // Enrollment → { studentName, rollNo } (batch the student-name join; ADR-016).
+  const students = await ctx.repositories.students.listByIds([
+    ...new Set(enrollments.map((e) => e.studentId)),
+  ]);
+  const studentName = new Map(students.map((s) => [s.id, `${s.firstName} ${s.lastName}`.trim()]));
+  const meta = new Map(
+    enrollments.map((e) => [
+      e.id,
+      { studentName: studentName.get(e.studentId) ?? "—", rollNo: e.rollNo },
+    ]),
+  );
+
   const perEnrollment = await Promise.all(
     enrollments.map((e) => ctx.repositories.reportCards.listByEnrollment(e.id)),
   );
-  return perEnrollment.flat().map(mapReportCard);
+  const cards = perEnrollment.flat();
+  const names = await resolveCardNamesBatch(ctx, cards);
+  return cards.map((c, i) => ({
+    ...mapReportCard(c, names[i]),
+    ...(meta.get(c.enrollmentId) ?? { studentName: "—", rollNo: null }),
+  }));
 }
