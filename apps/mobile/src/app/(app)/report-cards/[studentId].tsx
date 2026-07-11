@@ -68,9 +68,14 @@ function ReportCardView({ card }: { card: ReportCardDto }) {
   const attendance = card.attendancePercentage != null ? `${card.attendancePercentage}%` : "—";
   const gpa = card.gpaSnapshot != null ? card.gpaSnapshot.toFixed(2) : "Not available";
 
+  const scopeName = card.examName ?? card.termName; // null for ANNUAL (no exam/term scope)
+
   return (
     <View className="gap-2 rounded-md border border-border bg-card p-4">
-      <Text className="font-medium text-foreground">{KIND_LABEL[card.kind]}</Text>
+      <View>
+        <Text className="font-medium text-foreground">{KIND_LABEL[card.kind]}</Text>
+        {scopeName ? <Text className="text-sm text-muted-foreground">{scopeName}</Text> : null}
+      </View>
       <View className="flex-row flex-wrap gap-x-6 gap-y-1">
         <Stat label="Rank" value={rank} />
         <Stat label="Attendance" value={attendance} />
@@ -78,7 +83,12 @@ function ReportCardView({ card }: { card: ReportCardDto }) {
         {card.promotionDecision ? <Stat label="Result" value={card.promotionDecision} /> : null}
       </View>
       {card.classTeacherRemark ? (
-        <Remark label="Class teacher" body={card.classTeacherRemark} />
+        <Remark
+          label={
+            card.classTeacherName ? `Class teacher · ${card.classTeacherName}` : "Class teacher"
+          }
+          body={card.classTeacherRemark}
+        />
       ) : null}
       {card.principalRemark ? <Remark label="Principal" body={card.principalRemark} /> : null}
     </View>

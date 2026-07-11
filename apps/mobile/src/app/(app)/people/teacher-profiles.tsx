@@ -23,11 +23,12 @@ export default function TeacherProfilesScreen() {
       renderItem={(profile) => (
         <ListRow>
           <Text className="font-medium text-foreground">
-            Employee {profile.employeeId}
+            {profile.name}
             {profile.userId === me.data?.userId ? " · You" : ""}
           </Text>
           <Text className="text-sm text-muted-foreground">
-            {profile.department ?? "No department"} · {profile.qualification ?? "—"}
+            {profile.employeeId} · {profile.department ?? "No department"} ·{" "}
+            {profile.qualification ?? "—"}
           </Text>
           <Text className="text-sm text-muted-foreground">
             Joined {profile.joiningDate ?? "—"} ·{" "}
