@@ -84,10 +84,10 @@ export function createNotification(
 
 export interface ListNotificationsInput {
   /** true → archived only; false/undefined → the live inbox. */
-  archived?: boolean;
-  limit?: number;
+  archived?: boolean | undefined;
+  limit?: number | undefined;
   /** ISO createdAt keyset cursor — return events strictly older than this. */
-  before?: string;
+  before?: string | undefined;
 }
 
 export async function listNotifications(

@@ -653,3 +653,29 @@ export const teacherTimetableInput = z.object({
   academicYearId: idSchema.optional(),
   teacherId: idSchema.optional(),
 });
+
+/* ---- notifications (M10, ADR-018) ---- */
+const notificationPrioritySchema = z.enum(["LOW", "NORMAL", "HIGH", "URGENT"]);
+
+/** Inbox list: live (default) or archived, keyset-paged by ISO createdAt. */
+export const listNotificationsInput = z.object({
+  archived: z.boolean().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  before: z.string().datetime().optional(),
+});
+
+/** Admin announcement: SCHOOL (all active parents+teachers) or SECTION (that section). */
+export const createAnnouncementInput = z
+  .object({
+    scope: z.enum(["SCHOOL", "SECTION"]),
+    sectionId: idSchema.optional(),
+    academicYearId: idSchema.optional(),
+    title: z.string().min(1).max(200),
+    body: z.string().min(1).max(2000),
+    priority: notificationPrioritySchema.optional(),
+    actionUrl: z.string().max(500).optional(),
+  })
+  .refine((v) => v.scope !== "SECTION" || !!v.sectionId, {
+    message: "sectionId is required for a SECTION announcement",
+    path: ["sectionId"],
+  });

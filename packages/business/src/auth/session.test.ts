@@ -48,6 +48,7 @@ function fakeUsers(user: User | null): UserRepository {
       ...(user ?? baseUser),
       locale,
     })),
+    listBySchool: vi.fn(async (): Promise<User[]> => (user ? [user] : [])),
   };
 }
 

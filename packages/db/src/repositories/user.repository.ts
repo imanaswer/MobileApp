@@ -29,6 +29,11 @@ export interface UserRepository {
   setRole(id: string, role: User["role"]): Promise<User>;
   setStatus(id: string, status: User["status"]): Promise<User>;
   updateLocale(id: string, locale: User["locale"]): Promise<User>;
+  /** All users in a school, optionally narrowed by role(s)/status — announcement fan-out (M10). */
+  listBySchool(
+    schoolId: string,
+    filter?: { roles?: User["role"][]; status?: User["status"] },
+  ): Promise<User[]>;
 }
 
 export function createUserRepository(client: DbClient): UserRepository {
@@ -42,5 +47,13 @@ export function createUserRepository(client: DbClient): UserRepository {
     setRole: (id, role) => client.user.update({ where: { id }, data: { role } }),
     setStatus: (id, status) => client.user.update({ where: { id }, data: { status } }),
     updateLocale: (id, locale) => client.user.update({ where: { id }, data: { locale } }),
+    listBySchool: (schoolId, filter) =>
+      client.user.findMany({
+        where: {
+          schoolId,
+          ...(filter?.roles ? { role: { in: filter.roles } } : {}),
+          ...(filter?.status ? { status: filter.status } : {}),
+        },
+      }),
   };
 }

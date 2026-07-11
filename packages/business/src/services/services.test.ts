@@ -9,7 +9,12 @@ import type { ServiceContext } from "../context";
 import { disableUser, enableUser, setRole } from "./admin";
 import { updateProfile } from "./profile";
 
-const superAdmin: Principal = { userId: "u-super", schoolId: "s-1", role: "SUPER_ADMIN", status: "ACTIVE" };
+const superAdmin: Principal = {
+  userId: "u-super",
+  schoolId: "s-1",
+  role: "SUPER_ADMIN",
+  status: "ACTIVE",
+};
 const parent: Principal = { userId: "u-parent", schoolId: "s-1", role: "PARENT", status: "ACTIVE" };
 
 const baseUser: User = {
@@ -32,9 +37,19 @@ function makeCtx(user: Principal, repoUser: User | null) {
     create: vi.fn(async (): Promise<User> => baseUser),
     activate: vi.fn(async (): Promise<User> => baseUser),
     touchLastLogin: vi.fn(async (): Promise<User> => baseUser),
-    setRole: vi.fn(async (_id: string, role: User["role"]): Promise<User> => ({ ...(current ?? baseUser), role })),
-    setStatus: vi.fn(async (_id: string, status: User["status"]): Promise<User> => ({ ...(current ?? baseUser), status })),
-    updateLocale: vi.fn(async (_id: string, locale: User["locale"]): Promise<User> => ({ ...(current ?? baseUser), locale })),
+    setRole: vi.fn(async (_id: string, role: User["role"]): Promise<User> => ({
+      ...(current ?? baseUser),
+      role,
+    })),
+    setStatus: vi.fn(async (_id: string, status: User["status"]): Promise<User> => ({
+      ...(current ?? baseUser),
+      status,
+    })),
+    updateLocale: vi.fn(async (_id: string, locale: User["locale"]): Promise<User> => ({
+      ...(current ?? baseUser),
+      locale,
+    })),
+    listBySchool: vi.fn(async (): Promise<User[]> => (current ? [current] : [])),
   };
   const audit = { record: vi.fn(async (): Promise<void> => undefined) };
   // These M1 tests exercise only users/audit; widen to the (M2-extended) aggregate.

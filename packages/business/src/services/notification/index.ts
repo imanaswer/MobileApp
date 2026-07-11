@@ -19,3 +19,8 @@ export {
   publishExamAndNotify,
   publishReportCardAndNotify,
 } from "./publish-with-notify";
+export {
+  createAnnouncement,
+  type AnnouncementScope,
+  type CreateAnnouncementInput,
+} from "./announcement.service";
