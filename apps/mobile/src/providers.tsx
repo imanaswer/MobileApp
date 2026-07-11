@@ -19,9 +19,15 @@ export function Providers({ children }: { children: ReactNode }) {
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <LocaleProvider locale="en">{children}</LocaleProvider>
+          <LocaleFromProfile>{children}</LocaleFromProfile>
         </ThemeProvider>
       </QueryClientProvider>
     </trpc.Provider>
   );
+}
+
+/** Wire LocaleProvider to the signed-in user's locale (F8); "en" until loaded / signed out. */
+function LocaleFromProfile({ children }: { children: ReactNode }) {
+  const me = trpc.auth.me.useQuery();
+  return <LocaleProvider locale={me.data?.locale ?? "en"}>{children}</LocaleProvider>;
 }

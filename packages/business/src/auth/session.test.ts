@@ -27,17 +27,27 @@ function fakeUsers(user: User | null): UserRepository {
   return {
     findById: vi.fn(async (): Promise<User | null> => user),
     create: vi.fn(async (): Promise<User> => baseUser),
-    activate: vi.fn(
-      async (): Promise<User> => ({ ...(user ?? baseUser), status: "ACTIVE", lastLoginAt: new Date() }),
-    ),
-    touchLastLogin: vi.fn(async (): Promise<User> => ({ ...(user ?? baseUser), lastLoginAt: new Date() })),
-    setRole: vi.fn(async (_id: string, role: User["role"]): Promise<User> => ({ ...(user ?? baseUser), role })),
-    setStatus: vi.fn(
-      async (_id: string, status: User["status"]): Promise<User> => ({ ...(user ?? baseUser), status }),
-    ),
-    updateLocale: vi.fn(
-      async (_id: string, locale: User["locale"]): Promise<User> => ({ ...(user ?? baseUser), locale }),
-    ),
+    activate: vi.fn(async (): Promise<User> => ({
+      ...(user ?? baseUser),
+      status: "ACTIVE",
+      lastLoginAt: new Date(),
+    })),
+    touchLastLogin: vi.fn(async (): Promise<User> => ({
+      ...(user ?? baseUser),
+      lastLoginAt: new Date(),
+    })),
+    setRole: vi.fn(async (_id: string, role: User["role"]): Promise<User> => ({
+      ...(user ?? baseUser),
+      role,
+    })),
+    setStatus: vi.fn(async (_id: string, status: User["status"]): Promise<User> => ({
+      ...(user ?? baseUser),
+      status,
+    })),
+    updateLocale: vi.fn(async (_id: string, locale: User["locale"]): Promise<User> => ({
+      ...(user ?? baseUser),
+      locale,
+    })),
   };
 }
 
@@ -58,8 +68,17 @@ function makeCtx(user: Principal, dbUser: User | null, auditImpl?: () => Promise
 
 describe("resolvePrincipal", () => {
   it("maps a DB user to a Principal (role/schoolId/status from DB)", async () => {
-    const principalResult = await resolvePrincipal("u-1", fakeUsers({ ...baseUser, role: "TEACHER" }));
-    expect(principalResult).toEqual({ userId: "u-1", schoolId: "s-1", role: "TEACHER", status: "ACTIVE" });
+    const principalResult = await resolvePrincipal(
+      "u-1",
+      fakeUsers({ ...baseUser, role: "TEACHER" }),
+    );
+    expect(principalResult).toEqual({
+      userId: "u-1",
+      schoolId: "s-1",
+      role: "TEACHER",
+      status: "ACTIVE",
+      locale: "en",
+    });
   });
 
   it("returns null when the identity has no profile", async () => {

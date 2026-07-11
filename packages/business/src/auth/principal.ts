@@ -19,6 +19,7 @@ export function mapUserToPrincipal(user: User): Principal {
     schoolId: user.schoolId,
     role: user.role,
     status: user.status,
+    locale: TO_APP_LOCALE[user.locale],
   };
 }
 

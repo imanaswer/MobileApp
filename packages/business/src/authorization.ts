@@ -1,4 +1,4 @@
-import type { Permission, RoleKey, UserStatusKey } from "@repo/constants";
+import type { LocaleCode, Permission, RoleKey, UserStatusKey } from "@repo/constants";
 import { can, ForbiddenError } from "@repo/core";
 
 /**
@@ -13,6 +13,9 @@ export interface Principal {
   schoolId: string;
   role: RoleKey;
   status: UserStatusKey;
+  /** UI locale from the DB `User.locale` (M8, F8 — surfaced so `auth.me` can wire
+   *  LocaleProvider). Optional: not set by test fixtures; production always sets it. */
+  locale?: LocaleCode;
 }
 
 /* ============================================================================
