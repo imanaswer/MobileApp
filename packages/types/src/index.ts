@@ -612,3 +612,58 @@ export interface HomeworkFeedbackDto {
   body: string;
   createdAt: IsoUtcString;
 }
+
+/* ---- Timetable Management DTOs (M9, ADR-017). Grain: BellSchedule → Period →
+ * TimetableEntry. Reads are ENRICHED server-side with display names (subject/
+ * teacher/section/period) so React never resolves ids (ADR-016 seam). Clock times
+ * are "HH:MM" 24-hour strings (from the `@db.Time` columns). */
+
+export type WeekdayKey = "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT" | "SUN";
+
+/** The year's day structure — exactly one per year (ADR-017 §1). */
+export interface BellScheduleDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  name: string;
+}
+
+/** A numbered clock-time slot within the bell schedule. */
+export interface PeriodDto {
+  id: string;
+  schoolId: string;
+  bellScheduleId: string;
+  name: string;
+  order: number;
+  /** "HH:MM" 24-hour (IST clock time). */
+  startTime: string;
+  /** "HH:MM" 24-hour (IST clock time). */
+  endTime: string;
+  isBreak: boolean;
+}
+
+/**
+ * One weekly slot — enriched with display labels (ADR-016/§3). `subjectName`/
+ * `teacherName`/`sectionName` and the period timing are joined server-side so the
+ * grid renders labels, never ids.
+ */
+export interface TimetableEntryDto {
+  id: string;
+  schoolId: string;
+  academicYearId: string;
+  sectionId: string;
+  subjectId: string;
+  teacherId: string;
+  periodId: string;
+  weekday: WeekdayKey;
+  room: string | null;
+  // ---- enriched (server-side joins) ----
+  subjectName: string;
+  teacherName: string;
+  sectionName: string;
+  periodName: string;
+  periodOrder: number;
+  startTime: string;
+  endTime: string;
+  isBreak: boolean;
+}

@@ -50,12 +50,16 @@ describe("authorization policy", () => {
       PERMISSIONS.SUBMISSION_READ,
       // M7: read own child's PUBLISHED report cards only (row-scoped in service).
       PERMISSIONS.REPORT_CARD_READ,
+      // M9: read own child's section timetable (row-scoped in service).
+      PERMISSIONS.TIMETABLE_READ,
     ]);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.USER_SET_ROLE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.EXAM_MANAGE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.HOMEWORK_MANAGE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.REPORT_CARD_MANAGE);
+    expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.TIMETABLE_MANAGE);
     expect(getPermissions("TEACHER")).toContain(PERMISSIONS.REPORT_CARD_REMARK);
+    expect(getPermissions("TEACHER")).toContain(PERMISSIONS.TIMETABLE_READ);
   });
 
   it("canAny / canAll combine permission checks", () => {

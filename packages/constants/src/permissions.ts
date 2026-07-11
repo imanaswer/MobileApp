@@ -115,6 +115,16 @@ export const PERMISSIONS = {
   REPORT_CARD_REMARK: "report_card:remark",
   /** Read report cards. Teacher → own-section; parent → own child PUBLISHED only (service scope). */
   REPORT_CARD_READ: "report_card:read",
+
+  /* ---- Timetable Management (M9, ADR-017). Ownership DERIVED from TeacherAssignment
+   * (never ClassTeacherAssignment). Reads carry ROW scope (teacher → own slots;
+   * parent → own child's section), narrowed in the service. Permission-only gate —
+   * NOT feature-flag gated (ADR-017 §4: no flag infra exists; timetable is core,
+   * the ADR-013/M6 precedent). */
+  /** Manage bell schedule / periods / timetable entries. Admin-only. */
+  TIMETABLE_MANAGE: "timetable:manage",
+  /** Read the timetable. Teacher → own slots; parent → own child's section (service scope). */
+  TIMETABLE_READ: "timetable:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -187,6 +197,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // M7: full report-card lifecycle + read, school-wide (ADR-014 §7 — office/principal authority).
     PERMISSIONS.REPORT_CARD_MANAGE,
     PERMISSIONS.REPORT_CARD_READ,
+    // M9: full timetable management + read, school-wide (ADR-017).
+    PERMISSIONS.TIMETABLE_MANAGE,
+    PERMISSIONS.TIMETABLE_READ,
   ],
   // OFFICE_ADMIN: full academic + People management (M3) + Attendance (M4), school-wide.
   OFFICE_ADMIN: [
@@ -207,6 +220,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // M7: full report-card lifecycle + read, school-wide (ADR-014 §7).
     PERMISSIONS.REPORT_CARD_MANAGE,
     PERMISSIONS.REPORT_CARD_READ,
+    // M9: full timetable management + read, school-wide (ADR-017).
+    PERMISSIONS.TIMETABLE_MANAGE,
+    PERMISSIONS.TIMETABLE_READ,
   ],
   // TEACHER: reads academic structure + reads students/enrollments/documents in
   // their OWN sections and their OWN staff profile (row-scope in the service).
@@ -239,6 +255,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // reads own-section cards. A subject teacher holds these too but the scope refuses them.
     PERMISSIONS.REPORT_CARD_REMARK,
     PERMISSIONS.REPORT_CARD_READ,
+    // M9: reads OWN timetable slots only (teacherId = self, service scope). No management.
+    PERMISSIONS.TIMETABLE_READ,
   ],
   // PARENT: reads only their OWN children (students/enrollments/documents) and
   // their OWN parent record (row-scope in the service). M4: reads own child's
@@ -261,6 +279,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.SUBMISSION_READ,
     // M7: reads own child's PUBLISHED report cards only (service scope), never edits.
     PERMISSIONS.REPORT_CARD_READ,
+    // M9: reads own child's SECTION timetable (service scope), never edits.
+    PERMISSIONS.TIMETABLE_READ,
   ],
   ACCOUNTANT: [...SELF_PROFILE],
 };

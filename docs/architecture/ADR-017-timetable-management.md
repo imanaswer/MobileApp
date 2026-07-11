@@ -94,17 +94,26 @@ Defense-in-depth; the business layer is the real gate.
   give a teacher the whole section grid); **M9 teachers get own-slots only**, no section-grid read. If product
   later wants teachers to see the full section grid, that RLS floor changes and the "A ≠ B" proof no longer holds.
 
-### 4. Permissions & the feature flag — reuse the adopted `timetable:*`, keep the `timetable` flag, enable it in the seed
+### 4. Permissions — reuse the adopted `timetable:*`; NO feature-flag gate (permission-only)
 
 - **No new permission grant.** M9 adds `TIMETABLE_MANAGE = "timetable:manage"` and `TIMETABLE_READ =
   "timetable:read"` to `packages/constants/src/permissions.ts` — the *strings* the matrix already assigns
-  (manage → SA/OA; read → SA/OA + teacher own, parent own-child). Wiring an adopted matrix row, not a new grant.
-- **Timetable stays a flag-gated add-on** (matrix Enforcement invariant #1: add-on procedures check
-  `FeatureFlag` **before** permission; off → `FORBIDDEN`, ADR-006). The `TIMETABLE` flag key already exists.
-  **The seed enables `timetable`** (§10 already seeds tier flags), so "fully operational" holds with no
-  contradiction. *(This diverges from the M6 homework precedent, which was promoted out of the add-ons section;
-  timetable is still an add-on in the matrix, so keeping the flag is the lower-friction, matrix-consistent path.
-  Flagged at STOP for veto.)*
+  (manage → SA/OA; read → SA/OA + teacher own, parent own-child) — and the corresponding rows to the
+  `ROLE_PERMISSIONS` policy in the same file (the map `can()` reads). Wiring an adopted matrix row, not a new grant.
+- **NO feature-flag gate — timetable is core, gated by permission only.** *(Reversed after Step-1; see the note
+  below.)* **Empirical finding:** there is **no `FeatureFlag` table, no flag-check code, and no consumer**
+  anywhere in the repo — only dead `FEATURE_FLAGS` constant keys in `@repo/constants`. "Keeping the flag" would
+  mean **building** flag infrastructure (a `FeatureFlag` table + a check helper + seed rows) that M9 never asked
+  for — and that new table would appear in `prisma migrate diff`, **breaking the milestone's own "only additive
+  timetable tables" proof** already shipped in Step 2. So timetable ships **permission-only**, exactly the
+  **ADR-013 / M6 homework precedent** (the matrix listed homework as flag-gated; M6 shipped it core). The
+  `timetable` matrix row's flag column is documentation of an intended tiering that has no runtime today.
+
+> **Step-1 reversal (recorded).** ADR-017 as first written (and approved at the Step-1 STOP) chose to *keep* the
+> `timetable` flag and seed-enable it. Step 5 discovered no flag infrastructure exists; keeping the flag would
+> require net-new plumbing out of M9's scope and would contradict the Step-2 additive proof. Decision flipped to
+> **permission-only**. Surfaced at the Step-5 STOP for veto before it matters (the gate would only ever have
+> lived at the Step-6 procedure boundary).
 
 ### 5. Deviations from the literal STEP-1 field list (flagged for veto at STOP)
 
@@ -137,9 +146,10 @@ Defense-in-depth; the business layer is the real gate.
    `startTime < endTime` already covers the structural half. Additive later if it becomes a real race.
 5. **Store ownership on the entry (an `ownerStaffId`).** Rejected — violates the derived-ownership rule
    (ADR-011/012/013); ownership is the existence of a `TeacherAssignment`, resolved at authz time.
-6. **Drop the feature flag and treat timetable as core** (the M6 homework move). Rejected as the default —
-   timetable is still an add-on in the matrix; dropping the flag rewrites that section and special-cases
-   invariant #1. Seed-enable instead. *(Presented at STOP.)*
+6. **Build `FeatureFlag` infrastructure and gate timetable behind the `timetable` flag** (the matrix's stated
+   intent). **Rejected (decision #4, reversed from the Step-1 draft):** no flag infra exists to reuse — building
+   it is out of M9's scope and its new table would break the Step-2 "only additive timetable tables" proof.
+   Ship permission-only, the ADR-013/M6 precedent.
 
 ## Consequences
 

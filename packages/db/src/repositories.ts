@@ -26,6 +26,10 @@ import {
 } from "./repositories/attendance-session.repository";
 import { createAuditLogRepository, type AuditLogRepository } from "./repositories/audit.repository";
 import {
+  createBellScheduleRepository,
+  type BellScheduleRepository,
+} from "./repositories/bell-schedule.repository";
+import {
   createClassTeacherAssignmentRepository,
   type ClassTeacherAssignmentRepository,
 } from "./repositories/class-teacher-assignment.repository";
@@ -66,6 +70,7 @@ import {
 } from "./repositories/leave-request.repository";
 import { createMarkRepository, type MarkRepository } from "./repositories/mark.repository";
 import { createParentRepository, type ParentRepository } from "./repositories/parent.repository";
+import { createPeriodRepository, type PeriodRepository } from "./repositories/period.repository";
 import {
   createReportCardRepository,
   type ReportCardRepository,
@@ -90,6 +95,10 @@ import {
   createTeacherAssignmentRepository,
   type TeacherAssignmentRepository,
 } from "./repositories/teacher-assignment.repository";
+import {
+  createTimetableEntryRepository,
+  type TimetableEntryRepository,
+} from "./repositories/timetable-entry.repository";
 import { createUserRepository, type UserRepository } from "./repositories/user.repository";
 
 /**
@@ -130,6 +139,9 @@ export * from "./repositories/homework-submission.repository";
 export * from "./repositories/submission-attachment.repository";
 export * from "./repositories/homework-feedback.repository";
 export * from "./repositories/report-card.repository";
+export * from "./repositories/bell-schedule.repository";
+export * from "./repositories/period.repository";
+export * from "./repositories/timetable-entry.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */
@@ -165,6 +177,9 @@ export interface Repositories {
   submissionAttachments: SubmissionAttachmentRepository;
   homeworkFeedback: HomeworkFeedbackRepository;
   reportCards: ReportCardRepository;
+  bellSchedules: BellScheduleRepository;
+  periods: PeriodRepository;
+  timetableEntries: TimetableEntryRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -200,6 +215,9 @@ export function createRepositories(client: DbClient): Repositories {
     submissionAttachments: createSubmissionAttachmentRepository(client),
     homeworkFeedback: createHomeworkFeedbackRepository(client),
     reportCards: createReportCardRepository(client),
+    bellSchedules: createBellScheduleRepository(client),
+    periods: createPeriodRepository(client),
+    timetableEntries: createTimetableEntryRepository(client),
   };
 }
 
