@@ -52,8 +52,11 @@ describe("authorization policy", () => {
       PERMISSIONS.REPORT_CARD_READ,
       // M9: read own child's section timetable (row-scoped in service).
       PERMISSIONS.TIMETABLE_READ,
+      // M10: own in-app notification inbox (self-scope in service).
+      PERMISSIONS.NOTIFICATION_MANAGE_OWN,
     ]);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.USER_SET_ROLE);
+    expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.ANNOUNCEMENT_SEND);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.EXAM_MANAGE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.HOMEWORK_MANAGE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.REPORT_CARD_MANAGE);

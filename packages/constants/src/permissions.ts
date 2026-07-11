@@ -125,6 +125,14 @@ export const PERMISSIONS = {
   TIMETABLE_MANAGE: "timetable:manage",
   /** Read the timetable. Teacher → own slots; parent → own child's section (service scope). */
   TIMETABLE_READ: "timetable:read",
+
+  /* ---- M10 Notifications (ADR-018) — permission-only, no feature flag. ---- */
+  /** Act on one's OWN in-app inbox: list, unreadCount, markRead, markAllRead,
+   * archive, unarchive, delete. Self-scope (userId = self) in the service. Held
+   * by every authenticated role. */
+  NOTIFICATION_MANAGE_OWN: "notification:manage_own",
+  /** Compose + send an ANNOUNCEMENT notification (admin). SUPER_ADMIN / OFFICE_ADMIN. */
+  ANNOUNCEMENT_SEND: "announcement:send",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -200,6 +208,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // M9: full timetable management + read, school-wide (ADR-017).
     PERMISSIONS.TIMETABLE_MANAGE,
     PERMISSIONS.TIMETABLE_READ,
+    // M10: own inbox + announcement authorship, school-wide (ADR-018).
+    PERMISSIONS.NOTIFICATION_MANAGE_OWN,
+    PERMISSIONS.ANNOUNCEMENT_SEND,
   ],
   // OFFICE_ADMIN: full academic + People management (M3) + Attendance (M4), school-wide.
   OFFICE_ADMIN: [
@@ -223,6 +234,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // M9: full timetable management + read, school-wide (ADR-017).
     PERMISSIONS.TIMETABLE_MANAGE,
     PERMISSIONS.TIMETABLE_READ,
+    // M10: own inbox + announcement authorship, school-wide (ADR-018).
+    PERMISSIONS.NOTIFICATION_MANAGE_OWN,
+    PERMISSIONS.ANNOUNCEMENT_SEND,
   ],
   // TEACHER: reads academic structure + reads students/enrollments/documents in
   // their OWN sections and their OWN staff profile (row-scope in the service).
@@ -257,6 +271,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.REPORT_CARD_READ,
     // M9: reads OWN timetable slots only (teacherId = self, service scope). No management.
     PERMISSIONS.TIMETABLE_READ,
+    // M10: own in-app inbox (self-scope). No announcement authorship.
+    PERMISSIONS.NOTIFICATION_MANAGE_OWN,
   ],
   // PARENT: reads only their OWN children (students/enrollments/documents) and
   // their OWN parent record (row-scope in the service). M4: reads own child's
@@ -281,6 +297,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.REPORT_CARD_READ,
     // M9: reads own child's SECTION timetable (service scope), never edits.
     PERMISSIONS.TIMETABLE_READ,
+    // M10: own in-app inbox (self-scope). No announcement authorship.
+    PERMISSIONS.NOTIFICATION_MANAGE_OWN,
   ],
-  ACCOUNTANT: [...SELF_PROFILE],
+  ACCOUNTANT: [...SELF_PROFILE, PERMISSIONS.NOTIFICATION_MANAGE_OWN],
 };

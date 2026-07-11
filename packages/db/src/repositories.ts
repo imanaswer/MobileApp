@@ -69,6 +69,14 @@ import {
   type LeaveRequestRepository,
 } from "./repositories/leave-request.repository";
 import { createMarkRepository, type MarkRepository } from "./repositories/mark.repository";
+import {
+  createNotificationRecipientRepository,
+  type NotificationRecipientRepository,
+} from "./repositories/notification-recipient.repository";
+import {
+  createNotificationRepository,
+  type NotificationRepository,
+} from "./repositories/notification.repository";
 import { createParentRepository, type ParentRepository } from "./repositories/parent.repository";
 import { createPeriodRepository, type PeriodRepository } from "./repositories/period.repository";
 import {
@@ -142,6 +150,8 @@ export * from "./repositories/report-card.repository";
 export * from "./repositories/bell-schedule.repository";
 export * from "./repositories/period.repository";
 export * from "./repositories/timetable-entry.repository";
+export * from "./repositories/notification.repository";
+export * from "./repositories/notification-recipient.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */
@@ -180,6 +190,8 @@ export interface Repositories {
   bellSchedules: BellScheduleRepository;
   periods: PeriodRepository;
   timetableEntries: TimetableEntryRepository;
+  notifications: NotificationRepository;
+  notificationRecipients: NotificationRecipientRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -218,6 +230,8 @@ export function createRepositories(client: DbClient): Repositories {
     bellSchedules: createBellScheduleRepository(client),
     periods: createPeriodRepository(client),
     timetableEntries: createTimetableEntryRepository(client),
+    notifications: createNotificationRepository(client),
+    notificationRecipients: createNotificationRecipientRepository(client),
   };
 }
 

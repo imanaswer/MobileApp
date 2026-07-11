@@ -667,3 +667,38 @@ export interface TimetableEntryDto {
   endTime: string;
   isBreak: boolean;
 }
+
+// ---- notifications (M10, ADR-018) ----
+
+export type NotificationTypeKey =
+  | "HOMEWORK"
+  | "HOMEWORK_PUBLISHED"
+  | "EXAM_PUBLISHED"
+  | "REPORT_CARD_PUBLISHED"
+  | "TIMETABLE_UPDATED"
+  | "STUDY_MATERIAL"
+  | "ANNOUNCEMENT"
+  | "SYSTEM";
+
+export type NotificationPriorityKey = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+
+/**
+ * One user's view of a notification (ADR-018 §1) — the immutable event fields
+ * merged with this user's read/archive state. `id` is the NotificationRecipient
+ * row id (the actionable handle for markRead/archive/delete); `actionUrl` is the
+ * deep link to the destination screen.
+ */
+export interface NotificationDto {
+  id: string;
+  notificationId: string;
+  type: NotificationTypeKey;
+  priority: NotificationPriorityKey;
+  title: string;
+  body: string;
+  actionUrl: string | null;
+  createdAt: IsoUtcString;
+  isRead: boolean;
+  readAt: IsoUtcString | null;
+  isArchived: boolean;
+  archivedAt: IsoUtcString | null;
+}
