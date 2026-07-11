@@ -428,6 +428,7 @@ model Staff {
   id                          String                   @id @default(cuid())
   schoolId                    String // loose tenant ref (ADR-008)
   userId                      String                   @unique
+  name                        String // display name — one field, Indian-name-friendly (ADR-016); backfilled then NOT NULL
   employeeId                  String
   department                  String?
   qualification               String?

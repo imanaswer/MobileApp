@@ -21,6 +21,9 @@
 
 - **Frozen?** No (freezes on M7 approval). M1–M6.5 stayed frozen — M7 is purely additive (`+ReportCard` table/enums, 3 permissions, 1 additive `listForSection` read; no existing schema/service/contract/RLS change).
 
-- **Known limitations:** no PDF generation (`pdfPath` + bucket provisioned; bilingual en+ml deferred); no report-card notifications; no CGPA-across-years (`cgpaSnapshot` reserved, null); mobile is parent-read only; web card list is current-year (cross-year trail deferred); class teacher who teaches no subject in their section relies on `reportCard.listForSection` (roster picker is admin-only); students shown by roll/enrollment id (no name in schema).
+- **Known limitations:** no PDF generation (`pdfPath` + bucket provisioned; bilingual en+ml deferred); no report-card notifications; no CGPA-across-years (`cgpaSnapshot` reserved, null); mobile is parent-read only; web card list is current-year (cross-year trail deferred); class teacher who teaches no subject in their section relies on `reportCard.listForSection` (roster picker is admin-only).
+- **Names (M8, ADR-016):** report-card surfaces now show real names — `ReportCardDto` carries `examName`/`termName`
+  (scope label) + `classTeacherName` (the remark author, via `submittedByStaffId`); `listForSection` rows carry
+  `studentName`+`rollNo`; the web GenerateModal + section console show `studentName`, not raw cuids.
 
 - **Next work:** milestone approval → freeze. Provision the private report-card bucket before live PDF rendering (a runbook step, like `homework-files`).

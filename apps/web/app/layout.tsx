@@ -1,8 +1,8 @@
-import { LocaleProvider } from "@repo/i18n";
 import { ThemeProvider } from "@repo/ui";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { LocaleGate } from "@/src/i18n/locale-gate";
 import { TRPCProvider } from "@/src/trpc/react";
 
 import "./globals.css";
@@ -18,7 +18,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body>
         <TRPCProvider>
           <ThemeProvider>
-            <LocaleProvider locale="en">{children}</LocaleProvider>
+            <LocaleGate>{children}</LocaleGate>
           </ThemeProvider>
         </TRPCProvider>
       </body>

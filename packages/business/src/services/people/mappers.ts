@@ -80,6 +80,7 @@ export function mapStaff(r: Staff): StaffDto {
     id: r.id,
     schoolId: r.schoolId,
     userId: r.userId,
+    name: r.name,
     employeeId: r.employeeId,
     department: r.department,
     qualification: r.qualification,

@@ -54,9 +54,6 @@ export function EnrollmentsPanel({
   const [promoting, setPromoting] = useState<EnrollmentDto | null>(null);
   const [withdrawing, setWithdrawing] = useState<EnrollmentDto | null>(null);
 
-  const yearName = new Map((years.data ?? []).map((y) => [y.id, y.name]));
-  const className = new Map((classes.data ?? []).map((c) => [c.id, c.name]));
-
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -87,14 +84,10 @@ export function EnrollmentsPanel({
           return (
             <tr key={enrollment.id} className="border-b border-border last:border-b-0">
               <td className="px-4 py-3 font-medium text-foreground">
-                {yearName.get(enrollment.academicYearId) ?? enrollment.academicYearId}
+                {enrollment.academicYearName}
               </td>
-              <td className="px-4 py-3 text-muted-foreground">
-                {className.get(enrollment.classId) ?? enrollment.classId}
-              </td>
-              <td className="px-4 py-3 text-muted-foreground">
-                <SectionName sectionId={enrollment.sectionId} enabled={canReadAcademic} />
-              </td>
+              <td className="px-4 py-3 text-muted-foreground">{enrollment.className}</td>
+              <td className="px-4 py-3 text-muted-foreground">{enrollment.sectionName ?? "—"}</td>
               <td className="px-4 py-3 text-muted-foreground">{enrollment.rollNo ?? "—"}</td>
               <td className="px-4 py-3 text-muted-foreground">{enrollment.status}</td>
               <td className="px-4 py-3">
@@ -224,16 +217,6 @@ export function EnrollmentsPanel({
       ) : null}
     </section>
   );
-}
-
-/** Resolve one section's name (row-level — sections are per-class lists). */
-function SectionName({ sectionId, enabled }: { sectionId: string | null; enabled: boolean }) {
-  const section = trpc.section.get.useQuery(
-    { id: sectionId ?? "" },
-    { enabled: enabled && sectionId !== null },
-  );
-  if (!sectionId) return <>—</>;
-  return <>{section.data?.name ?? sectionId}</>;
 }
 
 interface PlacementValues {

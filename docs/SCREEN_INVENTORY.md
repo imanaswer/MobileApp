@@ -96,3 +96,7 @@ Every screen, keyed by the IDs used in `NAVIGATION_MAP.md` and `USER_FLOWS.md`. 
 3. Signed-URL consumers (PDFs, attachments, photos) handle expiry by re-fetching, never caching URLs (ADR-004).
 4. Flag-gated screens hidden when off; direct navigation shows a "not enabled" state (server returns FORBIDDEN).
 5. Destructive actions (promote, drop, disable, reject, regenerate) use the confirm-dialog pattern naming the consequence.
+6. **M8 (implemented):** the mobile **Home** (`(app)/index.tsx`) is now a scrollable role-aware dashboard —
+   greeting + today-context (a teacher's sections / a parent's children) + permission-gated nav cards (F1/F7);
+   the M0 placeholder is gone. Report-card / class-teacher / student-profile screens now render **names**
+   (Staff.name + server-enriched exam/term/student/class/section names), not raw ids (F2–F5).

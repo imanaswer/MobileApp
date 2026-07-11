@@ -50,9 +50,7 @@ export default function ClassTeachersScreen() {
             ? "…"
             : data == null
               ? "Not assigned"
-              : data.teacherId === me.data?.userId
-                ? "You"
-                : data.teacherId;
+              : `${data.teacherName}${data.teacherId === me.data?.userId ? " (You)" : ""}`;
         return (
           <ListRow>
             <Text className="font-medium text-foreground">

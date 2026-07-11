@@ -66,7 +66,10 @@ export function mapTeacherAssignment(row: TeacherAssignment): TeacherAssignmentD
   };
 }
 
-export function mapClassTeacherAssignment(row: ClassTeacherAssignment): ClassTeacherAssignmentDto {
+export function mapClassTeacherAssignment(
+  row: ClassTeacherAssignment,
+  teacherName: string,
+): ClassTeacherAssignmentDto {
   return {
     id: row.id,
     schoolId: row.schoolId,
@@ -75,5 +78,6 @@ export function mapClassTeacherAssignment(row: ClassTeacherAssignment): ClassTea
     teacherId: row.teacherId,
     assignedAt: row.assignedAt.toISOString(),
     createdByStaffId: row.createdByStaffId,
+    teacherName,
   };
 }

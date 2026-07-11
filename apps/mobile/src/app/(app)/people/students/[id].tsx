@@ -26,16 +26,15 @@ const RELATIONSHIP_LABEL: Record<StudentRelationshipKey, string> = {
 
 /**
  * Read-only student profile (M3 — manage on web): identity, enrollment history
- * (ADR-010 — one row per year, never mutated), and guardians. The service
- * enforces row scope; name lookups (year/class/section, parent) run only for
- * roles holding the corresponding read permission and fall back to raw ids.
+ * (ADR-010 — one row per year, never mutated), and guardians. The service enforces
+ * row scope. Year/class/section names come ENRICHED on the enrollment rows (server-side
+ * join, parent-safe — no academic:read needed; ADR-016 / F5) — no client lookup maps.
  */
 export default function StudentProfileScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const me = trpc.auth.me.useQuery();
   const role = me.data?.role;
-  const canReadAcademic = role !== undefined && can(role, PERMISSIONS.ACADEMIC_READ);
   const canReadParents = role !== undefined && can(role, PERMISSIONS.PARENT_READ);
   const canReadAttendance = role !== undefined && can(role, PERMISSIONS.ATTENDANCE_READ);
 
@@ -43,20 +42,8 @@ export default function StudentProfileScreen() {
   const student = trpc.student.get.useQuery({ id: id ?? "" }, { enabled });
   const enrollments = trpc.enrollment.listByStudent.useQuery({ studentId: id ?? "" }, { enabled });
   const guardians = trpc.parent.guardians.useQuery({ studentId: id ?? "" }, { enabled });
-  const years = trpc.academicYear.list.useQuery(undefined, { enabled: canReadAcademic });
-  const classes = trpc.class.list.useQuery(undefined, { enabled: canReadAcademic });
   const parents = trpc.parent.list.useQuery(undefined, { enabled: canReadParents });
 
-  const classIds = [...new Set((enrollments.data ?? []).map((e) => e.classId))];
-  const sectionLists = trpc.useQueries((t) =>
-    canReadAcademic ? classIds.map((classId) => t.section.list({ classId })) : [],
-  );
-
-  const yearName = new Map((years.data ?? []).map((y) => [y.id, y.name]));
-  const className = new Map((classes.data ?? []).map((c) => [c.id, c.name]));
-  const sectionName = new Map(
-    sectionLists.flatMap((query) => query.data?.map((s) => [s.id, s.name] as const) ?? []),
-  );
   const parentName = new Map((parents.data ?? []).map((p) => [p.id, p.name]));
 
   return (
@@ -108,13 +95,11 @@ export default function StudentProfileScreen() {
           ) : (
             enrollments.data.map((enrollment) => (
               <ListRow key={enrollment.id}>
-                <Text className="font-medium text-foreground">
-                  {yearName.get(enrollment.academicYearId) ?? enrollment.academicYearId}
-                </Text>
+                <Text className="font-medium text-foreground">{enrollment.academicYearName}</Text>
                 <Text className="text-sm text-muted-foreground">
-                  {className.get(enrollment.classId) ?? enrollment.classId}
+                  {enrollment.className}
                   {enrollment.sectionId
-                    ? ` · Section ${sectionName.get(enrollment.sectionId) ?? enrollment.sectionId}`
+                    ? ` · Section ${enrollment.sectionName ?? "—"}`
                     : " · No section"}
                   {enrollment.rollNo != null ? ` · Roll ${enrollment.rollNo}` : ""}
                 </Text>

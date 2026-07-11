@@ -1,7 +1,7 @@
 import { PERMISSIONS } from "@repo/constants";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@repo/core";
 import type { AcademicYear, Class, Enrollment, Section } from "@repo/db";
-import type { EnrollmentDto } from "@repo/types";
+import type { EnrollmentDto, EnrollmentHistoryRowDto, EnrollmentRosterRowDto } from "@repo/types";
 
 import { assertCan } from "../../authorization";
 import type { ServiceContext } from "../../context";
@@ -41,19 +41,43 @@ export interface PromoteInput {
 export async function listEnrollmentsByStudent(
   ctx: ServiceContext,
   studentId: string,
-): Promise<EnrollmentDto[]> {
+): Promise<EnrollmentHistoryRowDto[]> {
   assertCan(ctx.user, PERMISSIONS.ENROLLMENT_READ);
   const student = await loadStudentInSchool(ctx, studentId);
   await assertStudentInScope(ctx, student);
   const rows = await ctx.repositories.enrollments.listByStudent(studentId);
-  return rows.map(mapEnrollment);
+  // Class/section NAME join via repositories (NOT the academic service — that carries
+  // assertCan(ACADEMIC_READ), which a parent lacks). Reading a label for a row the caller
+  // already sees is a lookup, not an academic-structure grant (ADR-016, F5).
+  const years = await Promise.all(
+    [...new Set(rows.map((r) => r.academicYearId))].map((id) =>
+      ctx.repositories.academicYears.findById(id),
+    ),
+  );
+  const classes = await Promise.all(
+    [...new Set(rows.map((r) => r.classId))].map((id) => ctx.repositories.classes.findById(id)),
+  );
+  const sections = await Promise.all(
+    [...new Set(rows.map((r) => r.sectionId).filter((s): s is string => s !== null))].map((id) =>
+      ctx.repositories.sections.findById(id),
+    ),
+  );
+  const yearName = new Map(years.filter((y) => y !== null).map((y) => [y.id, y.name]));
+  const className = new Map(classes.filter((c) => c !== null).map((c) => [c.id, c.name]));
+  const sectionName = new Map(sections.filter((s) => s !== null).map((s) => [s.id, s.name]));
+  return rows.map((r) => ({
+    ...mapEnrollment(r),
+    academicYearName: yearName.get(r.academicYearId) ?? "—",
+    className: className.get(r.classId) ?? "—",
+    sectionName: r.sectionId ? (sectionName.get(r.sectionId) ?? null) : null,
+  }));
 }
 
 /** Roster of a section for a year (admin any; teacher only sections they teach; parent none). */
 export async function sectionRoster(
   ctx: ServiceContext,
   input: { academicYearId: string; sectionId: string },
-): Promise<EnrollmentDto[]> {
+): Promise<EnrollmentRosterRowDto[]> {
   assertCan(ctx.user, PERMISSIONS.ENROLLMENT_READ);
   if (!isFullAccess(ctx)) {
     if (ctx.user.role !== "TEACHER" || !(await teacherSectionIds(ctx)).includes(input.sectionId)) {
@@ -64,7 +88,14 @@ export async function sectionRoster(
     input.academicYearId,
     input.sectionId,
   );
-  return rows.map(mapEnrollment);
+  const students = await ctx.repositories.students.listByIds([
+    ...new Set(rows.map((r) => r.studentId)),
+  ]);
+  const studentName = new Map(students.map((s) => [s.id, `${s.firstName} ${s.lastName}`.trim()]));
+  return rows.map((r) => ({
+    ...mapEnrollment(r),
+    studentName: studentName.get(r.studentId) ?? "—",
+  }));
 }
 
 /** Enroll a student for a year. Section optional → ADMITTED (unplaced) vs ACTIVE. */
@@ -103,7 +134,11 @@ export async function enroll(ctx: ServiceContext, input: EnrollInput): Promise<E
       action: "ENROLLMENT_CREATE",
       entityType: "Enrollment",
       entityId: created.id,
-      after: { studentId: created.studentId, academicYearId: created.academicYearId, status: created.status },
+      after: {
+        studentId: created.studentId,
+        academicYearId: created.academicYearId,
+        status: created.status,
+      },
     });
     return mapEnrollment(created);
   });
@@ -120,13 +155,7 @@ export async function transfer(ctx: ServiceContext, input: TransferInput): Promi
   await assertSectionInClass(ctx, input.toSectionId, before.classId);
 
   if (input.rollNo != null) {
-    await assertRollNoFree(
-      ctx,
-      before.academicYearId,
-      input.toSectionId,
-      input.rollNo,
-      before.id,
-    );
+    await assertRollNoFree(ctx, before.academicYearId, input.toSectionId, input.rollNo, before.id);
   }
 
   return ctx.withTransaction(async (repos) => {
@@ -193,7 +222,10 @@ export async function promote(ctx: ServiceContext, input: PromoteInput): Promise
   assertRollNoNeedsSection(input.rollNo, input.toSectionId);
 
   if (
-    await ctx.repositories.enrollments.findByStudentYear(source.studentId, input.targetAcademicYearId)
+    await ctx.repositories.enrollments.findByStudentYear(
+      source.studentId,
+      input.targetAcademicYearId,
+    )
   ) {
     throw new ConflictError("This student already has an enrollment for the target year");
   }
@@ -219,7 +251,11 @@ export async function promote(ctx: ServiceContext, input: PromoteInput): Promise
       entityType: "Enrollment",
       entityId: created.id,
       before: { sourceEnrollmentId: source.id, sourceStatus: source.status },
-      after: { academicYearId: created.academicYearId, classId: created.classId, status: created.status },
+      after: {
+        academicYearId: created.academicYearId,
+        classId: created.classId,
+        status: created.status,
+      },
     });
     return mapEnrollment(created);
   });

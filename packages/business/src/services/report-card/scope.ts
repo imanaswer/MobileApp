@@ -118,7 +118,60 @@ export async function resolveActingStaffId(ctx: ServiceContext): Promise<string>
   return staff.id;
 }
 
-export function mapReportCard(c: ReportCard): ReportCardDto {
+/** Read-time display labels for a card (ADR-016). Null on mutation returns (the default). */
+export interface CardNames {
+  examName: string | null;
+  termName: string | null;
+  classTeacherName: string | null;
+}
+const NO_NAMES: CardNames = { examName: null, termName: null, classTeacherName: null };
+
+/**
+ * Resolve a card's display labels via REPOSITORIES (never the exam/academic service — those
+ * carry `assertCan`, which would break a parent read). examName/termName from the scope ids;
+ * classTeacherName = the remark author (`submittedByStaffId → Staff.name`, ADR-016 — accurate
+ * across a mid-year class-teacher replacement, and reliably set for any PUBLISHED card).
+ */
+export async function resolveCardNames(ctx: ServiceContext, card: ReportCard): Promise<CardNames> {
+  const [exam, term, submitter] = await Promise.all([
+    card.examId ? ctx.repositories.exams.findById(card.examId) : Promise.resolve(null),
+    card.termId ? ctx.repositories.academicTerms.findById(card.termId) : Promise.resolve(null),
+    card.submittedByStaffId
+      ? ctx.repositories.staff.findById(card.submittedByStaffId)
+      : Promise.resolve(null),
+  ]);
+  return {
+    examName: exam?.name ?? null,
+    termName: term?.name ?? null,
+    classTeacherName: submitter?.name ?? null,
+  };
+}
+
+/** Batched name resolution for a list of cards — distinct ids resolved once (no per-row N+1). */
+export async function resolveCardNamesBatch(
+  ctx: ServiceContext,
+  cards: readonly ReportCard[],
+): Promise<CardNames[]> {
+  const uniq = (xs: (string | null)[]) => [...new Set(xs.filter((x): x is string => x !== null))];
+  const examIds = uniq(cards.map((c) => c.examId));
+  const termIds = uniq(cards.map((c) => c.termId));
+  const staffIds = uniq(cards.map((c) => c.submittedByStaffId));
+  const [exams, terms, staff] = await Promise.all([
+    Promise.all(examIds.map((id) => ctx.repositories.exams.findById(id))),
+    Promise.all(termIds.map((id) => ctx.repositories.academicTerms.findById(id))),
+    Promise.all(staffIds.map((id) => ctx.repositories.staff.findById(id))),
+  ]);
+  const examName = new Map(exams.filter((e) => e !== null).map((e) => [e.id, e.name]));
+  const termName = new Map(terms.filter((t) => t !== null).map((t) => [t.id, t.name]));
+  const staffName = new Map(staff.filter((s) => s !== null).map((s) => [s.id, s.name]));
+  return cards.map((c) => ({
+    examName: c.examId ? (examName.get(c.examId) ?? null) : null,
+    termName: c.termId ? (termName.get(c.termId) ?? null) : null,
+    classTeacherName: c.submittedByStaffId ? (staffName.get(c.submittedByStaffId) ?? null) : null,
+  }));
+}
+
+export function mapReportCard(c: ReportCard, names: CardNames = NO_NAMES): ReportCardDto {
   return {
     id: c.id,
     schoolId: c.schoolId,
@@ -131,6 +184,9 @@ export function mapReportCard(c: ReportCard): ReportCardDto {
     classTeacherRemark: c.classTeacherRemark,
     principalRemark: c.principalRemark,
     promotionDecision: c.promotionDecision,
+    examName: names.examName,
+    termName: names.termName,
+    classTeacherName: names.classTeacherName,
     rank: c.rank,
     rankScope: c.rankScope,
     cohortSize: c.cohortSize,

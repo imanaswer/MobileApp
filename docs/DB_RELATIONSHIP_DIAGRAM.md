@@ -28,7 +28,7 @@ erDiagram
         enum status "INVITED|ACTIVE|DISABLED"
         enum locale "EN|ML"
     }
-    STAFF { string userId FK,UK "" }
+    STAFF { string name "display name — one field (M8, ADR-016)" }
     GUARDIAN { string userId FK,UK "" }
     STUDENT { string admissionNo UK "" }
     GUARDIAN_STUDENT {

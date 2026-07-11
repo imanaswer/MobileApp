@@ -143,6 +143,7 @@ export default function TeacherProfilesPage() {
               create.mutate(
                 {
                   userId: values.userId,
+                  name: values.name,
                   employeeId: values.employeeId,
                   ...(values.department ? { department: values.department } : {}),
                   ...(values.qualification ? { qualification: values.qualification } : {}),
@@ -158,6 +159,7 @@ export default function TeacherProfilesPage() {
               update.mutate(
                 {
                   id: editing.id,
+                  name: values.name,
                   employeeId: values.employeeId,
                   department: values.department || null,
                   qualification: values.qualification || null,
@@ -190,6 +192,7 @@ export default function TeacherProfilesPage() {
 
 interface StaffFormValues {
   userId: string;
+  name: string;
   employeeId: string;
   department: string;
   qualification: string;
@@ -212,6 +215,7 @@ function StaffFormModal({
   onSubmit: (values: StaffFormValues) => void;
 }) {
   const [userId, setUserId] = useState(profile?.userId ?? "");
+  const [name, setName] = useState(profile?.name ?? "");
   const [employeeId, setEmployeeId] = useState(profile?.employeeId ?? "");
   const [department, setDepartment] = useState(profile?.department ?? "");
   const [qualification, setQualification] = useState(profile?.qualification ?? "");
@@ -228,6 +232,7 @@ function StaffFormModal({
           e.preventDefault();
           onSubmit({
             userId: userId.trim(),
+            name: name.trim(),
             employeeId: employeeId.trim(),
             department: department.trim(),
             qualification: qualification.trim(),
@@ -247,6 +252,16 @@ function StaffFormModal({
             required
             disabled={profile !== null}
             placeholder="From the user admin list"
+          />
+        </label>
+        <label className={labelClass}>
+          Full name
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClass}
+            required
+            placeholder="e.g. Anaswer Rajan"
           />
         </label>
         <label className={labelClass}>

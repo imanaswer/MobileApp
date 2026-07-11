@@ -7,6 +7,7 @@ export type { Staff };
 export interface CreateStaffInput {
   schoolId: string;
   userId: string;
+  name: string;
   employeeId: string;
   department?: string | null | undefined;
   qualification?: string | null | undefined;
@@ -17,6 +18,7 @@ export interface CreateStaffInput {
 }
 
 export interface UpdateStaffInput {
+  name?: string | undefined;
   employeeId?: string | undefined;
   department?: string | null | undefined;
   qualification?: string | null | undefined;
@@ -39,7 +41,8 @@ export interface StaffRepository {
 
 export function createStaffRepository(client: DbClient): StaffRepository {
   return {
-    list: (schoolId) => client.staff.findMany({ where: { schoolId }, orderBy: { employeeId: "asc" } }),
+    list: (schoolId) =>
+      client.staff.findMany({ where: { schoolId }, orderBy: { employeeId: "asc" } }),
     findById: (id) => client.staff.findUnique({ where: { id } }),
     findByUserId: (userId) => client.staff.findUnique({ where: { userId } }),
     findByEmployeeId: (schoolId, employeeId) =>
@@ -49,6 +52,7 @@ export function createStaffRepository(client: DbClient): StaffRepository {
         data: {
           schoolId: input.schoolId,
           userId: input.userId,
+          name: input.name,
           employeeId: input.employeeId,
           ...(input.department !== undefined ? { department: input.department } : {}),
           ...(input.qualification !== undefined ? { qualification: input.qualification } : {}),
@@ -64,6 +68,7 @@ export function createStaffRepository(client: DbClient): StaffRepository {
       client.staff.update({
         where: { id },
         data: {
+          ...(data.name !== undefined ? { name: data.name } : {}),
           ...(data.employeeId !== undefined ? { employeeId: data.employeeId } : {}),
           ...(data.department !== undefined ? { department: data.department } : {}),
           ...(data.qualification !== undefined ? { qualification: data.qualification } : {}),

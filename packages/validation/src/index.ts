@@ -262,6 +262,7 @@ export const unlinkParentInput = z.object({
 /* Staff (employment profile) */
 export const createStaffInput = z.object({
   userId: idSchema,
+  name: nameSchema,
   employeeId: shortText(40),
   department: shortText(120).optional(),
   qualification: shortText(200).optional(),
@@ -271,6 +272,7 @@ export const createStaffInput = z.object({
 });
 export const updateStaffInput = z.object({
   id: idSchema,
+  name: nameSchema.optional(),
   employeeId: shortText(40).optional(),
   department: shortText(120).nullable().optional(),
   qualification: shortText(200).nullable().optional(),

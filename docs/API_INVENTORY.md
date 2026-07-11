@@ -67,7 +67,7 @@ reuse `academic:read`, mutations `academic:manage` (no new permission).
 
 | Procedure | Type | Permission | Audit | Notes |
 |---|---|---|---|---|
-| `classTeacher.get` | Q | `academic:read` | – | current class teacher of `(academicYearId, sectionId)` or null |
+| `classTeacher.get` | Q | `academic:read` | – | current class teacher of `(academicYearId, sectionId)` or null; **`teacherName` (M8)** |
 | `classTeacher.assign` | M | `academic:manage` | ✓ | empty slot only; assignee ACTIVE TEACHER in school; `assignedAt=now`, `createdByStaffId`=acting staff; unique `(year, section)` → `CONFLICT` if taken |
 | `classTeacher.replace` | M | `academic:manage` | ✓ | occupied slot → in-place update (`teacherId`, `assignedAt=now`); ONE `CLASS_TEACHER_REPLACE` audit (before/after); `NOT_FOUND` if empty |
 | `classTeacher.remove` | M | `academic:manage` | ✓ | frees the slot (by id); history stays in `AuditLog` |
@@ -94,10 +94,10 @@ Every mutation writes `AuditLog` in the same transaction. Bounded full lists
 | `parent.delete` | M | `parent:manage` | ✓ | removes the record; links cascade |
 | `parent.link` / `unlink` | M | `parent:manage` | ✓ | `(student, parent, relationship)` unique; `isPrimary` clears the previous primary |
 | `parent.guardians` | Q | `student:read` | – | one student's links; student-scoped |
-| `teacherProfile.list` / `get` | Q | `staff:read` | – | TEACHER → own profile only |
-| `teacherProfile.create/update/delete` | M | `staff:manage` | ✓ | employeeId unique/school; 1:1 User (no auth duplication) |
-| `enrollment.listByStudent` | Q | `enrollment:read` | – | full history (never mutated); student-scoped |
-| `enrollment.sectionRoster` | Q | `enrollment:read` | – | teacher → only sections they teach; parent → none |
+| `teacherProfile.list` / `get` | Q | `staff:read` | – | TEACHER → own profile only; `StaffDto.name` (M8) |
+| `teacherProfile.create/update/delete` | M | `staff:manage` | ✓ | **`name` required (M8)**; employeeId unique/school; 1:1 User (no auth duplication) |
+| `enrollment.listByStudent` | Q | `enrollment:read` | – | full history (never mutated); student-scoped; **enriched (M8): `academicYearName`/`className`/`sectionName`** (server-side join — parent-safe, no `academic:read`) |
+| `enrollment.sectionRoster` | Q | `enrollment:read` | – | teacher → only sections they teach; parent → none; **enriched (M8): `studentName`** |
 | `enrollment.create` | M | `enrollment:manage` | ✓ | one per (student, year); no section → ADMITTED; rollNo needs a free slot in section+year |
 | `enrollment.transfer` | M | `enrollment:manage` | ✓ | same class, IN-PLACE on the same row (ADR-010 §5); rollNo cleared unless re-given |
 | `enrollment.promote` | M | `enrollment:manage` | ✓ | NEW row in the target year; source → PROMOTED (or RETAINED if same class) |
@@ -273,9 +273,9 @@ notifications (deferred). Year-consistency (scope year = enrollment year) is a s
 
 | Procedure | T | Permission | Audit | Notes |
 |---|---|---|---|---|
-| `reportCard.get` | Q | `report_card:read` | – | read-scoped: admin any / class-teacher own-section / parent own-child PUBLISHED |
-| `reportCard.listForEnrollment` | Q | `report_card:read` | – | a student's card trail for one enrollment; **parent → PUBLISHED only** |
-| `reportCard.listForSection` | Q | `report_card:read` | – | every card in a `(year, section)`; admin any / the assigned class teacher (same gate as `listForEnrollment`, section grain) |
+| `reportCard.get` | Q | `report_card:read` | – | read-scoped: admin any / class-teacher own-section / parent own-child PUBLISHED; **enriched (M8): `examName`/`termName`/`classTeacherName`** |
+| `reportCard.listForEnrollment` | Q | `report_card:read` | – | a student's card trail for one enrollment; **parent → PUBLISHED only**; enriched names (M8) |
+| `reportCard.listForSection` | Q | `report_card:read` | – | every card in a `(year, section)`; admin any / the assigned class teacher (same gate as `listForEnrollment`, section grain); **enriched (M8): `studentName`/`rollNo` + names** |
 | `reportCard.generate` | M | `report_card:manage` | ✓ | admin; creates (or returns the existing) DRAFT for `(enrollment, kind, scope)`; year-consistency checked; version continues past terminal rows |
 | `reportCard.draftRemark` | M | `report_card:remark` | ✓ | the class teacher (scope-gated) sets `classTeacherRemark` while **DRAFT** |
 | `reportCard.edit` | M | `report_card:manage` | ✓ | admin; `principalRemark` / `promotionDecision`, **pre-publish only** |

@@ -11,6 +11,7 @@ import { isFullAccess, recordAudit } from "./scope";
 
 export interface CreateStaffInput {
   userId: string;
+  name: string;
   employeeId: string;
   department?: string | undefined;
   qualification?: string | undefined;
@@ -20,6 +21,7 @@ export interface CreateStaffInput {
 }
 
 export interface UpdateStaffInput {
+  name?: string | undefined;
   employeeId?: string | undefined;
   department?: string | null | undefined;
   qualification?: string | null | undefined;
@@ -77,7 +79,10 @@ export async function updateStaff(
   assertCan(ctx.user, PERMISSIONS.STAFF_MANAGE);
   const before = await loadStaffInSchool(ctx, id);
   if (input.employeeId && input.employeeId !== before.employeeId) {
-    const clash = await ctx.repositories.staff.findByEmployeeId(ctx.user.schoolId, input.employeeId);
+    const clash = await ctx.repositories.staff.findByEmployeeId(
+      ctx.user.schoolId,
+      input.employeeId,
+    );
     if (clash && clash.id !== id) {
       throw new ConflictError(`Employee id "${input.employeeId}" is already in use`);
     }

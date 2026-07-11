@@ -110,6 +110,9 @@ function makeCtx(user: Principal) {
     enrollments: {
       listBySection: vi.fn(async (): Promise<Enrollment[]> => [enrollmentRow]),
     },
+    students: {
+      listByIds: vi.fn(async () => [{ id: "st-1", firstName: "Asha", lastName: "Nair" }]),
+    },
     reportCards: {
       listByEnrollment: vi.fn(async (): Promise<ReportCard[]> => [cardRow]),
     },
@@ -127,9 +130,13 @@ function makeCtx(user: Principal) {
 const input = { academicYearId: "y-1", sectionId: "sec-5a" };
 
 describe("listReportCardsForSection — ClassTeacherAssignment gate", () => {
-  it("admin (full access) sees the section's cards", async () => {
+  it("admin (full access) sees the section's cards, enriched with studentName + rollNo", async () => {
     const cards = await listReportCardsForSection(makeCtx(admin), input);
     expect(cards.map((c) => c.id)).toEqual(["rc-1"]);
+    expect(cards[0]!.studentName).toBe("Asha Nair");
+    expect(cards[0]!.rollNo).toBe(1);
+    expect(cards[0]!.examName).toBeNull(); // ANNUAL card — no exam/term scope
+    expect(cards[0]!.termName).toBeNull();
   });
 
   it("the assigned class teacher sees the section's cards even with no subject there", async () => {

@@ -19,7 +19,9 @@
   parent+anon none / teacher-write denied); DB invariants proven (unique blocks 2nd row, FK RESTRICT,
   in-place replace). Full gate 35/35.
 - **Frozen?** No (freezes on M6.5 approval). `TeacherAssignment` remained frozen; change is purely additive.
-- **Known limitations:** teacher shown by `employeeId`/user id (no staff **name** exists in the schema —
-  User/Staff carry no name field); the `classTeacher` scope is not yet wired into M4 leave/correction
-  DECIDE (those stay admin-only, unchanged).
+- **Teacher display name:** RESOLVED in **M8 (ADR-016)** — `Staff.name` now exists; `ClassTeacherAssignmentDto`
+  carries `teacherName` (joined server-side), so the class-teacher table + picker show the teacher's name
+  (employeeId secondary), not a raw id.
+- **Known limitations:** the `classTeacher` scope is not yet wired into M4 leave/correction DECIDE (those
+  stay admin-only, unchanged).
 - **Next work:** M7 report cards consume `assertClassTeacherOfEnrollment` for teacher-remark authorship.

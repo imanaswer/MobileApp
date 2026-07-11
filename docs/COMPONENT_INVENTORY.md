@@ -63,3 +63,7 @@ Component catalog for `packages/ui` (shared tokens/primitives) and app-level dom
 3. Every interactive component: focus-visible, labelled, ≥44px touch target, en+ml verified (Malayalam line-height).
 4. Files `PascalCase.tsx`, one component per file, colocated `*.test.tsx` for logic-bearing components (grids, wizards, forms).
 5. Add a component here when it's built; this inventory is the review reference for "does it already exist?"
+6. **M8 (implemented):** web `LocaleGate` (`apps/web/src/i18n/locale-gate.tsx`) + a mobile inner
+   `LocaleFromProfile` wire `LocaleProvider` to `me.locale ?? "en"` (F8, wire-only). Display labels resolve
+   **server-side** (DTO enrichment, ADR-016) — components render `teacherName`/`studentName`/`examName`/
+   `className` etc. handed to them; they never resolve ids to names client-side (no lookup maps).

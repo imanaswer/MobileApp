@@ -24,7 +24,14 @@ import {
   mintDocumentUploadUrl,
   type StoragePort,
 } from "./document-storage.service";
-import { enroll, promote, sectionRoster, transfer, withdraw } from "./enrollment.service";
+import {
+  enroll,
+  listEnrollmentsByStudent,
+  promote,
+  sectionRoster,
+  transfer,
+  withdraw,
+} from "./enrollment.service";
 import {
   createParent,
   getParent,
@@ -124,6 +131,7 @@ const staffRow: Staff = {
   id: "sf-1",
   schoolId: "s-1",
   userId: "u-teacher",
+  name: "Tara Teacher",
   employeeId: "EMP-01",
   department: null,
   qualification: null,
@@ -542,11 +550,19 @@ describe("enrollment — lifecycle (ADR-010)", () => {
     );
   });
 
-  it("TEACHER can read the roster of a section they teach", async () => {
+  it("TEACHER can read the roster of a section they teach (enriched with studentName)", async () => {
     const { ctx } = makeCtx(teacher);
-    await expect(
-      sectionRoster(ctx, { academicYearId: "y-1", sectionId: "sec-1" }),
-    ).resolves.toHaveLength(1);
+    const roster = await sectionRoster(ctx, { academicYearId: "y-1", sectionId: "sec-1" });
+    expect(roster).toHaveLength(1);
+    expect(roster[0]!.studentName).toBe("Asha Nair");
+  });
+
+  it("enrollment history is enriched with year/class/section names (parent-safe, no academic:read)", async () => {
+    const { ctx } = makeCtx(parent);
+    const history = await listEnrollmentsByStudent(ctx, "st-1");
+    expect(history[0]!.academicYearName).toBe("2026-27");
+    expect(history[0]!.className).toBe("Class 5");
+    expect(history[0]!.sectionName).toBe("A");
   });
 
   it("TEACHER cannot read another section's roster (ForbiddenError)", async () => {
@@ -660,7 +676,7 @@ describe("parent — records and links", () => {
 /* ---- staff — employment profile ---- */
 
 describe("staff — employment profile", () => {
-  const newStaff = { userId: "u-teacher", employeeId: "EMP-02" };
+  const newStaff = { userId: "u-teacher", name: "Nate New", employeeId: "EMP-02" };
 
   it("creates a profile and audits", async () => {
     const { ctx, repos } = makeCtx(officeAdmin);

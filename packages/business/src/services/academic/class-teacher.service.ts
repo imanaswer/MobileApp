@@ -75,7 +75,7 @@ export async function assignClassTeacher(
         assignedAt: created.assignedAt.toISOString(),
       },
     });
-    return mapClassTeacherAssignment(created);
+    return mapClassTeacherAssignment(created, await resolveTeacherName(ctx, created.teacherId));
   });
 }
 
@@ -127,7 +127,7 @@ export async function replaceClassTeacher(
         assignedAt: updated.assignedAt.toISOString(),
       },
     });
-    return mapClassTeacherAssignment(updated);
+    return mapClassTeacherAssignment(updated, await resolveTeacherName(ctx, updated.teacherId));
   });
 }
 
@@ -165,7 +165,7 @@ export async function getClassTeacherForSection(
   if (!row || row.schoolId !== ctx.user.schoolId) {
     return null;
   }
-  return mapClassTeacherAssignment(row);
+  return mapClassTeacherAssignment(row, await resolveTeacherName(ctx, row.teacherId));
 }
 
 /**
@@ -243,6 +243,16 @@ async function assertYearInSchool(ctx: ServiceContext, academicYearId: string): 
   if (!year || year.schoolId !== ctx.user.schoolId) {
     throw new NotFoundError("Academic year not found");
   }
+}
+
+/**
+ * Display name of a teacher (Staff.name via their userId; ADR-016). A teacher always
+ * has a Staff row (B3) and Staff.name is required post-M8; the fallback covers the
+ * impossible no-profile case with a stable, non-cuid string.
+ */
+async function resolveTeacherName(ctx: ServiceContext, userId: string): Promise<string> {
+  const staff = await ctx.repositories.staff.findByUserId(userId);
+  return staff?.name ?? "Unknown teacher";
 }
 
 /**

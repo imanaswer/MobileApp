@@ -70,7 +70,8 @@ export default function ClassTeachersPage() {
   // Only fetched for managers, who are the only ones who see the assign form.
   const teachers = trpc.teacherProfile.list.useQuery(undefined, { enabled: canManage });
   const teacherOptions = useMemo(
-    () => (teachers.data ?? []).map((s) => ({ value: s.userId, label: s.employeeId })),
+    () =>
+      (teachers.data ?? []).map((s) => ({ value: s.userId, label: `${s.name} · ${s.employeeId}` })),
     [teachers.data],
   );
 
@@ -126,17 +127,15 @@ export default function ClassTeachersPage() {
           return (
             <tr key={section.id} className="border-b border-border last:border-b-0">
               <td className="px-4 py-3 font-medium text-foreground">{label}</td>
-              <td className="px-4 py-3 font-mono text-xs text-foreground">
+              <td className="px-4 py-3 text-foreground">
                 {!yearId ? (
                   "—"
                 ) : q?.isLoading ? (
                   "…"
                 ) : dto == null ? (
                   <span className="text-muted-foreground">Not assigned</span>
-                ) : dto.teacherId === me.data?.userId ? (
-                  "You"
                 ) : (
-                  dto.teacherId
+                  `${dto.teacherName}${dto.teacherId === me.data?.userId ? " (You)" : ""}`
                 )}
               </td>
               <td className="px-4 py-3 text-muted-foreground">

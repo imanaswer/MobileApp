@@ -108,6 +108,7 @@ const staffRow: Staff = {
   id: "stf-1",
   schoolId: "s-1",
   userId: "u-office",
+  name: "Olivia Office",
   employeeId: "E-1",
   department: null,
   qualification: null,
@@ -233,7 +234,10 @@ function makeCtx(
   const marks = opts.withMarks ? [{ gradePointSnapshot: 8 }] : [];
   const repos = {
     audit: { record: vi.fn(async () => undefined) },
-    staff: { findByUserId: vi.fn(async () => staffRow) },
+    staff: {
+      findByUserId: vi.fn(async () => staffRow),
+      findById: vi.fn(async () => staffRow),
+    },
     enrollments: {
       findById: vi.fn(async () => enrollment),
       listBySection: vi.fn(async () => [enrollment]),
@@ -504,5 +508,31 @@ describe("reads", () => {
     const { ctx } = makeCtx(admin, store);
     const cards = await listReportCardsForEnrollment(ctx, "e-1");
     expect(cards).toHaveLength(2);
+  });
+  it("ANNUAL cards carry null exam/term names (no scope) — enrichment is all-or-nothing", async () => {
+    const { ctx } = makeCtx(admin, store);
+    const [card] = await listReportCardsForEnrollment(ctx, "e-1");
+    expect(card!.examName).toBeNull();
+    expect(card!.termName).toBeNull();
+  });
+  it("a TERM card is enriched with termName + the remark author (classTeacherName)", async () => {
+    const { ctx } = makeCtx(
+      admin,
+      makeStore([
+        {
+          status: "PUBLISHED",
+          version: 1,
+          kind: "TERM",
+          termId: "term-1",
+          submittedByStaffId: "stf-1",
+          approvedAt: d("2026-10-01"),
+          publishedAt: d("2026-10-02"),
+        },
+      ]),
+    );
+    const [card] = await listReportCardsForEnrollment(ctx, "e-1");
+    expect(card!.termName).toBe("Term 1");
+    expect(card!.examName).toBeNull();
+    expect(card!.classTeacherName).toBe("Olivia Office");
   });
 });

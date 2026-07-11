@@ -178,7 +178,14 @@ export default function ReportCardDetailPage() {
         <Stat label="Result">{c.promotionDecision ?? "—"}</Stat>
       </div>
 
-      <Remark label="Class-teacher remark" body={c.classTeacherRemark} />
+      <Remark
+        label={
+          c.classTeacherName
+            ? `Class-teacher remark · ${c.classTeacherName}`
+            : "Class-teacher remark"
+        }
+        body={c.classTeacherRemark}
+      />
       <Remark label="Principal remark" body={c.principalRemark} />
 
       {/* version history — number + status only */}

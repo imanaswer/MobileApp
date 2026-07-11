@@ -2,7 +2,7 @@
 
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
-import type { EnrollmentDto, ReportCardKindKey, ReportCardStatusKey } from "@repo/types";
+import type { EnrollmentRosterRowDto, ReportCardKindKey, ReportCardStatusKey } from "@repo/types";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -30,10 +30,9 @@ const STATUSES: readonly ReportCardStatusKey[] = [
 /**
  * Report Cards console (M7, ADR-014). Role-aware, thin transport: parents read their
  * children's PUBLISHED cards; admins (report_card:manage) and class teachers
- * (report_card:remark) work section rosters. There is no list-by-filter endpoint —
- * the list is composed from enrollment.sectionRoster + reportCard.listForEnrollment
- * (the service is authoritative; this only hides UI). Lifecycle actions live on the
- * detail page.
+ * (report_card:remark) work section rosters. The section list uses reportCard.listForSection
+ * (ClassTeacherAssignment-scoped; carries studentName/rollNo); the admin Generate picker uses
+ * enrollment.sectionRoster (studentName). The service is authoritative; this only hides UI.
  */
 export default function ReportCardsPage() {
   const me = trpc.auth.me.useQuery();
@@ -189,7 +188,6 @@ function SectionReportCards({ canManage }: { canManage: boolean }) {
     { enabled: canManage && yearId !== "" && sectionId !== "" },
   );
   const rosterRows = roster.data ?? [];
-  const rollNo = new Map(rosterRows.map((e) => [e.id, e.rollNo]));
 
   const flat = (cards.data ?? [])
     .filter((c) => (statusFilter ? c.status === statusFilter : true))
@@ -280,44 +278,39 @@ function SectionReportCards({ canManage }: { canManage: boolean }) {
           isEmpty={flat.length === 0}
           emptyText="No report cards for this section yet."
         >
-          {flat.map((card) => {
-            const roll = rollNo.get(card.enrollmentId);
-            return (
-              <tr key={card.id} className="border-b border-border last:border-b-0">
-                <td className="px-4 py-3 font-mono text-xs text-foreground">
-                  {roll != null ? `Roll ${roll}` : card.enrollmentId.slice(0, 8)}
-                </td>
-                <td className="px-4 py-3 text-foreground">{KIND_LABEL[card.kind]}</td>
-                <td className="px-4 py-3 text-foreground">v{card.version}</td>
-                <td className="px-4 py-3">
-                  <StatusBadge status={card.status} />
-                </td>
-                <td className="px-4 py-3 text-foreground">
-                  {card.rank != null && card.cohortSize != null
-                    ? `${card.rank} of ${card.cohortSize}`
-                    : "—"}
-                </td>
-                <td className="px-4 py-3">
-                  <Link
-                    href={`/report-cards/${card.id}`}
-                    className="text-sm font-medium text-primary"
-                  >
-                    Open
-                  </Link>
-                </td>
-              </tr>
-            );
-          })}
+          {flat.map((card) => (
+            <tr key={card.id} className="border-b border-border last:border-b-0">
+              <td className="px-4 py-3 text-foreground">
+                {card.studentName}
+                {card.rollNo != null ? (
+                  <span className="text-muted-foreground"> · Roll {card.rollNo}</span>
+                ) : null}
+              </td>
+              <td className="px-4 py-3 text-foreground">{KIND_LABEL[card.kind]}</td>
+              <td className="px-4 py-3 text-foreground">v{card.version}</td>
+              <td className="px-4 py-3">
+                <StatusBadge status={card.status} />
+              </td>
+              <td className="px-4 py-3 text-foreground">
+                {card.rank != null && card.cohortSize != null
+                  ? `${card.rank} of ${card.cohortSize}`
+                  : "—"}
+              </td>
+              <td className="px-4 py-3">
+                <Link
+                  href={`/report-cards/${card.id}`}
+                  className="text-sm font-medium text-primary"
+                >
+                  Open
+                </Link>
+              </td>
+            </tr>
+          ))}
         </TableShell>
       )}
 
       {generating ? (
-        <GenerateModal
-          yearId={yearId}
-          roster={rosterRows}
-          rollNo={rollNo}
-          onClose={() => setGenerating(false)}
-        />
+        <GenerateModal yearId={yearId} roster={rosterRows} onClose={() => setGenerating(false)} />
       ) : null}
     </div>
   );
@@ -326,12 +319,10 @@ function SectionReportCards({ canManage }: { canManage: boolean }) {
 function GenerateModal({
   yearId,
   roster,
-  rollNo,
   onClose,
 }: {
   yearId: string;
-  roster: readonly EnrollmentDto[];
-  rollNo: Map<string, number | null>;
+  roster: readonly EnrollmentRosterRowDto[];
   onClose: () => void;
 }) {
   const [enrollmentId, setEnrollmentId] = useState("");
@@ -385,7 +376,8 @@ function GenerateModal({
             <option value="">Select a student…</option>
             {roster.map((e) => (
               <option key={e.id} value={e.id}>
-                Roll {rollNo.get(e.id) ?? "—"} · {e.studentId}
+                {e.studentName}
+                {e.rollNo != null ? ` · Roll ${e.rollNo}` : ""}
               </option>
             ))}
           </select>
