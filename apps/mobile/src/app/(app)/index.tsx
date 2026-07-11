@@ -3,6 +3,7 @@ import { can } from "@repo/core";
 import { Link, type Href } from "expo-router";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
+import { NotificationBell } from "../../components/notifications-ui";
 import { trpc } from "../../lib/trpc";
 import { useAuthStore } from "../../stores/auth-store";
 
@@ -47,11 +48,14 @@ export default function AppHome() {
 
   return (
     <View className="flex-1 bg-background">
-      <View className="border-b border-border px-4 py-4">
-        <Text className="text-2xl font-semibold text-foreground">School Portal</Text>
-        <Text className="text-muted-foreground">
-          {role ? `Signed in as ${role.replace("_", " ").toLowerCase()}` : "Signed in"}
-        </Text>
+      <View className="flex-row items-center border-b border-border px-4 py-4">
+        <View className="flex-1">
+          <Text className="text-2xl font-semibold text-foreground">School Portal</Text>
+          <Text className="text-muted-foreground">
+            {role ? `Signed in as ${role.replace("_", " ").toLowerCase()}` : "Signed in"}
+          </Text>
+        </View>
+        <NotificationBell />
       </View>
 
       <ScrollView contentContainerClassName="p-4 gap-4">
