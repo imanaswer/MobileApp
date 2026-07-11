@@ -68,6 +68,7 @@ model User {
   // Virtual back-relations only (no column/behavior change to the frozen M1 model).
   teacherAssignments      TeacherAssignment[]
   classTeacherAssignments ClassTeacherAssignment[] // M7 foundation: sections where this user is the class teacher (virtual back-relation only)
+  timetableEntries        TimetableEntry[] // M9: slots this user teaches (virtual back-relation only)
   staff                   Staff? // M3: employment profile, 1:1 (userId unique on Staff)
   parent                  Parent? // M3: parent portal login, 1:1 (userId unique on Parent)
   // + raw SQL: RLS ON — read-self + admin-read-all (m1_rls_hardening)
@@ -120,6 +121,8 @@ model AcademicYear {
   exams                   Exam[] // M5: virtual back-relation only
   homework                Homework[] // M6: virtual back-relation only
   classTeacherAssignments ClassTeacherAssignment[] // M7 foundation: virtual back-relation only
+  bellSchedules           BellSchedule[] // M9: virtual back-relation only (one per year, DB unique)
+  timetableEntries        TimetableEntry[] // M9: virtual back-relation only
   // + raw SQL: UNIQUE (schoolId) WHERE status = 'ACTIVE'  — one ACTIVE year
   // + raw SQL: CHECK (startDate < endDate)
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration; defense-in-depth)
@@ -182,6 +185,7 @@ model Section {
   examSections            ExamSection[] // M5: virtual back-relation only
   homework                Homework[] // M6: virtual back-relation only
   classTeacherAssignments ClassTeacherAssignment[] // M7 foundation: virtual back-relation only
+  timetableEntries        TimetableEntry[] // M9: virtual back-relation only
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([classId, name])
@@ -199,6 +203,7 @@ model Subject {
   attendanceSessions AttendanceSession[] // M4: virtual back-relation only
   assessments        Assessment[] // M5: virtual back-relation only
   homework           Homework[] // M6: virtual back-relation only
+  timetableEntries   TimetableEntry[] // M9: virtual back-relation only
   // + raw SQL: RLS ON — admin-only ALL (academic_rls migration)
 
   @@unique([schoolId, name])
@@ -1347,5 +1352,103 @@ model ReportCard {
   @@index([examId])
   @@index([termId])
   @@index([status]) // admin review/publish queues
+  @@index([schoolId])
+}
+
+// ========================= Timetable Management (M9) =========================
+// ADR-017 is the source of truth. A weekly section timetable over frozen M1–M8.
+// Grain: BellSchedule (the year's day structure — EXACTLY ONE per year, DB unique
+// below) → Period (numbered clock-time slots, some breaks) ; TimetableEntry
+// (section × weekday × period → subject + teacher + room). Ownership DERIVES from
+// TeacherAssignment(teacher, subject, section) at authz time — NEVER stored, and
+// NEVER from ClassTeacherAssignment (the ADR-011/012/013 derived-owner idiom).
+// Double-booking is STRUCTURALLY impossible (the two uniques on TimetableEntry);
+// period-overlap / ownership / cross-year / no-class-on-break are business-layer
+// checks (STEP 5). Every mutation writes AuditLog in the same transaction (ADR-007).
+// Clock times are @db.Time (no date component); ALL FKs Restrict (no Cascade — brief).
+
+enum Weekday {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+// ---------- bell schedule (the year's day structure — EXACTLY ONE per year) ----------
+// The named, ordered set of periods for a year. One-per-year is a DB unique (ADR-017
+// §1, deviation #2 — dropped isDefault/multi-schedule as speculative). academicYear
+// Restrict (a year with a bell schedule is never hard-deleted).
+model BellSchedule {
+  id             String       @id @default(cuid())
+  schoolId       String // loose tenant ref (ADR-008)
+  academicYearId String
+  name           String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  periods        Period[]
+  // + raw SQL: RLS ON — admin ALL; teacher/parent SELECT (read-only reference); anon none (timetable_rls, Step 4)
+
+  @@unique([schoolId, academicYearId]) // exactly ONE bell schedule per year (M9 scope; ADR-017 §1)
+  @@index([schoolId])
+}
+
+// ---------- period (a numbered clock-time slot within the bell schedule) ----------
+// order is 1-based and unique within the schedule (deterministic sequence). times are
+// @db.Time (clock only). isBreak periods hold no class (business rejects a TimetableEntry
+// on one). bellSchedule Restrict (a period carrying timetable references never cascades).
+model Period {
+  id               String           @id @default(cuid())
+  schoolId         String // loose tenant ref (ADR-008)
+  bellScheduleId   String
+  name             String
+  order            Int
+  startTime        DateTime         @db.Time // clock time, no date component (IST convention)
+  endTime          DateTime         @db.Time
+  isBreak          Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  bellSchedule     BellSchedule     @relation(fields: [bellScheduleId], references: [id], onDelete: Restrict)
+  timetableEntries TimetableEntry[]
+  // + raw SQL: CHECK ("startTime" < "endTime")
+  // + raw SQL: CHECK ("order" > 0)
+  // + raw SQL: RLS ON — admin ALL; teacher/parent SELECT (read-only reference); anon none (timetable_rls, Step 4)
+
+  @@unique([bellScheduleId, order]) // deterministic period sequence within a schedule
+  @@index([bellScheduleId])
+}
+
+// ---------- timetable entry (one weekly slot: section × weekday × period) ----------
+// academicYearId is DENORMALIZED (ADR-017 deviation #1 rationale): section/teacher/year
+// reads skip the period→bellSchedule hop. teacherId → User (mirrors TeacherAssignment;
+// RLS teacherId = auth.uid()). No createdByStaffId — AuditLog.actorUserId carries the
+// actor (ADR-007). All FKs Restrict. The two uniques make double-booking impossible.
+model TimetableEntry {
+  id             String       @id @default(cuid())
+  schoolId       String // loose tenant ref (ADR-008)
+  academicYearId String // denormalized read path (skip period→bellSchedule)
+  sectionId      String
+  subjectId      String
+  teacherId      String // → User (mirrors TeacherAssignment.teacherId; RLS teacherId = auth.uid())
+  periodId       String
+  weekday        Weekday
+  room           String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  section        Section      @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  subject        Subject      @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacher        User         @relation(fields: [teacherId], references: [id], onDelete: Restrict)
+  period         Period       @relation(fields: [periodId], references: [id], onDelete: Restrict)
+  // + raw SQL: RLS ON — admin ALL; teacher own (teacherId = auth.uid()); parent child's section; anon none (timetable_rls, Step 4)
+
+  @@unique([sectionId, weekday, periodId]) // no section double-booking / duplicate period / one subject+teacher per slot
+  @@unique([teacherId, weekday, periodId]) // no teacher double-booking
+  @@index([sectionId, weekday, periodId]) // section timetable (hot path)
+  @@index([teacherId, weekday, periodId]) // teacher timetable
+  @@index([academicYearId])
   @@index([schoolId])
 }
