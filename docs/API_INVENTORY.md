@@ -442,6 +442,30 @@ planned flag-gated `analytics.*` add-on below.
 | `analytics.atRiskStudents` | Q | admin-only | low attendance/marks + open behaviour flags |
 | `analytics.dashboard` | Q | role-aware (reuses domain reads) | the caller's role dashboard payload (KPIs + series) |
 
+## Documents, Certificates & Downloads (M15 — ADR-023, implemented; permission-only)
+
+Per-student document center over frozen M1–M14 — issued certificates + uploaded files with an approval lifecycle. Thin
+transport → business enforces permission, scope, the lifecycle (GENERATED/UPLOADED→APPROVED→ARCHIVED, delete-drafts-only),
+the frozen generation `snapshotJson`, the **APPROVED-only** visibility gate for non-admins, in-tx audit, and **60s**
+signed-URL minting. Two new tables (`Document`/`DocumentTemplate`), new private bucket `documents`. Generation is
+**metadata-first** (no PDF renderer; GENERATED docs carry a snapshot, no file until rendering lands — the upload path is
+fully working). Distinct from M3 `studentDocument.*` (KYC uploads).
+
+| Procedure | T | Permission | Notes |
+|---|---|---|---|
+| `document.generate` | M | `document:manage` | GENERATED; freezes system-sourced `snapshotJson` (name/admissionNo + current class/section/year); no file in v1; ✓ audit |
+| `document.uploadUrl` | M | `document:manage` (storage) | mint one-time signed **upload** URL (server-chosen path, `documents` bucket); PRECONDITION_FAILED if storage unwired |
+| `document.createUploaded` | M | `document:manage` | record an UPLOADED doc after the file is pushed to the signed URL; ✓ audit |
+| `document.approve` | M | `document:approve` | draft (GENERATED/UPLOADED) → APPROVED (visibility gate); ✓ audit |
+| `document.archive` | M | `document:manage` | APPROVED → ARCHIVED (soft-retire, terminal); ✓ audit |
+| `document.deleteDraft` | M | `document:manage` | hard-delete a draft only (approved/archived never deleted); ✓ audit |
+| `document.list` | Q | `document:manage` | admin console — school-wide; filters student/type/status |
+| `document.listStudentDocuments` | Q | `document:read` | a student's docs — admin all; teacher own-section / parent own-child **APPROVED-only** |
+| `document.downloadUrl` | M | `document:read` (storage) | mint 60s signed **read** URL; scope + APPROVED-only gate run first; no-file → CONFLICT |
+| `documentTemplate.list` | Q | `document:manage` | certificate templates (admin picker) |
+| `documentTemplate.create` | M | `document:manage` | new per-type template; ✓ audit |
+| `documentTemplate.update` | M | `document:manage` | rename / (de)activate; ✓ audit |
+
 ## Add-on routers (flag-gated: check flag → FORBIDDEN when off)
 
 | Procedure | Flag | T | Permission | Audit | Notif |

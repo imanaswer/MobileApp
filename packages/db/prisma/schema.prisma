@@ -353,6 +353,7 @@ model Student {
   documents          StudentDocument[]
   behaviourIncidents BehaviourIncident[] // M12: discipline history that follows the person across years (virtual back-relation only)
   invoices           Invoice[] // M13: fee history follows the person across years (virtual back-relation only)
+  issuedDocuments    Document[] // M15: issued-certificate center — follows the person across years (virtual back-relation only)
   // + raw SQL: partial unique — Aadhaar unique per school when present:
   //   WHERE "aadhaar" IS NOT NULL  (a shared national ID is a data error)
   // + raw SQL: RLS ON — admin ALL; teacher SELECT own-section; parent SELECT own-child (people_rls, Step 4)
@@ -1853,4 +1854,91 @@ enum PaymentMethod {
   BANK_TRANSFER
   CHEQUE
   ONLINE
+}
+
+// ---------- documents, certificates & downloads (M15, ADR-023) ----------
+// The issued-certificate center — DISTINCT from M3 StudentDocument (KYC/identity
+// UPLOADS, type-visibility). M15 Document is a school-ISSUED record with an
+// approval lifecycle (ADR-023 §2). A doc is GENERATED (from a template, metadata
+// snapshotted) or UPLOADED (office uploads a file), then APPROVED (the visibility
+// gate for parents/teachers), then ARCHIVED (soft-retire). ADR-014 report-card
+// PDF is NOT re-rendered here; a REPORT_CARD row is an UPLOADED slot (ADR-023 §3).
+enum DocumentType {
+  BONAFIDE_CERTIFICATE
+  STUDY_CERTIFICATE
+  CHARACTER_CERTIFICATE
+  TRANSFER_CERTIFICATE // an ISSUED TC (≠ M3 StudentDocument.TRANSFER_CERTIFICATE, a received scan)
+  FEE_RECEIPT // v1 UPLOADED slot — M13 has no receipt PDF (ADR-023 §3, deviation #3)
+  REPORT_CARD // v1 UPLOADED slot — live rendering stays ADR-014's pdfPath seam (ADR-023 §3, deviation #2)
+  HALL_TICKET
+  ID_CARD
+  OTHER
+}
+
+// GENERATED/UPLOADED are the two draft origins; APPROVED is the published gate
+// (parents/teachers see APPROVED only — ADR-023 §6); ARCHIVED is terminal
+// soft-retire. Hard delete is allowed only for a draft (ADR-023 §5).
+enum DocumentStatus {
+  GENERATED
+  UPLOADED
+  APPROVED
+  ARCHIVED
+}
+
+// A per-type certificate template. Minimal in v1 (ADR-023 §4): it labels/enables
+// which types the office may generate. `body` is RESERVED for the future renderer
+// (HTML/layout) and is null in metadata-only v1 — no template engine is built yet.
+// School-scoped, admin-managed (document:manage). Restrict-referenced by Document.
+model DocumentTemplate {
+  id        String       @id @default(cuid())
+  schoolId  String // loose tenant ref (ADR-008)
+  type      DocumentType
+  name      String
+  body      String? // RESERVED for the deferred renderer (ADR-023 §4); null in v1
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  documents Document[]
+  // + raw SQL: RLS ON — admin ALL; anon none (documents are read via Document; templates are admin metadata) (documents_rls, Step 3)
+
+  @@index([schoolId, type])
+}
+
+// A student's issued/uploaded document (metadata; bytes — when present — live in
+// the PRIVATE `documents` bucket, signed 60s on read, ADR-004/ADR-023 §1).
+//   • snapshotJson — the values FROZEN at generation time (student name, admission
+//     no, class, dates, per-type fields). Written once on GENERATE, NEVER mutated;
+//     a later profile change can't rewrite an issued cert (ADR-014 snapshot
+//     philosophy, ADR-023 §3). Null for UPLOADED docs (they carry a real file).
+//   • storagePath — PRIVATE bucket path; null for GENERATED metadata-only docs
+//     (mirrors ReportCard.pdfPath — storage NEVER lifecycle-gates, ADR-023 §3).
+//   • templateId — null for UPLOADED docs (no template needed).
+// Actors are loose *ByUserId scalars (the M3 StudentDocument.uploadedByUserId
+// idiom). Every mutation writes AuditLog in the same transaction (ADR-007).
+model Document {
+  id                String           @id @default(cuid())
+  schoolId          String // loose tenant ref (ADR-008)
+  studentId         String
+  type              DocumentType
+  status            DocumentStatus
+  templateId        String? // null for UPLOADED docs (ADR-023 §3)
+  snapshotJson      Json? // FROZEN generation payload; set on GENERATE, immutable (ADR-023 §3)
+  storagePath       String? // PRIVATE bucket path, signed 60s on read; null for metadata-only GENERATED (ADR-023 §3)
+  fileName          String?
+  mimeType          String?
+  sizeBytes         Int?
+  generatedByUserId String? // actor set on generate (loose ref — StudentDocument idiom)
+  uploadedByUserId  String? // actor set on upload
+  approvedByUserId  String? // actor set on approve
+  approvedAt        DateTime?
+  archivedAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  student           Student           @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  template          DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  // + raw SQL: RLS ON — admin ALL; teacher read; parent own-child; anon none (documents_rls, Step 3)
+
+  @@index([studentId, type]) // a student's docs by type (brief: studentId, type)
+  @@index([schoolId, status]) // admin console filter (brief: status)
+  @@index([schoolId, createdAt]) // recent-first lists (brief: createdAt)
 }

@@ -422,3 +422,19 @@ totalAmount`, `balanceAmount = totalAmount − paidAmount`; `Payment` `amount > 
 stored**. `PaymentMethod` `{CASH, UPI, CARD, BANK_TRANSFER, CHEQUE, ONLINE}`. RLS is
 **coarse** (admin ALL / parent own-child / anon none; teacher read is business-only).
 Migrations: `20260712030000_fees_and_payments` (structural) + `20260712040000_fees_rls`.
+
+**M14 note (ADR-022):** analytics is **read-only** — **no schema change** (`migrate diff` no-op). No new table/enum/column;
+it aggregates frozen M1–M13 rows via new read-only repo methods only.
+
+**M15 note (ADR-023):** two additive tables — the per-student issued-document center, **distinct from M3 `StudentDocument`**
+(KYC uploads with type-visibility; untouched). `Document → Student` (Restrict) + `→ DocumentTemplate` (Restrict, **nullable**
+— UPLOADED docs need no template); `schoolId` loose (ADR-008); the `Student.issuedDocuments` back-relation is virtual (no SQL
+column). `DocumentType` `{BONAFIDE_CERTIFICATE, STUDY_CERTIFICATE, CHARACTER_CERTIFICATE, TRANSFER_CERTIFICATE, FEE_RECEIPT,
+REPORT_CARD, HALL_TICKET, ID_CARD, OTHER}`; `DocumentStatus` `{GENERATED, UPLOADED, APPROVED, ARCHIVED}` (lifecycle status,
+no soft-delete column). `snapshotJson` (JSONB, nullable) **freezes the generation values** so a later profile change can't
+rewrite an issued certificate (ADR-014 snapshot philosophy); `storagePath` nullable (metadata-only GENERATED docs carry no
+file — mirrors `ReportCard.pdfPath`, storage never lifecycle-gates). Actors are loose `*ByUserId` (StudentDocument idiom).
+Indexes `[studentId, type]`, `[schoolId, status]`, `[schoolId, createdAt]`. New private bucket `documents` (60s signed URLs).
+`migrate diff` shows only the two CREATEs, **zero ALTER on any frozen table**. RLS is **coarse** (admin ALL / teacher
+own-section read (`teaches_student`) / parent own-child read (`is_my_child`) / anon none; the APPROVED-only narrowing is a
+business filter). Migrations: `20260712050000_documents_management` (structural) + `20260712060000_documents_rls`.

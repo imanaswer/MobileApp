@@ -860,3 +860,66 @@ export interface PaymentDto {
   receivedByStaffId: string;
   createdAt: IsoUtcString;
 }
+
+// ---- Documents, Certificates & Downloads (M15, ADR-023) ----
+
+export type DocumentTypeKey =
+  | "BONAFIDE_CERTIFICATE"
+  | "STUDY_CERTIFICATE"
+  | "CHARACTER_CERTIFICATE"
+  | "TRANSFER_CERTIFICATE"
+  | "FEE_RECEIPT"
+  | "REPORT_CARD"
+  | "HALL_TICKET"
+  | "ID_CARD"
+  | "OTHER";
+
+export type DocumentStatusKey = "GENERATED" | "UPLOADED" | "APPROVED" | "ARCHIVED";
+
+/** The values FROZEN at generation time (ADR-023 §3) — system-sourced identity/placement
+ * so a later profile change can't rewrite an issued certificate. Free-form per type. */
+export interface DocumentSnapshot {
+  studentName: string;
+  admissionNo: string;
+  class: string | null;
+  section: string | null;
+  academicYear: string | null;
+  issuedOn: IstDateString;
+  /** Caller-owned per-certificate data (purpose, validity date, …). */
+  fields?: Record<string, string>;
+}
+
+/**
+ * A student's issued/uploaded document (ADR-023). `snapshot` is present for GENERATED
+ * docs (frozen at issue). `hasFile` is true iff a downloadable object exists — a
+ * metadata-only GENERATED doc has none until rendering lands (§3). `storagePath` is
+ * NEVER exposed (private; signed 60s on read).
+ */
+export interface DocumentDto {
+  id: string;
+  schoolId: string;
+  studentId: string;
+  type: DocumentTypeKey;
+  status: DocumentStatusKey;
+  templateId: string | null;
+  snapshot: DocumentSnapshot | null;
+  hasFile: boolean;
+  fileName: string | null;
+  mimeType: string | null;
+  sizeBytes: number | null;
+  approvedAt: IsoUtcString | null;
+  archivedAt: IsoUtcString | null;
+  createdAt: IsoUtcString;
+  updatedAt: IsoUtcString;
+}
+
+/** A per-type certificate template (ADR-023 §4). Minimal in v1 — labels/enables a type. */
+export interface DocumentTemplateDto {
+  id: string;
+  schoolId: string;
+  type: DocumentTypeKey;
+  name: string;
+  active: boolean;
+  createdAt: IsoUtcString;
+  updatedAt: IsoUtcString;
+}

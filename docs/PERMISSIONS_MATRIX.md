@@ -253,6 +253,27 @@ self-authorizes per panel. **No feature flag.**
 - Over-exposure is structurally impossible: the raw-read gate is the aggregate gate. Verified by the analytics transport
   permission-matrix tests (teacher/parent denied the admin panels; unauthenticated → UNAUTHORIZED).
 
+### Documents, Certificates & Downloads (M15, ADR-023 — implemented)
+
+Built as **M15** (see `docs/milestones/M15.md`). **Permission-only — no feature flag.** A per-student document center
+(issued certificates + uploaded files) over frozen M1–M14; the `manage`/`approve`/`read` split. Two new tables
+(`Document`/`DocumentTemplate`), new private bucket `documents` (60s signed URLs). **Distinct from the M3 `StudentDocument`
+KYC store** (which keeps its type-visibility rule below). Row scope + the APPROVED-only status filter are enforced in the
+service; RLS is defense-in-depth (admin ALL / teacher own-section read / parent own-child read / anon none — 11/11 proven).
+
+| Permission | SA | OA | T | P | AC |
+|---|---|---|---|---|---|
+| `document:manage` (generate + upload + delete-draft + archive + template CRUD) | any | school | – | – | – |
+| `document:approve` (draft → APPROVED, the visibility gate) | any | school | – | – | – |
+| `document:read` (list + download) | any | school | ownSection (**APPROVED only**) | ownChild (**APPROVED only**) | – |
+
+- **Office/admin generate + upload + approve; teachers view-only; parents download own child.** `document:manage`/
+  `approve` are SA/OA only. Teacher/parent reads are narrowed to **APPROVED** documents in the service (drafts/archived are
+  staff-only — the report-card PUBLISHED-only precedent); teacher scope is own-section (`teaches_student`, the M3 precedent).
+- **Generation is metadata-first (v1)** — a GENERATED doc freezes `snapshotJson` at issue time (ADR-014 snapshot
+  philosophy) and has no rendered file until rendering lands; the upload path is fully working. No PDF renderer.
+- **Accountants:** none (out of scope). **No feature flag.**
+
 ### Timetable Management (M9, ADR-017 — implemented)
 
 Built as **M9** (see `docs/milestones/M9.md`). **Permission-only — the `timetable` flag is NOT used**

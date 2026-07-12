@@ -51,6 +51,14 @@ import {
 } from "./repositories/class-teacher-assignment.repository";
 import { createClassRepository, type ClassRepository } from "./repositories/class.repository";
 import {
+  createDocumentTemplateRepository,
+  type DocumentTemplateRepository,
+} from "./repositories/document-template.repository";
+import {
+  createDocumentRepository,
+  type DocumentRepository,
+} from "./repositories/document.repository";
+import {
   createEnrollmentRepository,
   type EnrollmentRepository,
 } from "./repositories/enrollment.repository";
@@ -147,6 +155,8 @@ export * from "./repositories/section.repository";
 export * from "./repositories/subject.repository";
 export * from "./repositories/teacher-assignment.repository";
 export * from "./repositories/class-teacher-assignment.repository";
+export * from "./repositories/document.repository";
+export * from "./repositories/document-template.repository";
 export * from "./repositories/student.repository";
 export * from "./repositories/enrollment.repository";
 export * from "./repositories/parent.repository";
@@ -228,6 +238,8 @@ export interface Repositories {
   feeStructures: FeeStructureRepository;
   invoices: InvoiceRepository;
   payments: PaymentRepository;
+  documents: DocumentRepository;
+  documentTemplates: DocumentTemplateRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -275,6 +287,8 @@ export function createRepositories(client: DbClient): Repositories {
     feeStructures: createFeeStructureRepository(client),
     invoices: createInvoiceRepository(client),
     payments: createPaymentRepository(client),
+    documents: createDocumentRepository(client),
+    documentTemplates: createDocumentTemplateRepository(client),
   };
 }
 

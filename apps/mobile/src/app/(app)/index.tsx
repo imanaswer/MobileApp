@@ -44,6 +44,8 @@ export default function AppHome() {
   const canRecordBehaviour = has(PERMISSIONS.BEHAVIOUR_RECORD) || has(PERMISSIONS.BEHAVIOUR_MANAGE);
   const canReadFees = has(PERMISSIONS.FEE_READ);
   const canManageFees = has(PERMISSIONS.FEE_MANAGE);
+  const canReadDocuments = has(PERMISSIONS.DOCUMENT_READ);
+  const canManageDocuments = has(PERMISSIONS.DOCUMENT_MANAGE);
 
   // Today-context, from existing queries only.
   const children = trpc.student.list.useQuery(undefined, { enabled: isParent });
@@ -310,6 +312,26 @@ export default function AppHome() {
             {isParent ? (
               <Text className="px-1 text-xs text-muted-foreground">
                 View invoices, dues and receipts. Payments are collected at the school office.
+              </Text>
+            ) : null}
+          </NavCard>
+        ) : null}
+
+        {canReadDocuments ? (
+          <NavCard title="Documents">
+            <NavLink
+              href="/documents"
+              label={
+                canManageDocuments
+                  ? "Documents & certificates"
+                  : isParent
+                    ? "My children’s documents"
+                    : "Student documents"
+              }
+            />
+            {isParent ? (
+              <Text className="px-1 text-xs text-muted-foreground">
+                Download approved certificates. New documents are issued by the school office.
               </Text>
             ) : null}
           </NavCard>

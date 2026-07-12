@@ -937,3 +937,77 @@ export const topPerformersInput = z.object({
   limit: z.number().int().min(1).max(100).optional(),
 });
 export type TopPerformersInput = z.infer<typeof topPerformersInput>;
+
+/* ---------- documents, certificates & downloads (M15, ADR-023) ---------- */
+
+// Distinct from the M3 documentTypeSchema (student KYC uploads) — issued certificates.
+const certTypeSchema = z.enum([
+  "BONAFIDE_CERTIFICATE",
+  "STUDY_CERTIFICATE",
+  "CHARACTER_CERTIFICATE",
+  "TRANSFER_CERTIFICATE",
+  "FEE_RECEIPT",
+  "REPORT_CARD",
+  "HALL_TICKET",
+  "ID_CARD",
+  "OTHER",
+]);
+const documentStatusSchema = z.enum(["GENERATED", "UPLOADED", "APPROVED", "ARCHIVED"]);
+
+export const generateDocumentInput = z.object({
+  studentId: idSchema,
+  type: certTypeSchema,
+  templateId: idSchema.optional(),
+  fields: z.record(z.string(), z.string()).optional(),
+});
+export type GenerateDocumentInput = z.infer<typeof generateDocumentInput>;
+
+export const documentUploadUrlInput = z.object({
+  studentId: idSchema,
+  fileName: shortText(255),
+});
+export type DocumentUploadUrlInput = z.infer<typeof documentUploadUrlInput>;
+
+export const createUploadedDocumentInput = z.object({
+  studentId: idSchema,
+  type: certTypeSchema,
+  storagePath: shortText(500),
+  fileName: shortText(255),
+  mimeType: z.string().max(120).optional(),
+  sizeBytes: z.number().int().min(0).optional(),
+});
+export type CreateUploadedDocumentInput = z.infer<typeof createUploadedDocumentInput>;
+
+export const listStudentDocumentsInput = z.object({
+  studentId: idSchema,
+  type: certTypeSchema.optional(),
+  status: documentStatusSchema.optional(),
+});
+export type ListStudentDocumentsInput = z.infer<typeof listStudentDocumentsInput>;
+
+export const listDocumentsInput = z.object({
+  studentId: idSchema.optional(),
+  type: certTypeSchema.optional(),
+  status: documentStatusSchema.optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+});
+export type ListDocumentsInput = z.infer<typeof listDocumentsInput>;
+
+export const createDocumentTemplateInput = z.object({
+  type: certTypeSchema,
+  name: shortText(120),
+});
+export type CreateDocumentTemplateInput = z.infer<typeof createDocumentTemplateInput>;
+
+export const updateDocumentTemplateInput = z.object({
+  id: idSchema,
+  name: shortText(120).optional(),
+  active: z.boolean().optional(),
+});
+export type UpdateDocumentTemplateInput = z.infer<typeof updateDocumentTemplateInput>;
+
+export const listDocumentTemplatesInput = z.object({
+  type: certTypeSchema.optional(),
+  active: z.boolean().optional(),
+});
+export type ListDocumentTemplatesInput = z.infer<typeof listDocumentTemplatesInput>;

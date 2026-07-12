@@ -54,6 +54,9 @@ export const STORAGE_BUCKETS = {
   HOMEWORK_FILES: "homework-files",
   /** Announcement attachments (M11, ADR-019 §8). Private; provisioned via runbook. */
   ANNOUNCEMENT_ATTACHMENTS: "announcement-attachments",
+  /** Issued/uploaded certificates & documents (M15, ADR-023 §1). Private; signed
+   * 60s on read; provisioned via runbook. Distinct from STUDENT_DOCUMENTS (M3 KYC). */
+  DOCUMENTS: "documents",
 } as const;
 export type StorageBucketKey = (typeof STORAGE_BUCKETS)[keyof typeof STORAGE_BUCKETS];
 

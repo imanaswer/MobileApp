@@ -53,6 +53,7 @@ All ADRs live in `docs/architecture/`.
 
 **File uploads / documents (any feature)**
 - ADR-004 — Private Supabase Storage + signed URLs
+- ADR-023 — Documents, Certificates & Downloads (per-student issued-document center over frozen M1–M14; **two additive tables** `Document`/`DocumentTemplate`, new private bucket `documents` with **60s** signed URLs; **distinct from M3 `StudentDocument`** KYC store; lifecycle GENERATED/UPLOADED→APPROVED→ARCHIVED with **APPROVED-only** visibility for teachers/parents; **generation metadata-first** — `snapshotJson` freezes issue-time values (ADR-014 snapshot philosophy), no PDF renderer, rendering deferred; three new permissions `document:manage`/`approve`/`read`; every mutation audited) — **M15, implemented**
 
 **Add-on / optional features**
 - ADR-006 — Feature flags for add-ons

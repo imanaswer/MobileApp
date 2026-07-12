@@ -88,6 +88,11 @@ export default function DashboardPage() {
       show: can(role, PERMISSIONS.BEHAVIOUR_MANAGE),
     },
     { href: "/fees", label: "Fees & payments", show: can(role, PERMISSIONS.FEE_MANAGE) },
+    {
+      href: "/documents",
+      label: "Documents & certificates",
+      show: can(role, PERMISSIONS.DOCUMENT_READ),
+    },
   ];
 
   return (

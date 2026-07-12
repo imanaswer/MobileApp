@@ -179,6 +179,17 @@ export const PERMISSIONS = {
   PAYMENT_RECORD: "payment:record",
   /** Read payments / receipts. Admin → all; parent → own child. SA/OA/P (service scope). */
   PAYMENT_READ: "payment:read",
+
+  // ---- Documents, Certificates & Downloads (M15, ADR-023 §6) ----
+  /** Generate + upload + delete-draft + archive documents, and template CRUD.
+   * SUPER_ADMIN / OFFICE_ADMIN (office/admin generate + upload). */
+  DOCUMENT_MANAGE: "document:manage",
+  /** Approve a GENERATED/UPLOADED document → APPROVED (the visibility gate).
+   * SUPER_ADMIN / OFFICE_ADMIN. */
+  DOCUMENT_APPROVE: "document:approve",
+  /** List + download documents. Admin → all; teacher → own-section (view-only,
+   * APPROVED); parent → own child (APPROVED). SA/OA/T/P (service scope + status). */
+  DOCUMENT_READ: "document:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -270,6 +281,10 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.FEE_READ,
     PERMISSIONS.PAYMENT_RECORD,
     PERMISSIONS.PAYMENT_READ,
+    // M15: full document lifecycle — generate/upload/approve/archive + templates (ADR-023 §6).
+    PERMISSIONS.DOCUMENT_MANAGE,
+    PERMISSIONS.DOCUMENT_APPROVE,
+    PERMISSIONS.DOCUMENT_READ,
   ],
   // OFFICE_ADMIN: full academic + People management (M3) + Attendance (M4), school-wide.
   OFFICE_ADMIN: [
@@ -308,6 +323,10 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.FEE_READ,
     PERMISSIONS.PAYMENT_RECORD,
     PERMISSIONS.PAYMENT_READ,
+    // M15: full document lifecycle — generate/upload/approve/archive + templates (ADR-023 §6).
+    PERMISSIONS.DOCUMENT_MANAGE,
+    PERMISSIONS.DOCUMENT_APPROVE,
+    PERMISSIONS.DOCUMENT_READ,
   ],
   // TEACHER: reads academic structure + reads students/enrollments/documents in
   // their OWN sections and their OWN staff profile (row-scope in the service).
@@ -355,6 +374,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.BEHAVIOUR_READ,
     // M13: reads invoices/dues for own-section students, read-only (ADR-021 §7). No payment access.
     PERMISSIONS.FEE_READ,
+    // M15: views APPROVED documents for own-section students, read-only (ADR-023 §6).
+    PERMISSIONS.DOCUMENT_READ,
   ],
   // PARENT: reads only their OWN children (students/enrollments/documents) and
   // their OWN parent record (row-scope in the service). M4: reads own child's
@@ -389,6 +410,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     // M13: reads own child's invoices/dues + payment receipts (the fee portal; ADR-021 §7).
     PERMISSIONS.FEE_READ,
     PERMISSIONS.PAYMENT_READ,
+    // M15: downloads own child's APPROVED documents/certificates (ADR-023 §6).
+    PERMISSIONS.DOCUMENT_READ,
   ],
   ACCOUNTANT: [...SELF_PROFILE, PERMISSIONS.NOTIFICATION_MANAGE_OWN],
 };

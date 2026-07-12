@@ -4,13 +4,14 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Milestone
 
-**M13 — Fees & Payment Management** (ADR-021; the fee system over frozen M1–M12). The
-**first money domain** — money is `Int` **paise**. `FeeStructure`→`FeeComponent` (Cascade)
-+ `Invoice`→`Payment` (Restrict, append-only); DRAFT→ISSUED→PARTIAL→PAID (immutable after
-PAID) · CANCELLED; total snapshotted at generate; idempotent section generation; OVERDUE
-compute-on-read; issue/record → M10 `INVOICE_ISSUED`/`PAYMENT_RECEIVED`. Parents view-only
-(no gateway); admins record. **Permission-only, no flag.** **M13 Steps 1–9 COMPLETE —
-awaiting approval.** History below (see Next Task for the detailed note).
+**M15 — Documents, Certificates & Downloads** (ADR-023; per-student document center over
+frozen M1–M14). **2 additive tables** `Document` + `DocumentTemplate`, 3 permissions
+(`document:manage`/`approve`/`read`), new private bucket `documents` (60s signed URLs).
+**Distinct from M3 `StudentDocument`** (KYC uploads). Lifecycle GENERATED/UPLOADED→APPROVED→
+ARCHIVED; **generation metadata-first** — `snapshotJson` freezes issue-time values (ADR-014
+snapshot philosophy), rendering deferred; upload path fully working; **APPROVED-only**
+visibility for teachers (own-section) + parents (own-child). **Permission-only, no flag.**
+**M15 Steps 1–9 COMPLETE — awaiting approval.** History below (see Next Task for the detailed note).
 
 <details><summary>Prior milestone — M6 Homework & Assignment Management</summary>
 
@@ -226,6 +227,29 @@ tasks** (business 207, api 266, validation 50); mobile ios export ✓ (Step 7).
 
 ## Next Task
 
+**STOPPED — M15 (Documents, Certificates & Downloads, ADR-023) COMPLETE, all 9 steps shipped; awaiting milestone approval
+to freeze.** A per-student **document center** over frozen M1–M14 — issued certificates + office uploads with an approval
+lifecycle. Additive: **2 tables** `Document` + `DocumentTemplate`, 2 enums (`DocumentType` 9 · `DocumentStatus`
+GENERATED/UPLOADED/APPROVED/ARCHIVED), **3 permissions** (`document:manage`/`approve`/`read`), new private bucket
+`documents` (**60s** signed URLs). **Distinct from M3 `StudentDocument`** (KYC uploads, type-visibility — untouched).
+**Generation is metadata-first** (no PDF renderer exists — M7/M14 both deferred it): `document.generate` freezes
+`snapshotJson` (name/admissionNo + current class/section/year) at issue time so a later profile change can't rewrite an
+issued certificate (**ADR-014 snapshot philosophy**); `storagePath` nullable (metadata-only GENERATED docs carry no file —
+mirrors `ReportCard.pdfPath`), `hasFile` on the DTO. The **upload path is fully working** (mint→`uploadToSignedUrl`→
+`createUploaded`). Lifecycle GENERATED/UPLOADED→APPROVED→ARCHIVED; **delete drafts only**; **APPROVED-only** visibility for
+teachers (own-section, `teaches_student`) + parents (own-child, `is_my_child`) — a service filter; RLS coarse
+defense-in-depth (admin ALL / teacher own-section read / parent own-child read / anon none — **11/11 empirically proven**).
+`document.*` (9) + `documentTemplate.*` (3) thin routers; mobile `(app)/documents` picker→grouped-by-type center (Open =
+60s URL; admin generate/approve/archive/delete; upload web-only); web `/documents` admin console (filters, Generate/Upload
+modals, approval workflow, CSV export, Preview) + `/documents/templates` CRUD + read-only teacher/parent view. Every
+mutation audited. Purely additive (`migrate diff` **zero-ALTER** on any frozen table, zero drift). Gate green:
+lint/typecheck 14/14 · test (**business 445, api 383**) · db:validate ✓ · web build ✓ (40/40) · mobile typecheck ✓.
+**Deferred:** the certificate renderer (HTML/PDF — the reserved `DocumentTemplate.body` + `storagePath` seam), bulk
+generation, version history, eSign/DigiLocker. Docs: `docs/features/documents.md`, `docs/status/Documents.md`,
+`docs/milestones/M15.md`, ADR-023.
+
+<details><summary>Prior — M14 &amp; M13 next-task notes</summary>
+
 **STOPPED — M14 (Analytics & Reporting, ADR-022) COMPLETE — awaiting approval.** Read-only analytics + dashboards over
 frozen M1–M13, **purely additive with ZERO schema change**. **No new permission:** every analytics query reuses its
 domain's existing read + scope (`attendance`/`marks`/`fee`/`report_card`/`behaviour`/`student:read`), with an **admin
@@ -259,6 +283,8 @@ drift, fresh deploy 26 migrations). Gate green: lint/typecheck 14/14 · test (**
 mobile typecheck ✓ · web build ✓ (38/38). **Deferred:** online gateway, refunds, concessions, overdue reminder/scheduler,
 stored receipt PDF. **Supersedes** the Dev PRD Razorpay/`fees`-flag/ACCOUNTANT placeholder. Docs:
 `docs/features/fees.md`, `docs/status/Fees.md`, `docs/milestones/M13.md`.
+
+</details>
 
 <details><summary>Prior — M12 next-task note</summary>
 

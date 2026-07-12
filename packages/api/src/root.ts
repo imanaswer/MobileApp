@@ -20,6 +20,8 @@ import { authRouter } from "./routers/auth";
 import { behaviourRouter } from "./routers/behaviour";
 import { calendarRouter } from "./routers/calendar";
 import { classTeacherRouter } from "./routers/class-teacher";
+import { documentRouter } from "./routers/document";
+import { documentTemplateRouter } from "./routers/document-template";
 import { assessmentRouter, examRouter, gradeScaleRouter, markRouter } from "./routers/exam";
 import { feeRouter } from "./routers/fee";
 import { homeworkRouter, submissionRouter } from "./routers/homework";
@@ -84,6 +86,8 @@ export const appRouter = router({
   fee: feeRouter,
   payment: paymentRouter,
   analytics: analyticsRouter,
+  document: documentRouter,
+  documentTemplate: documentTemplateRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -62,6 +62,8 @@ describe("authorization policy", () => {
       // M13: read own child's invoices/dues + payment receipts (the fee portal).
       PERMISSIONS.FEE_READ,
       PERMISSIONS.PAYMENT_READ,
+      // M15: download own child's APPROVED documents/certificates.
+      PERMISSIONS.DOCUMENT_READ,
     ]);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.USER_SET_ROLE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.ANNOUNCEMENT_SEND);

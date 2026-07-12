@@ -121,6 +121,28 @@ automated test suite cannot run, since no bucket exists in CI):**
 
 If all four hold, the M6 storage round-trip is proven end-to-end against live infra.
 
+## 3d. Storage buckets (M15 — documents & certificates)
+
+Create the **private** bucket the document center uses (ADR-023 §1; same ADR-004
+posture — server-minted signed URLs only, **60-second** read expiry, authz in the
+business layer). Distinct from `student-documents` (M3 KYC uploads):
+
+- Dashboard → Storage → New bucket → name **`documents`** → Public **OFF**.
+- Or via API: `POST /storage/v1/bucket` with `{"name":"documents","public":false}`
+  (service-role key).
+
+Server-minted only (`document.uploadUrl`/`document.downloadUrl`). Paths are
+server-chosen and namespaced by `schoolId`. Keep private; never enable public access.
+
+**Verification (once after provisioning — CI cannot run it, no bucket exists there):**
+
+1. As **office/admin**, upload a certificate for a student → confirm upload succeeds
+   and, once **APPROVED**, **Open** returns the file (60s signed URL).
+2. As the **parent** of that child, open the document center → confirm the APPROVED
+   document opens; a **draft** (GENERATED/UPLOADED) is not visible.
+3. **Negative check:** a *different* parent (not linked to the child) must NOT be able
+   to open it (the service returns Forbidden before any URL is minted).
+
 ## 4. Ongoing user provisioning
 
 Single-user Admin-API provisioning (M1 decision D3) until the admin UI lands (M2+):
