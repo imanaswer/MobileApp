@@ -438,3 +438,13 @@ Indexes `[studentId, type]`, `[schoolId, status]`, `[schoolId, createdAt]`. New 
 `migrate diff` shows only the two CREATEs, **zero ALTER on any frozen table**. RLS is **coarse** (admin ALL / teacher
 own-section read (`teaches_student`) / parent own-child read (`is_my_child`) / anon none; the APPROVED-only narrowing is a
 business filter). Migrations: `20260712050000_documents_management` (structural) + `20260712060000_documents_rls`.
+
+**M16 note (ADR-024):** three additive **standalone** config tables — `BrandingSettings`, `SchoolSettings`,
+`SystemSettings` — each with `schoolId @unique` = **one row per school** (upsert). **No relational FKs** (loose
+`schoolId` per ADR-008 + loose `updatedByUserId` actor — StudentDocument idiom); no back-relations, no edges (dashed
+notes only). **No enum added** — `SystemSettings.language` reuses the frozen `Locale` enum. `SystemSettings` defaults:
+`timezone "Asia/Kolkata"`, `language EN`, `theme "light"`, `workingDays Int[] {1,2,3,4,5}`. `SchoolSettings.academicDefaults`
+is `Json?`. `migrate diff` shows only the three CREATEs, **zero ALTER on any frozen table**. RLS is **coarse** (reuses
+`is_academic_admin()`): `BrandingSettings` = admin ALL + **any-authenticated SELECT** (broadly readable);
+`SchoolSettings`/`SystemSettings` = admin ALL only; anon none. New private bucket `branding` (signed on read).
+Migrations: `20260712070000_school_configuration` (structural) + `20260712070100_settings_rls`.

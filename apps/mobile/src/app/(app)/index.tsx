@@ -46,6 +46,7 @@ export default function AppHome() {
   const canManageFees = has(PERMISSIONS.FEE_MANAGE);
   const canReadDocuments = has(PERMISSIONS.DOCUMENT_READ);
   const canManageDocuments = has(PERMISSIONS.DOCUMENT_MANAGE);
+  const canManageSettings = has(PERMISSIONS.SETTINGS_MANAGE);
 
   // Today-context, from existing queries only.
   const children = trpc.student.list.useQuery(undefined, { enabled: isParent });
@@ -343,6 +344,13 @@ export default function AppHome() {
             {canReadCalendar ? <NavLink href="/calendar" label="School calendar" /> : null}
           </NavCard>
         ) : null}
+
+        <NavCard title="Settings">
+          <NavLink
+            href="/settings"
+            label={canManageSettings ? "School configuration" : "Preferences"}
+          />
+        </NavCard>
 
         <Pressable
           accessibilityRole="button"

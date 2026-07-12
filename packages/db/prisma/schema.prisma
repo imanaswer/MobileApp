@@ -1942,3 +1942,70 @@ model Document {
   @@index([schoolId, status]) // admin console filter (brief: status)
   @@index([schoolId, createdAt]) // recent-first lists (brief: createdAt)
 }
+
+// ---------- M16 School Administration & Configuration (ADR-024) ----------
+// THREE additive config tables over frozen M1–M15. Each is keyed schoolId @unique
+// → EXACTLY ONE row per school ("single configuration row per school"); a write is
+// an upsert. The frozen M1 `School` row (settings/logoUrl/defaultLocale) is NOT
+// reused (ADR-024 §2). No relational FKs: schoolId is a loose tenant scalar
+// (ADR-008) and updatedByUserId is a loose actor scalar (the M3 *ByUserId idiom) —
+// so the brief's "Restrict FKs" is vacuous here (any FK, if added, would Restrict).
+// Config INFLUENCES ONLY FUTURE ACTIONS and is read by NO frozen engine in v1
+// (ADR-024 §5); several fields are stored-but-inert until a future per-domain wire.
+// Every mutation writes AuditLog in the same transaction (ADR-007). RLS: Step 3.
+
+// The one BROADLY-READABLE table (any authenticated user — a parent's app renders
+// the logo/name/colours). logoPath is a PRIVATE `branding` bucket path, signed on
+// read (ADR-004); never a URL (DB conventions §4).
+model BrandingSettings {
+  id              String   @id @default(cuid())
+  schoolId        String   @unique // loose tenant ref (ADR-008); one row per school
+  logoPath        String? // PRIVATE bucket path, signed on read; null until uploaded
+  primaryColor    String? // hex, e.g. "#1d4ed8"
+  secondaryColor  String?
+  displayName     String? // school display-name override (branding); null → School.name
+  updatedByUserId String? // loose actor ref (M3 *ByUserId idiom)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  // + raw SQL: RLS ON — admin ALL; any authenticated SELECT; anon none (settings_rls, Step 3)
+}
+
+// ADMIN-ONLY. School profile + academic defaults + numbering (ADR-024 §3 — the
+// AcademicSettings group is folded in here, same admin audience). academicDefaults
+// is a RESERVED Json escape-hatch for the compound report-card/attendance/grading
+// defaults NO engine reads yet (ADR-024 §4/§5); the scalars the console edits are
+// typed columns. invoicePrefix/certificatePrefix are stored but NOT wired into the
+// frozen M13/M15 generators in v1 (ADR-024 §5 — a future per-domain change).
+model SchoolSettings {
+  id                     String   @id @default(cuid())
+  schoolId               String   @unique // loose tenant ref (ADR-008); one row per school
+  contactEmail           String?
+  contactPhone           String?
+  website                String?
+  principalName          String?
+  academicYearStartMonth Int? // 1–12; a future academic-year default
+  invoicePrefix          String? // stored; not wired to M13 in v1 (ADR-024 §5)
+  certificatePrefix      String? // stored; not wired to M15 in v1 (ADR-024 §5)
+  academicDefaults       Json? // RESERVED: report-card/attendance/grading/promotion defaults (ADR-024 §4)
+  updatedByUserId        String? // loose actor ref (M3 *ByUserId idiom)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  // + raw SQL: RLS ON — admin ALL; teacher/parent none; anon none (settings_rls, Step 3)
+}
+
+// ADMIN-ONLY. Localization/technical defaults. language reuses the frozen Locale
+// enum (no new enum). timezone/language/theme are stored but read by no frozen
+// engine in v1 (ADR-024 §5 — IST stays hard-coded; new M16 surfaces may read theme).
+// workingDays is a Postgres native Int[] (0=Sun … 6=Sat), default Mon–Fri.
+model SystemSettings {
+  id              String   @id @default(cuid())
+  schoolId        String   @unique // loose tenant ref (ADR-008); one row per school
+  timezone        String   @default("Asia/Kolkata")
+  language        Locale   @default(EN)
+  theme           String   @default("light")
+  workingDays     Int[]    @default([1, 2, 3, 4, 5])
+  updatedByUserId String? // loose actor ref (M3 *ByUserId idiom)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  // + raw SQL: RLS ON — admin ALL; teacher/parent none; anon none (settings_rls, Step 3)
+}

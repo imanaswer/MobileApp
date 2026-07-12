@@ -5,7 +5,7 @@ import type { UserProfile } from "@repo/types";
 import type { Principal } from "../authorization";
 
 // UI locales are lowercase (BCP47); the DB `Locale` enum is uppercase.
-const TO_APP_LOCALE: Record<"EN" | "ML", LocaleCode> = { EN: "en", ML: "ml" };
+export const TO_APP_LOCALE: Record<"EN" | "ML", LocaleCode> = { EN: "en", ML: "ml" };
 export const TO_DB_LOCALE: Record<LocaleCode, "EN" | "ML"> = { en: "EN", ml: "ML" };
 
 /**

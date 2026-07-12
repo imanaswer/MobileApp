@@ -1011,3 +1011,40 @@ export const listDocumentTemplatesInput = z.object({
   active: z.boolean().optional(),
 });
 export type ListDocumentTemplatesInput = z.infer<typeof listDocumentTemplatesInput>;
+
+// ---- M16 School Administration & Configuration (ADR-024) ----
+// Patch inputs — every field optional; `.nullish()` clears an admin-set value.
+
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "Must be a #RRGGBB hex colour");
+const themeSchema = z.enum(["light", "dark", "system"]);
+
+export const updateBrandingInput = z.object({
+  logoPath: shortText(500).nullish(),
+  primaryColor: hexColor.nullish(),
+  secondaryColor: hexColor.nullish(),
+  displayName: shortText(120).nullish(),
+});
+export type UpdateBrandingInput = z.infer<typeof updateBrandingInput>;
+
+export const brandingLogoUploadUrlInput = z.object({ fileName: shortText(255) });
+export type BrandingLogoUploadUrlInput = z.infer<typeof brandingLogoUploadUrlInput>;
+
+export const updateSchoolSettingsInput = z.object({
+  contactEmail: z.string().trim().email().max(255).nullish(),
+  contactPhone: phoneSchema.nullish(),
+  website: shortText(255).nullish(),
+  principalName: shortText(120).nullish(),
+  academicYearStartMonth: z.number().int().min(1).max(12).nullish(),
+  invoicePrefix: shortText(16).nullish(),
+  certificatePrefix: shortText(16).nullish(),
+  academicDefaults: z.record(z.string(), z.unknown()).optional(),
+});
+export type UpdateSchoolSettingsInput = z.infer<typeof updateSchoolSettingsInput>;
+
+export const updateSystemSettingsInput = z.object({
+  timezone: z.string().trim().min(1).max(64).optional(),
+  language: localeSchema.optional(),
+  theme: themeSchema.optional(),
+  workingDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
+});
+export type UpdateSystemSettingsInput = z.infer<typeof updateSystemSettingsInput>;

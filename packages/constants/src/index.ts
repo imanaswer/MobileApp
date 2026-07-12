@@ -57,6 +57,9 @@ export const STORAGE_BUCKETS = {
   /** Issued/uploaded certificates & documents (M15, ADR-023 §1). Private; signed
    * 60s on read; provisioned via runbook. Distinct from STUDENT_DOCUMENTS (M3 KYC). */
   DOCUMENTS: "documents",
+  /** School branding logo (M16, ADR-024 §1). Private; signed on read; provisioned
+   * via runbook. logoPath stored on BrandingSettings; never a public URL. */
+  BRANDING: "branding",
 } as const;
 export type StorageBucketKey = (typeof STORAGE_BUCKETS)[keyof typeof STORAGE_BUCKETS];
 

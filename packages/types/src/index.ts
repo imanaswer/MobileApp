@@ -923,3 +923,49 @@ export interface DocumentTemplateDto {
   createdAt: IsoUtcString;
   updatedAt: IsoUtcString;
 }
+
+// ---- M16 School Administration & Configuration (ADR-024) ----
+
+/** Branding — the broadly-readable config group (logo/name/colours). Null fields
+ * fall back to School defaults in the UI. `logoPath` is a private bucket path; the
+ * client fetches a signed URL via `branding.logoUrl`, never the raw path. */
+export interface BrandingDto {
+  logoPath: string | null;
+  primaryColor: string | null;
+  secondaryColor: string | null;
+  displayName: string | null;
+  updatedAt: IsoUtcString | null;
+}
+
+/** School profile + academic defaults + numbering — ADMIN-ONLY (ADR-024 §3).
+ * `academicDefaults` is the reserved JSON escape-hatch (report-card/attendance/
+ * grading defaults) read by no engine in v1 (ADR-024 §5). */
+export interface SchoolSettingsDto {
+  contactEmail: string | null;
+  contactPhone: string | null;
+  website: string | null;
+  principalName: string | null;
+  academicYearStartMonth: number | null;
+  invoicePrefix: string | null;
+  certificatePrefix: string | null;
+  academicDefaults: Record<string, unknown> | null;
+  updatedAt: IsoUtcString | null;
+}
+
+/** Localization/technical defaults — ADMIN-ONLY. `language` reuses the Locale enum.
+ * Stored but read by no frozen engine in v1 (ADR-024 §5). */
+export interface SystemSettingsDto {
+  timezone: string;
+  language: LocaleCode;
+  theme: string;
+  workingDays: number[];
+  updatedAt: IsoUtcString | null;
+}
+
+/** The role-shaped PUBLIC projection any authenticated user may read (ADR-024 §6):
+ * branding + the display-relevant system defaults. Never exposes admin-only config. */
+export interface PublicSettingsDto {
+  branding: BrandingDto;
+  theme: string;
+  language: LocaleCode;
+}

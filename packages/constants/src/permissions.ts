@@ -190,6 +190,13 @@ export const PERMISSIONS = {
   /** List + download documents. Admin → all; teacher → own-section (view-only,
    * APPROVED); parent → own child (APPROVED). SA/OA/T/P (service scope + status). */
   DOCUMENT_READ: "document:read",
+
+  /* ---- M16 School Administration & Configuration (ADR-024 §6) — permission-only.
+   * ONE write permission; reads are a role-shaped service projection (branding +
+   * public settings for any authenticated; full config for admins), no read grant. */
+  /** Update branding/logo/school-profile/academic/system settings — the whole
+   * admin console. SUPER_ADMIN / OFFICE_ADMIN ("Office Admin: configured perms"). */
+  SETTINGS_MANAGE: "settings:manage",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -285,6 +292,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.DOCUMENT_MANAGE,
     PERMISSIONS.DOCUMENT_APPROVE,
     PERMISSIONS.DOCUMENT_READ,
+    // M16: manage all school configuration (ADR-024 §6).
+    PERMISSIONS.SETTINGS_MANAGE,
   ],
   // OFFICE_ADMIN: full academic + People management (M3) + Attendance (M4), school-wide.
   OFFICE_ADMIN: [
@@ -327,6 +336,8 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.DOCUMENT_MANAGE,
     PERMISSIONS.DOCUMENT_APPROVE,
     PERMISSIONS.DOCUMENT_READ,
+    // M16: manage all school configuration (ADR-024 §6 — "Office Admin: configured permissions").
+    PERMISSIONS.SETTINGS_MANAGE,
   ],
   // TEACHER: reads academic structure + reads students/enrollments/documents in
   // their OWN sections and their OWN staff profile (row-scope in the service).

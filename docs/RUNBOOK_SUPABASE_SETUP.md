@@ -143,6 +143,26 @@ server-chosen and namespaced by `schoolId`. Keep private; never enable public ac
 3. **Negative check:** a *different* parent (not linked to the child) must NOT be able
    to open it (the service returns Forbidden before any URL is minted).
 
+## 3e. Storage buckets (M16 — branding)
+
+Create the **private** bucket the branding/logo feature uses (ADR-024; same ADR-004
+posture — server-minted signed URLs only, **signed on read**, authz in the business
+layer). Distinct from `documents` (M15) and `student-documents` (M3 KYC uploads):
+
+- Dashboard → Storage → New bucket → name **`branding`** → Public **OFF**.
+- Or via API: `POST /storage/v1/bucket` with `{"name":"branding","public":false}`
+  (service-role key).
+
+Server-minted only (`branding.logoUploadUrl`/`branding.logoUrl`). Paths are
+server-chosen and namespaced by `schoolId`. Keep private; never enable public access.
+
+**Verification (once after provisioning — CI cannot run it, no bucket exists there):**
+
+1. As **office/admin** (`settings:manage`), upload a school logo → confirm upload
+   succeeds and the logo renders (signed read URL).
+2. As any **authenticated** non-admin, open Settings → confirm branding (logo/colours)
+   loads read-only via `branding.get`/`branding.logoUrl`.
+
 ## 4. Ongoing user provisioning
 
 Single-user Admin-API provisioning (M1 decision D3) until the admin UI lands (M2+):

@@ -4,6 +4,18 @@ _The single always-load file. Keep under 2 pages. Update when a step completes._
 
 ## Current Milestone
 
+**M16 — School Administration & Configuration** (ADR-024; admin panel over frozen M1–M15).
+**3 additive config tables** `SchoolSettings` + `BrandingSettings` + `SystemSettings` (each
+`schoolId @unique`, one row/school, upsert; no relational FK; `Locale` reused), **1 permission**
+`settings:manage` (SA/OA writes; reads are a role-shaped projection, no read grant), new private
+bucket `branding`. **`School` (M1) NOT reused** — frozen. Per-table split driven by RLS audience:
+Branding broadly-readable, School/System admin-only. **Config influences only future actions and
+is read by NO frozen engine in v1** (numbering/timezone/language/academic stored, wired later —
+ADR-014/023 seam-deferred posture). **Permission-only, no flag. M16 Steps 1–9 COMPLETE — awaiting
+approval.**
+
+<details><summary>Prior milestone — M15 Documents, Certificates & Downloads</summary>
+
 **M15 — Documents, Certificates & Downloads** (ADR-023; per-student document center over
 frozen M1–M14). **2 additive tables** `Document` + `DocumentTemplate`, 3 permissions
 (`document:manage`/`approve`/`read`), new private bucket `documents` (60s signed URLs).
@@ -12,6 +24,8 @@ ARCHIVED; **generation metadata-first** — `snapshotJson` freezes issue-time va
 snapshot philosophy), rendering deferred; upload path fully working; **APPROVED-only**
 visibility for teachers (own-section) + parents (own-child). **Permission-only, no flag.**
 **M15 Steps 1–9 COMPLETE — awaiting approval.** History below (see Next Task for the detailed note).
+
+</details>
 
 <details><summary>Prior milestone — M6 Homework & Assignment Management</summary>
 
@@ -227,6 +241,30 @@ tasks** (business 207, api 266, validation 50); mobile ios export ✓ (Step 7).
 
 ## Next Task
 
+**STOPPED — M16 (School Administration & Configuration, ADR-024) COMPLETE, all 9 steps shipped; awaiting milestone
+approval to freeze.** A school administration panel over frozen M1–M15 — everything is **configuration**; no engine logic
+changes. Additive: **3 tables** `SchoolSettings` + `BrandingSettings` + `SystemSettings` (each `schoolId @unique` → one
+row/school, upsert; **no relational FK** — loose schoolId + loose `updatedByUserId`; `SystemSettings.language` reuses the
+frozen `Locale` enum; `workingDays Int[]` default Mon–Fri), **1 permission** `settings:manage` (SA/OA), new private bucket
+`branding`. **Frozen M1 `School` (settings/logoUrl/defaultLocale) NOT reused** (ADR-024 §2). **Per-table split is the RLS
+read-audience** (§3): `BrandingSettings` admin ALL + any-authenticated SELECT (the M11 SchoolCalendarEvent precedent — the
+one broadly-readable table), `SchoolSettings`/`SystemSettings` admin-only; `AcademicSettings` folded into `SchoolSettings`
+(JSON escape-hatch). Reads use **NO new permission** — a role-shaped service projection (`settings.getPublic` = branding +
+theme/language for any authenticated; `settings.get`/`configuration.get` = full admin config). **Config is INERT w.r.t.
+every frozen engine in v1** (numbering/timezone/language/academic stored but read by no engine — ADR-014/023 seam-deferred;
+wiring is a future per-domain change). Business `services/settings/*` (brandingService/settingsService/configurationService,
+audited upserts, locale round-trip via `TO_APP/DB_LOCALE`); `settings.*`/`branding.*`/`configuration.*` (9 thin procedures,
+logo via `storageProcedure`); mobile `(app)/settings` (read branding+theme+language; admin edits theme+language inline;
+profile read-only) + home nav card; web `(app)/settings` admin console (branding+logo upload, profile+numbering+academic,
+system+working-week, CSV export) + read-only view + dashboard quick-link. RLS **15/15** empirical proofs. Purely additive
+(`migrate diff` zero-ALTER, zero drift). Gate green: lint/typecheck **35/35** · test (business +4, api +12) · db:validate ✓ ·
+mobile typecheck ✓ · web build **41/41** (`/settings`). **Deferred:** audit-history viewer + audit shortcut (no audit-read
+surface), wiring numbering/timezone/etc into frozen engines, mobile full-profile editing; "backup/export" = CSV export.
+Runbook: provision the private `branding` bucket before live logo uploads (§3e). **Permission-only, NO flag.** Docs:
+`docs/features/settings.md`, `docs/status/Settings.md`, `docs/milestones/M16.md`, ADR-024.
+
+<details><summary>Prior — M15 next-task note</summary>
+
 **STOPPED — M15 (Documents, Certificates & Downloads, ADR-023) COMPLETE, all 9 steps shipped; awaiting milestone approval
 to freeze.** A per-student **document center** over frozen M1–M14 — issued certificates + office uploads with an approval
 lifecycle. Additive: **2 tables** `Document` + `DocumentTemplate`, 2 enums (`DocumentType` 9 · `DocumentStatus`
@@ -247,6 +285,8 @@ lint/typecheck 14/14 · test (**business 445, api 383**) · db:validate ✓ · w
 **Deferred:** the certificate renderer (HTML/PDF — the reserved `DocumentTemplate.body` + `storagePath` seam), bulk
 generation, version history, eSign/DigiLocker. Docs: `docs/features/documents.md`, `docs/status/Documents.md`,
 `docs/milestones/M15.md`, ADR-023.
+
+</details>
 
 <details><summary>Prior — M14 &amp; M13 next-task notes</summary>
 

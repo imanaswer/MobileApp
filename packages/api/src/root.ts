@@ -35,6 +35,7 @@ import {
   teacherProfileRouter,
 } from "./routers/people";
 import { reportCardRouter } from "./routers/report-card";
+import { brandingRouter, configurationRouter, settingsRouter } from "./routers/settings";
 import { bellScheduleRouter, periodRouter, timetableRouter } from "./routers/timetable";
 import { publicProcedure, router } from "./trpc";
 
@@ -88,6 +89,9 @@ export const appRouter = router({
   analytics: analyticsRouter,
   document: documentRouter,
   documentTemplate: documentTemplateRouter,
+  settings: settingsRouter,
+  branding: brandingRouter,
+  configuration: configurationRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -93,6 +93,7 @@ export default function DashboardPage() {
       label: "Documents & certificates",
       show: can(role, PERMISSIONS.DOCUMENT_READ),
     },
+    { href: "/settings", label: "Administration", show: can(role, PERMISSIONS.SETTINGS_MANAGE) },
   ];
 
   return (

@@ -55,6 +55,9 @@ All ADRs live in `docs/architecture/`.
 - ADR-004 — Private Supabase Storage + signed URLs
 - ADR-023 — Documents, Certificates & Downloads (per-student issued-document center over frozen M1–M14; **two additive tables** `Document`/`DocumentTemplate`, new private bucket `documents` with **60s** signed URLs; **distinct from M3 `StudentDocument`** KYC store; lifecycle GENERATED/UPLOADED→APPROVED→ARCHIVED with **APPROVED-only** visibility for teachers/parents; **generation metadata-first** — `snapshotJson` freezes issue-time values (ADR-014 snapshot philosophy), no PDF renderer, rendering deferred; three new permissions `document:manage`/`approve`/`read`; every mutation audited) — **M15, implemented**
 
+**School administration / configuration**
+- ADR-024 — School Administration & Configuration (per-school settings over frozen M1–M15; **three additive standalone tables** `BrandingSettings`/`SchoolSettings`/`SystemSettings`, each `schoolId @unique` = one row per school, **no FKs**, no enum added — `SystemSettings.language` reuses `Locale`; new private bucket `branding` signed-on-read; **one new permission** `settings:manage` for writes, reads are a **role-shaped projection** with no read permission; values stored but read by no frozen engine in v1 — config influences future actions only) — **M16, implemented**. Code: `packages/business/src/services/settings`, `packages/api/src/routers/settings.ts` (mounted flat as `settings`/`branding`/`configuration`); migrations `20260712070000_school_configuration` + `20260712070100_settings_rls`; screens `apps/web/app/(app)/settings/page.tsx` + `apps/mobile/src/app/(app)/settings/index.tsx`
+
 **Add-on / optional features**
 - ADR-006 — Feature flags for add-ons
 

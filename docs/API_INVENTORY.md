@@ -466,6 +466,31 @@ fully working). Distinct from M3 `studentDocument.*` (KYC uploads).
 | `documentTemplate.create` | M | `document:manage` | new per-type template; ✓ audit |
 | `documentTemplate.update` | M | `document:manage` | rename / (de)activate; ✓ audit |
 
+## School Administration & Configuration (M16 — ADR-024, implemented; permission-only)
+
+Per-school settings over frozen M1–M15 — branding, school profile/numbering/academic defaults, and system prefs. Thin
+transport → business enforces the one write permission and a **role-shaped read projection** (any authenticated reads
+branding + public settings; admins read full config). Three additive tables (`BrandingSettings`/`SchoolSettings`/
+`SystemSettings`), each `schoolId @unique` = **one row per school** (upsert), **no relational FKs** (loose `schoolId` +
+loose `updatedByUserId`). New private bucket `branding` (signed on read). Mounted flat in `root.ts` as
+`settings`/`branding`/`configuration`. Reads use **NO new permission**; the sole write permission is `settings:manage`.
+Values stored but read by **no frozen engine in v1** (config influences future actions only, ADR-024 §5).
+
+| Procedure | T | Permission | Notes |
+|---|---|---|---|
+| `settings.getPublic` | Q | any authenticated | `PublicSettingsDto` `{branding, theme, language}` — the role-shaped read projection |
+| `settings.get` | Q | `settings:manage` (admin) | full `SchoolSettingsDto` |
+| `settings.update` | M | `settings:manage` | upsert → `SchoolSettingsDto` |
+| `branding.get` | Q | any authenticated | `BrandingDto` (broadly readable) |
+| `branding.update` | M | `settings:manage` | upsert → `BrandingDto` |
+| `branding.logoUploadUrl` | M | `settings:manage` (storage) | mint signed **upload** URL → `{storagePath, signedUrl, token}` (`branding` bucket) |
+| `branding.logoUrl` | M | any authenticated (storage) | mint signed **read** URL → `{url}` |
+| `configuration.get` | Q | `settings:manage` (admin) | full `SystemSettingsDto` |
+| `configuration.update` | M | `settings:manage` | upsert → `SystemSettingsDto` |
+
+Zod inputs in `@repo/validation`: `updateBrandingInput`, `brandingLogoUploadUrlInput`, `updateSchoolSettingsInput`,
+`updateSystemSettingsInput`.
+
 ## Add-on routers (flag-gated: check flag → FORBIDDEN when off)
 
 | Procedure | Flag | T | Permission | Audit | Notif |

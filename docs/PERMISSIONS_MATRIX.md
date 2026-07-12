@@ -274,6 +274,23 @@ service; RLS is defense-in-depth (admin ALL / teacher own-section read / parent 
   philosophy) and has no rendered file until rendering lands; the upload path is fully working. No PDF renderer.
 - **Accountants:** none (out of scope). **No feature flag.**
 
+### School Administration & Configuration (M16, ADR-024 — implemented)
+
+Built as **M16** (see `docs/milestones/M16.md`). **Permission-only — no feature flag.** Per-school settings
+(branding + school profile/numbering/academic defaults + system prefs) over frozen M1–M15. Three additive tables
+(`BrandingSettings`/`SchoolSettings`/`SystemSettings`), each `schoolId @unique` = one row per school, new private
+bucket `branding` (signed on read). RLS: `BrandingSettings` = admin ALL + **any-authenticated SELECT** (broadly
+readable); `SchoolSettings`/`SystemSettings` = admin ALL only; anon none — reuses `is_academic_admin()`.
+
+| Permission | SA | OA | T | P | AC |
+|---|---|---|---|---|---|
+| `settings:manage` (branding + school + system writes) | any | school | – | – | – |
+
+- **Reads use NO permission — a role-shaped service projection.** Any authenticated user reads branding + public
+  settings via `settings.getPublic` (+ `branding.get`/`branding.logoUrl`); admins (`settings:manage`) read the full
+  config (`settings.get`/`configuration.get`). Only writes gate on `settings:manage` (SA/OA only).
+- **No new read permission, no feature flag.** `SystemSettings.language` reuses the frozen `Locale` enum (no enum added).
+
 ### Timetable Management (M9, ADR-017 — implemented)
 
 Built as **M9** (see `docs/milestones/M9.md`). **Permission-only — the `timetable` flag is NOT used**

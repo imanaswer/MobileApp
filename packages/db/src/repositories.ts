@@ -42,6 +42,10 @@ import {
   type BellScheduleRepository,
 } from "./repositories/bell-schedule.repository";
 import {
+  createBrandingSettingsRepository,
+  type BrandingSettingsRepository,
+} from "./repositories/branding-settings.repository";
+import {
   createCalendarEventRepository,
   type CalendarEventRepository,
 } from "./repositories/calendar-event.repository";
@@ -113,6 +117,10 @@ import {
   createReportCardRepository,
   type ReportCardRepository,
 } from "./repositories/report-card.repository";
+import {
+  createSchoolSettingsRepository,
+  type SchoolSettingsRepository,
+} from "./repositories/school-settings.repository";
 import { createSectionRepository, type SectionRepository } from "./repositories/section.repository";
 import { createStaffRepository, type StaffRepository } from "./repositories/staff.repository";
 import {
@@ -129,6 +137,10 @@ import {
   createSubmissionAttachmentRepository,
   type SubmissionAttachmentRepository,
 } from "./repositories/submission-attachment.repository";
+import {
+  createSystemSettingsRepository,
+  type SystemSettingsRepository,
+} from "./repositories/system-settings.repository";
 import {
   createTeacherAssignmentRepository,
   type TeacherAssignmentRepository,
@@ -191,6 +203,9 @@ export * from "./repositories/behaviour-incident.repository";
 export * from "./repositories/fee-structure.repository";
 export * from "./repositories/invoice.repository";
 export * from "./repositories/payment.repository";
+export * from "./repositories/branding-settings.repository";
+export * from "./repositories/school-settings.repository";
+export * from "./repositories/system-settings.repository";
 export type { DbClient } from "./db-client";
 
 /** Aggregate of repositories injected into services via `ServiceContext`. */
@@ -240,6 +255,9 @@ export interface Repositories {
   payments: PaymentRepository;
   documents: DocumentRepository;
   documentTemplates: DocumentTemplateRepository;
+  brandingSettings: BrandingSettingsRepository;
+  schoolSettings: SchoolSettingsRepository;
+  systemSettings: SystemSettingsRepository;
 }
 
 export function createRepositories(client: DbClient): Repositories {
@@ -289,6 +307,9 @@ export function createRepositories(client: DbClient): Repositories {
     payments: createPaymentRepository(client),
     documents: createDocumentRepository(client),
     documentTemplates: createDocumentTemplateRepository(client),
+    brandingSettings: createBrandingSettingsRepository(client),
+    schoolSettings: createSchoolSettingsRepository(client),
+    systemSettings: createSystemSettingsRepository(client),
   };
 }
 
