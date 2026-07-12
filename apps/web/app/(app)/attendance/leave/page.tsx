@@ -1,6 +1,8 @@
 "use client";
 
-import { smallDangerBtn, smallGhostBtn, TableShell } from "@/src/components/academic/ui";
+import { CalendarClock } from "lucide-react";
+
+import { Button, type Column, DataTable, EmptyState, useToast } from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /**
@@ -9,54 +11,81 @@ import { trpc } from "@/src/trpc/react";
  * — approved leave only biases the marking default (ADR-011 §7).
  */
 export default function LeaveApprovalPage() {
+  const { show } = useToast();
   const pending = trpc.leave.listPending.useQuery();
   const utils = trpc.useUtils();
   const decide = trpc.leave.decide.useMutation({
-    onSuccess: () => void utils.leave.listPending.invalidate(),
+    onSuccess: (_data, variables) => {
+      show("success", variables.decision === "APPROVED" ? "Leave approved" : "Leave rejected");
+      return utils.leave.listPending.invalidate();
+    },
+    onError: (e) => show("error", e.message),
   });
 
   const rows = pending.data ?? [];
+  type Row = (typeof rows)[number];
+
+  const columns: Column<Row>[] = [
+    {
+      key: "student",
+      header: "Student",
+      render: (l) => <span className="font-medium text-neutral-800">{l.studentName}</span>,
+    },
+    {
+      key: "from",
+      header: "From",
+      render: (l) => <span className="text-neutral-500">{l.fromDate}</span>,
+    },
+    {
+      key: "to",
+      header: "To",
+      render: (l) => <span className="text-neutral-500">{l.toDate}</span>,
+    },
+    {
+      key: "reason",
+      header: "Reason",
+      render: (l) => <span className="text-neutral-500">{l.reason}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (l) => (
+        <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={decide.isPending}
+            onClick={() => decide.mutate({ leaveId: l.id, decision: "APPROVED" })}
+          >
+            Approve
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-danger-600 hover:bg-danger-50"
+            disabled={decide.isPending}
+            onClick={() => decide.mutate({ leaveId: l.id, decision: "REJECTED" })}
+          >
+            Reject
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-lg font-semibold text-foreground">Pending leave</h2>
-      <TableShell
-        head={["Student", "From", "To", "Reason", "Actions"]}
-        isLoading={pending.isLoading}
-        isError={pending.isError}
-        isEmpty={rows.length === 0}
-        emptyText="No pending leave requests."
-      >
-        {rows.map((leave) => (
-          <tr key={leave.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">{leave.studentName}</td>
-            <td className="px-4 py-3 text-muted-foreground">{leave.fromDate}</td>
-            <td className="px-4 py-3 text-muted-foreground">{leave.toDate}</td>
-            <td className="px-4 py-3 text-muted-foreground">{leave.reason}</td>
-            <td className="px-4 py-3">
-              <div className="flex gap-1">
-                <button
-                  type="button"
-                  disabled={decide.isPending}
-                  onClick={() => decide.mutate({ leaveId: leave.id, decision: "APPROVED" })}
-                  className={smallGhostBtn}
-                >
-                  Approve
-                </button>
-                <button
-                  type="button"
-                  disabled={decide.isPending}
-                  onClick={() => decide.mutate({ leaveId: leave.id, decision: "REJECTED" })}
-                  className={smallDangerBtn}
-                >
-                  Reject
-                </button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </TableShell>
-      {decide.error ? <p className="text-sm text-destructive">{decide.error.message}</p> : null}
+      <h2 className="text-title text-neutral-800">Pending leave</h2>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(l) => l.id}
+        loading={pending.isLoading}
+        error={pending.isError}
+        onRetry={() => pending.refetch()}
+        empty={<EmptyState icon={CalendarClock} title="No pending leave requests." />}
+      />
     </section>
   );
 }

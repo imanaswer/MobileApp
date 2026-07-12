@@ -3,27 +3,28 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { ClassDto } from "@repo/types";
+import { Plus, School } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
+import { Paginator, usePagedSearch } from "@/src/components/academic/ui";
 import {
-  ConfirmDelete,
-  inputClass,
-  labelClass,
-  ListToolbar,
-  Modal,
-  outlineBtn,
-  Paginator,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-  usePagedSearch,
-} from "@/src/components/academic/ui";
+  Button,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Input,
+  SearchInput,
+  TableToolbar,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /** Classes CRUD. Sections are managed on the class's detail page. */
 export default function ClassesPage() {
+  const { show } = useToast();
   const me = trpc.auth.me.useQuery();
   const canManage = me.data !== undefined && can(me.data.role, PERMISSIONS.ACADEMIC_MANAGE);
 
@@ -31,9 +32,27 @@ export default function ClassesPage() {
   const utils = trpc.useUtils();
   const invalidate = () => utils.class.list.invalidate();
 
-  const create = trpc.class.create.useMutation({ onSuccess: invalidate });
-  const update = trpc.class.update.useMutation({ onSuccess: invalidate });
-  const remove = trpc.class.delete.useMutation({ onSuccess: invalidate });
+  const create = trpc.class.create.useMutation({
+    onSuccess: () => {
+      show("success", "Class created");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const update = trpc.class.update.useMutation({
+    onSuccess: () => {
+      show("success", "Class updated");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.class.delete.useMutation({
+    onSuccess: () => {
+      show("success", "Class deleted");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [editing, setEditing] = useState<ClassDto | "new" | null>(null);
   const [deleting, setDeleting] = useState<ClassDto | null>(null);
@@ -43,83 +62,104 @@ export default function ClassesPage() {
     useCallback((item: ClassDto, q: string) => item.name.toLowerCase().includes(q), []),
   );
 
-  return (
-    <section className="flex flex-col gap-4">
-      <ListToolbar
-        searchValue={paged.query}
-        onSearch={paged.setQuery}
-        searchLabel="Search classes"
-        action={
-          canManage ? (
-            <button
-              type="button"
+  const columns: Column<ClassDto>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (item) => <span className="font-medium text-neutral-800">{item.name}</span>,
+    },
+    {
+      key: "sortOrder",
+      header: "Sort order",
+      render: (item) => <span className="text-neutral-500">{item.sortOrder}</span>,
+    },
+    {
+      key: "sections",
+      header: "Sections",
+      render: (item) => (
+        <Link
+          href={`/academic/classes/${item.id}`}
+          className="font-medium text-primary-700 hover:underline"
+        >
+          Manage sections
+        </Link>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (item) =>
+        canManage ? (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 create.reset();
                 update.reset();
-                setEditing("new");
+                setEditing(item);
               }}
-              className={primaryBtn}
             >
-              New class
-            </button>
-          ) : undefined
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger-600 hover:bg-danger-50"
+              onClick={() => {
+                remove.reset();
+                setDeleting(item);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : (
+          <span className="text-neutral-400">—</span>
+        ),
+    },
+  ];
+
+  return (
+    <section className="flex flex-col gap-4">
+      <DataTable
+        columns={columns}
+        rows={paged.pageItems}
+        rowKey={(item) => item.id}
+        loading={classes.isLoading}
+        error={classes.isError}
+        onRetry={() => classes.refetch()}
+        toolbar={
+          <TableToolbar
+            search={
+              <SearchInput value={paged.query} onChange={(e) => paged.setQuery(e.target.value)} />
+            }
+            actions={
+              canManage ? (
+                <Button
+                  icon={Plus}
+                  onClick={() => {
+                    create.reset();
+                    update.reset();
+                    setEditing("new");
+                  }}
+                >
+                  New class
+                </Button>
+              ) : undefined
+            }
+          />
         }
-      />
-
-      <TableShell
-        head={["Name", "Sort order", "Sections", "Actions"]}
-        isLoading={classes.isLoading}
-        isError={classes.isError}
-        isEmpty={paged.total === 0}
-        emptyText="No classes yet."
-      >
-        {paged.pageItems.map((item) => (
-          <tr key={item.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">{item.name}</td>
-            <td className="px-4 py-3 text-muted-foreground">{item.sortOrder}</td>
-            <td className="px-4 py-3">
-              <Link href={`/academic/classes/${item.id}`} className={smallGhostBtn}>
-                Manage sections
-              </Link>
-            </td>
-            <td className="px-4 py-3">
-              {canManage ? (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      create.reset();
-                      update.reset();
-                      setEditing(item);
-                    }}
-                    className={smallGhostBtn}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      remove.reset();
-                      setDeleting(item);
-                    }}
-                    className={smallDangerBtn}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </td>
-          </tr>
-        ))}
-      </TableShell>
-
-      <Paginator
-        page={paged.page}
-        pageCount={paged.pageCount}
-        total={paged.total}
-        onPage={paged.setPage}
+        empty={<EmptyState icon={School} title="No classes yet." />}
+        footer={
+          <Paginator
+            page={paged.page}
+            pageCount={paged.pageCount}
+            total={paged.total}
+            onPage={paged.setPage}
+          />
+        }
       />
 
       {editing !== null ? (
@@ -137,9 +177,10 @@ export default function ClassesPage() {
       ) : null}
 
       {deleting !== null ? (
-        <ConfirmDelete
+        <ConfirmDialog
           title="Delete class"
-          message={`Permanently delete “${deleting.name}”? Classes with sections cannot be deleted.`}
+          objectName={deleting.name}
+          message="Permanently delete this class? Classes with sections cannot be deleted —"
           busy={remove.isPending}
           error={remove.error?.message ?? null}
           onCancel={() => setDeleting(null)}
@@ -169,47 +210,41 @@ function ClassFormModal({
   const [sortOrder, setSortOrder] = useState(String(item?.sortOrder ?? 0));
 
   return (
-    <Modal title={item ? "Edit class" : "New class"} onClose={onClose}>
+    <Dialog title={item ? "Edit class" : "New class"} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit({ name: name.trim(), sortOrder: Number(sortOrder) });
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="Class 5"
-            required
-          />
-        </label>
-        <label className={labelClass}>
-          Sort order
-          <input
-            type="number"
-            step="1"
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Class 5"
+          required
+        />
+        <Input
+          label="Sort order"
+          type="number"
+          step="1"
+          value={sortOrder}
+          onChange={(e) => setSortOrder(e.target.value)}
+          required
+        />
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

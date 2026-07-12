@@ -3,22 +3,26 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { ParentDto, PreferredContactKey } from "@repo/types";
+import { Users } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { Paginator, usePagedSearch } from "@/src/components/academic/ui";
 import {
-  ConfirmDelete,
-  inputClass,
-  labelClass,
-  ListToolbar,
-  Modal,
-  outlineBtn,
-  Paginator,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-  usePagedSearch,
-} from "@/src/components/academic/ui";
+  Avatar,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Input,
+  PageHeader,
+  Select,
+  SearchInput,
+  StatusChip,
+  TableToolbar,
+  useToast,
+  type Column,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 const CONTACTS: readonly PreferredContactKey[] = ["PHONE", "EMAIL", "WHATSAPP"];
@@ -38,14 +42,33 @@ const CONTACT_LABEL: Record<PreferredContactKey, string> = {
 export default function ParentsPage() {
   const me = trpc.auth.me.useQuery();
   const canManage = me.data !== undefined && can(me.data.role, PERMISSIONS.PARENT_MANAGE);
+  const { show } = useToast();
 
   const parents = trpc.parent.list.useQuery();
   const utils = trpc.useUtils();
   const invalidate = () => utils.parent.list.invalidate();
 
-  const create = trpc.parent.create.useMutation({ onSuccess: invalidate });
-  const update = trpc.parent.update.useMutation({ onSuccess: invalidate });
-  const remove = trpc.parent.delete.useMutation({ onSuccess: invalidate });
+  const create = trpc.parent.create.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Parent created");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const update = trpc.parent.update.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Parent updated");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.parent.delete.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Parent deleted");
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [editing, setEditing] = useState<ParentDto | "new" | null>(null);
   const [deleting, setDeleting] = useState<ParentDto | null>(null);
@@ -61,83 +84,109 @@ export default function ParentsPage() {
     ),
   );
 
+  const columns: Column<ParentDto>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (p) => (
+        <div className="flex items-center gap-3">
+          <Avatar name={p.name} size="sm" />
+          <span className="font-medium text-neutral-800">{p.name}</span>
+        </div>
+      ),
+    },
+    { key: "phone", header: "Phone", render: (p) => p.phone },
+    { key: "email", header: "Email", render: (p) => p.email ?? "—" },
+    { key: "occupation", header: "Occupation", render: (p) => p.occupation ?? "—" },
+    {
+      key: "preferredContact",
+      header: "Preferred contact",
+      render: (p) => (
+        <StatusChip status={p.preferredContact} label={CONTACT_LABEL[p.preferredContact]} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (p) =>
+        canManage ? (
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                create.reset();
+                update.reset();
+                setEditing(p);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger-600 hover:bg-danger-50"
+              onClick={() => {
+                remove.reset();
+                setDeleting(p);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : (
+          <span className="text-neutral-500">—</span>
+        ),
+    },
+  ];
+
   return (
     <section className="flex flex-col gap-4">
-      <ListToolbar
-        searchValue={paged.query}
-        onSearch={paged.setQuery}
-        searchLabel="Search parents"
+      <PageHeader
+        title="Parents"
         action={
           canManage ? (
-            <button
-              type="button"
+            <Button
+              icon={Users}
               onClick={() => {
                 create.reset();
                 update.reset();
                 setEditing("new");
               }}
-              className={primaryBtn}
             >
               New parent
-            </button>
+            </Button>
           ) : undefined
         }
       />
 
-      <TableShell
-        head={["Name", "Phone", "Email", "Occupation", "Preferred contact", "Actions"]}
-        isLoading={parents.isLoading}
-        isError={parents.isError}
-        isEmpty={paged.total === 0}
-        emptyText="No parents yet."
-      >
-        {paged.pageItems.map((parent) => (
-          <tr key={parent.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">{parent.name}</td>
-            <td className="px-4 py-3 text-muted-foreground">{parent.phone}</td>
-            <td className="px-4 py-3 text-muted-foreground">{parent.email ?? "—"}</td>
-            <td className="px-4 py-3 text-muted-foreground">{parent.occupation ?? "—"}</td>
-            <td className="px-4 py-3 text-muted-foreground">
-              {CONTACT_LABEL[parent.preferredContact]}
-            </td>
-            <td className="px-4 py-3">
-              {canManage ? (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      create.reset();
-                      update.reset();
-                      setEditing(parent);
-                    }}
-                    className={smallGhostBtn}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      remove.reset();
-                      setDeleting(parent);
-                    }}
-                    className={smallDangerBtn}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </td>
-          </tr>
-        ))}
-      </TableShell>
-
-      <Paginator
-        page={paged.page}
-        pageCount={paged.pageCount}
-        total={paged.total}
-        onPage={paged.setPage}
+      <DataTable
+        columns={columns}
+        rows={paged.pageItems}
+        rowKey={(p) => p.id}
+        loading={parents.isLoading}
+        error={parents.isError}
+        onRetry={() => void parents.refetch()}
+        empty={<EmptyState icon={Users} title="No parents yet." />}
+        toolbar={
+          <TableToolbar
+            search={
+              <SearchInput
+                value={paged.query}
+                onChange={(e) => paged.setQuery(e.target.value)}
+                aria-label="Search parents"
+              />
+            }
+          />
+        }
+        footer={
+          <Paginator
+            page={paged.page}
+            pageCount={paged.pageCount}
+            total={paged.total}
+            onPage={paged.setPage}
+          />
+        }
       />
 
       {editing !== null ? (
@@ -179,9 +228,10 @@ export default function ParentsPage() {
       ) : null}
 
       {deleting !== null ? (
-        <ConfirmDelete
+        <ConfirmDialog
           title="Delete parent"
-          message={`Permanently delete “${deleting.name}”? Parents still linked to a student cannot be deleted — unlink them first.`}
+          objectName={deleting.name}
+          message="Permanently delete this parent? Parents still linked to a student cannot be deleted — unlink them first:"
           busy={remove.isPending}
           error={remove.error?.message ?? null}
           onCancel={() => setDeleting(null)}
@@ -226,7 +276,7 @@ function ParentFormModal({
   );
 
   return (
-    <Modal title={parent ? "Edit parent" : "New parent"} onClose={onClose}>
+    <Dialog title={parent ? "Edit parent" : "New parent"} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -239,81 +289,61 @@ function ParentFormModal({
             preferredContact,
           });
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <div className="grid grid-cols-2 gap-4">
+          <Input
+            label="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            inputMode="tel"
             required
           />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className={labelClass}>
-            Phone
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className={inputClass}
-              inputMode="tel"
-              required
-            />
-          </label>
-          <label className={labelClass}>
-            Email
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className={inputClass}
-            />
-          </label>
-        </div>
-        <label className={labelClass}>
-          Occupation
-          <input
-            value={occupation}
-            onChange={(e) => setOccupation(e.target.value)}
-            className={inputClass}
+          <Input
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
           />
-        </label>
-        <label className={labelClass}>
+        </div>
+        <Input
+          label="Occupation"
+          value={occupation}
+          onChange={(e) => setOccupation(e.target.value)}
+        />
+        <label className="flex flex-col gap-1 text-sm font-medium text-neutral-800">
           Address
           <textarea
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            className={`${inputClass} min-h-20`}
+            className="min-h-20 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600"
             rows={3}
           />
         </label>
-        <label className={labelClass}>
-          Preferred contact
-          <select
-            value={preferredContact}
-            onChange={(e) => setPreferredContact(e.target.value as PreferredContactKey)}
-            className={inputClass}
-          >
-            {CONTACTS.map((c) => (
-              <option key={c} value={c}>
-                {CONTACT_LABEL[c]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Preferred contact"
+          value={preferredContact}
+          onChange={(e) => setPreferredContact(e.target.value as PreferredContactKey)}
+        >
+          {CONTACTS.map((c) => (
+            <option key={c} value={c}>
+              {CONTACT_LABEL[c]}
+            </option>
+          ))}
+        </Select>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

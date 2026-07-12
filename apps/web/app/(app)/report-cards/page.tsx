@@ -3,18 +3,23 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { EnrollmentRosterRowDto, ReportCardKindKey, ReportCardStatusKey } from "@repo/types";
+import { FileText } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { KIND_LABEL } from "@/src/components/report-card/ui";
 import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
-import { KIND_LABEL, StatusBadge } from "@/src/components/report-card/ui";
+  Button,
+  DataTable,
+  Dialog,
+  EmptyState,
+  PageHeader,
+  Select,
+  StatusChip,
+  TableToolbar,
+  useToast,
+  type Column,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 const KINDS: readonly ReportCardKindKey[] = ["EXAM", "TERM", "ANNUAL"];
@@ -39,15 +44,15 @@ export default function ReportCardsPage() {
   const role = me.data?.role;
 
   if (me.isLoading) {
-    return <p className="p-6 text-muted-foreground">Loading…</p>;
+    return <p className="p-6 text-neutral-500">Loading…</p>;
   }
   if (role === undefined || !can(role, PERMISSIONS.REPORT_CARD_READ)) {
-    return <p className="p-6 text-muted-foreground">You don’t have access to report cards.</p>;
+    return <p className="p-6 text-neutral-500">You don’t have access to report cards.</p>;
   }
 
   return (
     <section className="flex flex-col gap-4 p-6">
-      <h1 className="text-2xl font-semibold text-foreground">Report cards</h1>
+      <PageHeader title="Report cards" />
       {role === "PARENT" ? (
         <ParentReportCards />
       ) : (
@@ -66,25 +71,18 @@ function ParentReportCards() {
 
   return (
     <div className="flex flex-col gap-4">
-      <label className={labelClass}>
-        Child
-        <select
-          value={studentId}
-          onChange={(e) => setStudentId(e.target.value)}
-          className={inputClass}
-        >
-          <option value="">Select a child…</option>
-          {rows.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.firstName} {s.lastName} · {s.admissionNo}
-            </option>
-          ))}
-        </select>
-      </label>
+      <Select label="Child" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+        <option value="">Select a child…</option>
+        {rows.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.firstName} {s.lastName} · {s.admissionNo}
+          </option>
+        ))}
+      </Select>
       {children.isLoading ? (
-        <p className="text-muted-foreground">Loading…</p>
+        <p className="text-neutral-500">Loading…</p>
       ) : rows.length === 0 ? (
-        <p className="text-muted-foreground">No children are linked to your account.</p>
+        <p className="text-neutral-500">No children are linked to your account.</p>
       ) : studentId ? (
         <ChildCards studentId={studentId} />
       ) : null}
@@ -101,39 +99,59 @@ function ChildCards({ studentId }: { studentId: string }) {
   );
 
   if (enrollments.isLoading) {
-    return <p className="text-muted-foreground">Loading…</p>;
+    return <p className="text-neutral-500">Loading…</p>;
   }
   if (active == null) {
-    return <p className="text-muted-foreground">No current enrollment for this child.</p>;
+    return <p className="text-neutral-500">No current enrollment for this child.</p>;
   }
+
+  const rows = cards.data ?? [];
+  type Row = (typeof rows)[number];
+  const columns: Column<Row>[] = [
+    {
+      key: "kind",
+      header: "Report card",
+      render: (c) => (
+        <span className="font-medium text-neutral-800">{KIND_LABEL[c.kind]} card</span>
+      ),
+    },
+    {
+      key: "rank",
+      header: "Rank",
+      render: (c) =>
+        c.rank != null && c.cohortSize != null ? `${c.rank} of ${c.cohortSize}` : "—",
+    },
+    {
+      key: "attendance",
+      header: "Attendance",
+      render: (c) => (c.attendancePercentage != null ? `${c.attendancePercentage}%` : "—"),
+    },
+    {
+      key: "gpa",
+      header: "GPA",
+      render: (c) => (c.gpaSnapshot != null ? c.gpaSnapshot.toFixed(2) : "—"),
+    },
+    {
+      key: "view",
+      header: "",
+      render: (c) => (
+        <Link href={`/report-cards/${c.id}`} className="text-sm font-medium text-primary-700">
+          View
+        </Link>
+      ),
+    },
+  ];
+
   return (
-    <TableShell
-      head={["Report card", "Rank", "Attendance", "GPA", ""]}
-      isLoading={cards.isLoading}
-      isError={cards.isError}
-      isEmpty={(cards.data ?? []).length === 0}
-      emptyText="No published report cards yet."
-    >
-      {(cards.data ?? []).map((c) => (
-        <tr key={c.id} className="border-b border-border last:border-b-0">
-          <td className="px-4 py-3 font-medium text-foreground">{KIND_LABEL[c.kind]} card</td>
-          <td className="px-4 py-3 text-foreground">
-            {c.rank != null && c.cohortSize != null ? `${c.rank} of ${c.cohortSize}` : "—"}
-          </td>
-          <td className="px-4 py-3 text-foreground">
-            {c.attendancePercentage != null ? `${c.attendancePercentage}%` : "—"}
-          </td>
-          <td className="px-4 py-3 text-foreground">
-            {c.gpaSnapshot != null ? c.gpaSnapshot.toFixed(2) : "—"}
-          </td>
-          <td className="px-4 py-3">
-            <Link href={`/report-cards/${c.id}`} className="text-sm font-medium text-primary">
-              View
-            </Link>
-          </td>
-        </tr>
-      ))}
-    </TableShell>
+    <DataTable
+      columns={columns}
+      rows={rows}
+      rowKey={(c) => c.id}
+      loading={cards.isLoading}
+      error={cards.isError}
+      onRetry={() => void cards.refetch()}
+      empty={<EmptyState icon={FileText} title="No published report cards yet." />}
+    />
   );
 }
 
@@ -193,121 +211,126 @@ function SectionReportCards({ canManage }: { canManage: boolean }) {
     .filter((c) => (statusFilter ? c.status === statusFilter : true))
     .filter((c) => (kindFilter ? c.kind === kindFilter : true));
 
-  const cardsLoading = cards.isLoading;
-  const cardsError = cards.isError;
   const sectionsLoading = classes.isLoading || sectionLists.some((q) => q.isLoading);
+
+  type Row = (typeof flat)[number];
+  const columns: Column<Row>[] = [
+    {
+      key: "student",
+      header: "Student",
+      render: (card) => (
+        <span className="text-neutral-800">
+          {card.studentName}
+          {card.rollNo != null ? (
+            <span className="text-neutral-500"> · Roll {card.rollNo}</span>
+          ) : null}
+        </span>
+      ),
+    },
+    { key: "kind", header: "Kind", render: (card) => KIND_LABEL[card.kind] },
+    { key: "version", header: "Version", render: (card) => `v${card.version}` },
+    { key: "status", header: "Status", render: (card) => <StatusChip status={card.status} /> },
+    {
+      key: "rank",
+      header: "Rank",
+      render: (card) =>
+        card.rank != null && card.cohortSize != null ? `${card.rank} of ${card.cohortSize}` : "—",
+    },
+    {
+      key: "open",
+      header: "",
+      render: (card) => (
+        <Link href={`/report-cards/${card.id}`} className="text-sm font-medium text-primary-700">
+          Open
+        </Link>
+      ),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <label className={labelClass}>
-          Academic year
-          <select
-            value={yearId}
-            onChange={(e) => setPickedYearId(e.target.value)}
-            className={inputClass}
-          >
-            {(years.data ?? []).map((y) => (
-              <option key={y.id} value={y.id}>
-                {y.name}
-                {y.status === "ACTIVE" ? " (active)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Section
-          <select
-            value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
-            className={inputClass}
-            disabled={sectionsLoading}
-          >
-            <option value="">Select a section…</option>
-            {visibleSections.map((s) => (
-              <option key={s.id} value={s.id}>
-                {label(s)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Kind
-          <select
-            value={kindFilter}
-            onChange={(e) => setKindFilter(e.target.value as "" | ReportCardKindKey)}
-            className={inputClass}
-          >
-            <option value="">All</option>
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Status
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as "" | ReportCardStatusKey)}
-            className={inputClass}
-          >
-            <option value="">All</option>
-            {STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        {canManage && sectionId ? (
-          <button type="button" onClick={() => setGenerating(true)} className={primaryBtn}>
-            Generate
-          </button>
-        ) : null}
-      </div>
-
-      {!sectionId ? (
-        <p className="text-muted-foreground">Pick a section to see its report cards.</p>
-      ) : (
-        <TableShell
-          head={["Student", "Kind", "Version", "Status", "Rank", ""]}
-          isLoading={cardsLoading}
-          isError={cardsError}
-          isEmpty={flat.length === 0}
-          emptyText="No report cards for this section yet."
-        >
-          {flat.map((card) => (
-            <tr key={card.id} className="border-b border-border last:border-b-0">
-              <td className="px-4 py-3 text-foreground">
-                {card.studentName}
-                {card.rollNo != null ? (
-                  <span className="text-muted-foreground"> · Roll {card.rollNo}</span>
-                ) : null}
-              </td>
-              <td className="px-4 py-3 text-foreground">{KIND_LABEL[card.kind]}</td>
-              <td className="px-4 py-3 text-foreground">v{card.version}</td>
-              <td className="px-4 py-3">
-                <StatusBadge status={card.status} />
-              </td>
-              <td className="px-4 py-3 text-foreground">
-                {card.rank != null && card.cohortSize != null
-                  ? `${card.rank} of ${card.cohortSize}`
-                  : "—"}
-              </td>
-              <td className="px-4 py-3">
-                <Link
-                  href={`/report-cards/${card.id}`}
-                  className="text-sm font-medium text-primary"
+      <DataTable
+        columns={columns}
+        rows={sectionId ? flat : []}
+        rowKey={(card) => card.id}
+        loading={sectionId ? cards.isLoading : false}
+        error={sectionId ? cards.isError : false}
+        onRetry={() => void cards.refetch()}
+        toolbar={
+          <TableToolbar
+            filters={
+              <>
+                <Select
+                  label="Academic year"
+                  value={yearId}
+                  onChange={(e) => setPickedYearId(e.target.value)}
                 >
-                  Open
-                </Link>
-              </td>
-            </tr>
-          ))}
-        </TableShell>
-      )}
+                  {(years.data ?? []).map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name}
+                      {y.status === "ACTIVE" ? " (active)" : ""}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="Section"
+                  value={sectionId}
+                  onChange={(e) => setSectionId(e.target.value)}
+                  disabled={sectionsLoading}
+                >
+                  <option value="">Select a section…</option>
+                  {visibleSections.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {label(s)}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="Kind"
+                  value={kindFilter}
+                  onChange={(e) => setKindFilter(e.target.value as "" | ReportCardKindKey)}
+                >
+                  <option value="">All</option>
+                  {KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {KIND_LABEL[k]}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as "" | ReportCardStatusKey)}
+                >
+                  <option value="">All</option>
+                  {STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </Select>
+              </>
+            }
+            actions={
+              canManage && sectionId ? (
+                <Button icon={FileText} onClick={() => setGenerating(true)}>
+                  Generate
+                </Button>
+              ) : undefined
+            }
+          />
+        }
+        empty={
+          <EmptyState
+            icon={FileText}
+            title={
+              sectionId
+                ? "No report cards for this section yet."
+                : "Pick a section to see its report cards."
+            }
+          />
+        }
+      />
 
       {generating ? (
         <GenerateModal yearId={yearId} roster={rosterRows} onClose={() => setGenerating(false)} />
@@ -325,6 +348,7 @@ function GenerateModal({
   roster: readonly EnrollmentRosterRowDto[];
   onClose: () => void;
 }) {
+  const { show } = useToast();
   const [enrollmentId, setEnrollmentId] = useState("");
   const [kind, setKind] = useState<ReportCardKindKey>("TERM");
   const [scopeId, setScopeId] = useState("");
@@ -339,8 +363,10 @@ function GenerateModal({
   const generate = trpc.reportCard.generate.useMutation({
     onSuccess: () => {
       void utils.reportCard.listForEnrollment.invalidate();
+      show("success", "Report card generated");
       onClose();
     },
+    onError: (e) => show("error", e.message),
   });
 
   const needsScope = kind !== "ANNUAL";
@@ -352,7 +378,7 @@ function GenerateModal({
         : [];
 
   return (
-    <Modal title="Generate report card" onClose={onClose}>
+    <Dialog title="Generate report card" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -365,70 +391,61 @@ function GenerateModal({
         }}
         className="flex flex-col gap-3"
       >
-        <label className={labelClass}>
-          Student
-          <select
-            value={enrollmentId}
-            onChange={(e) => setEnrollmentId(e.target.value)}
-            className={inputClass}
+        <Select
+          label="Student"
+          value={enrollmentId}
+          onChange={(e) => setEnrollmentId(e.target.value)}
+          required
+        >
+          <option value="">Select a student…</option>
+          {roster.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.studentName}
+              {e.rollNo != null ? ` · Roll ${e.rollNo}` : ""}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Kind"
+          value={kind}
+          onChange={(e) => {
+            setKind(e.target.value as ReportCardKindKey);
+            setScopeId("");
+          }}
+        >
+          {KINDS.map((k) => (
+            <option key={k} value={k}>
+              {KIND_LABEL[k]}
+            </option>
+          ))}
+        </Select>
+        {needsScope ? (
+          <Select
+            label={kind === "EXAM" ? "Exam" : "Term"}
+            value={scopeId}
+            onChange={(e) => setScopeId(e.target.value)}
             required
           >
-            <option value="">Select a student…</option>
-            {roster.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.studentName}
-                {e.rollNo != null ? ` · Roll ${e.rollNo}` : ""}
+            <option value="">Select…</option>
+            {scopeOptions.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Kind
-          <select
-            value={kind}
-            onChange={(e) => {
-              setKind(e.target.value as ReportCardKindKey);
-              setScopeId("");
-            }}
-            className={inputClass}
-          >
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {KIND_LABEL[k]}
-              </option>
-            ))}
-          </select>
-        </label>
-        {needsScope ? (
-          <label className={labelClass}>
-            {kind === "EXAM" ? "Exam" : "Term"}
-            <select
-              value={scopeId}
-              onChange={(e) => setScopeId(e.target.value)}
-              className={inputClass}
-              required
-            >
-              <option value="">Select…</option>
-              {scopeOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          </Select>
         ) : null}
         {generate.error ? (
-          <p className="text-sm text-destructive">{generate.error.message}</p>
+          <p className="text-sm text-danger-600">{generate.error.message}</p>
         ) : null}
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={generate.isPending} className={primaryBtn}>
-            {generate.isPending ? "Generating…" : "Generate"}
-          </button>
+          </Button>
+          <Button type="submit" loading={generate.isPending}>
+            Generate
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

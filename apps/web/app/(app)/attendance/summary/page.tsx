@@ -1,9 +1,10 @@
 "use client";
 
+import { Download, Users } from "lucide-react";
 import { useState } from "react";
 
-import { inputClass, labelClass, outlineBtn, TableShell } from "@/src/components/academic/ui";
 import { downloadCsv, SectionPicker } from "@/src/components/attendance/ui";
+import { Button, type Column, DataTable, DateField, EmptyState } from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 const monthStart = () => `${new Date().toLocaleDateString("en-CA").slice(0, 8)}01`;
@@ -37,25 +38,47 @@ export default function AttendanceSummaryPage() {
   );
 
   const table = active.map((e, i) => ({
+    id: e.id,
     name: studentName.get(e.studentId) ?? e.studentId,
     summary: summaries[i]?.data,
   }));
+  type Row = (typeof table)[number];
+
+  const columns: Column<Row>[] = [
+    {
+      key: "name",
+      header: "Student",
+      render: (r) => <span className="font-medium text-neutral-800">{r.name}</span>,
+    },
+    {
+      key: "pct",
+      header: "%",
+      align: "right",
+      render: (r) =>
+        r.summary ? (r.summary.percentage == null ? "—" : `${r.summary.percentage}%`) : "…",
+    },
+    { key: "present", header: "Present", align: "right", render: (r) => r.summary?.present ?? "…" },
+    { key: "absent", header: "Absent", align: "right", render: (r) => r.summary?.absent ?? "…" },
+    { key: "late", header: "Late", align: "right", render: (r) => r.summary?.late ?? "…" },
+    {
+      key: "halfDay",
+      header: "Half day",
+      align: "right",
+      render: (r) => r.summary?.halfDay ?? "…",
+    },
+    { key: "leave", header: "Leave", align: "right", render: (r) => r.summary?.leave ?? "…" },
+  ];
 
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
         <SectionPicker onSection={setSectionId} />
-        <label className={labelClass}>
-          From
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={inputClass} />
-        </label>
-        <label className={labelClass}>
-          To
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={inputClass} />
-        </label>
+        <DateField label="From" value={from} onChange={(e) => setFrom(e.target.value)} />
+        <DateField label="To" value={to} onChange={(e) => setTo(e.target.value)} />
         {table.length > 0 ? (
-          <button
-            type="button"
+          <Button
+            variant="secondary"
+            icon={Download}
             onClick={() =>
               downloadCsv(`attendance-summary-${from}_${to}.csv`, [
                 ["Student", "%", "Present", "Absent", "Late", "Half day", "Leave"],
@@ -70,37 +93,24 @@ export default function AttendanceSummaryPage() {
                 ]),
               ])
             }
-            className={outlineBtn}
           >
             Export CSV
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {sectionId === "" ? (
-        <p className="text-muted-foreground">Pick a section to summarise.</p>
+        <p className="text-sm text-neutral-500">Pick a section to summarise.</p>
       ) : (
-        <TableShell
-          head={["Student", "%", "Present", "Absent", "Late", "Half day", "Leave"]}
-          isLoading={roster.isLoading}
-          isError={roster.isError}
-          isEmpty={active.length === 0}
-          emptyText="No active students in this section."
-        >
-          {table.map((r, i) => (
-            <tr key={active[i]?.id ?? r.name} className="border-b border-border last:border-b-0">
-              <td className="px-4 py-3 font-medium text-foreground">{r.name}</td>
-              <td className="px-4 py-3 text-muted-foreground">
-                {r.summary ? (r.summary.percentage == null ? "—" : `${r.summary.percentage}%`) : "…"}
-              </td>
-              <td className="px-4 py-3 text-muted-foreground">{r.summary?.present ?? "…"}</td>
-              <td className="px-4 py-3 text-muted-foreground">{r.summary?.absent ?? "…"}</td>
-              <td className="px-4 py-3 text-muted-foreground">{r.summary?.late ?? "…"}</td>
-              <td className="px-4 py-3 text-muted-foreground">{r.summary?.halfDay ?? "…"}</td>
-              <td className="px-4 py-3 text-muted-foreground">{r.summary?.leave ?? "…"}</td>
-            </tr>
-          ))}
-        </TableShell>
+        <DataTable
+          columns={columns}
+          rows={table}
+          rowKey={(r) => r.id}
+          loading={roster.isLoading}
+          error={roster.isError}
+          onRetry={() => roster.refetch()}
+          empty={<EmptyState icon={Users} title="No active students in this section." />}
+        />
       )}
     </section>
   );

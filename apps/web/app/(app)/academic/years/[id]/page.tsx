@@ -3,25 +3,30 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { AcademicTermDto } from "@repo/types";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import {
-  ConfirmDelete,
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
+  Button,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  DateField,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  Input,
+  PageHeader,
+  StatusChip,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /** Terms of one academic year (year detail). Term dates must not overlap. */
 export default function AcademicYearDetailPage() {
+  const { show } = useToast();
   const params = useParams<{ id: string }>();
   const yearId = params.id;
 
@@ -33,9 +38,27 @@ export default function AcademicYearDetailPage() {
   const utils = trpc.useUtils();
   const invalidate = () => utils.academicTerm.list.invalidate({ academicYearId: yearId });
 
-  const create = trpc.academicTerm.create.useMutation({ onSuccess: invalidate });
-  const update = trpc.academicTerm.update.useMutation({ onSuccess: invalidate });
-  const remove = trpc.academicTerm.delete.useMutation({ onSuccess: invalidate });
+  const create = trpc.academicTerm.create.useMutation({
+    onSuccess: () => {
+      show("success", "Term created");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const update = trpc.academicTerm.update.useMutation({
+    onSuccess: () => {
+      show("success", "Term updated");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.academicTerm.delete.useMutation({
+    onSuccess: () => {
+      show("success", "Term deleted");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [editing, setEditing] = useState<AcademicTermDto | "new" | null>(null);
   const [deleting, setDeleting] = useState<AcademicTermDto | null>(null);
@@ -43,89 +66,109 @@ export default function AcademicYearDetailPage() {
   if (year.isError) {
     return (
       <section className="flex flex-col gap-3">
-        <p className="text-destructive">Academic year not found.</p>
-        <Link href="/academic/years" className="text-sm text-primary">
+        <ErrorState message="Academic year not found." />
+        <Link href="/academic/years" className="text-sm text-primary-700 hover:underline">
           ← Back to academic years
         </Link>
       </section>
     );
   }
 
+  const columns: Column<AcademicTermDto>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (term) => <span className="font-medium text-neutral-800">{term.name}</span>,
+    },
+    {
+      key: "start",
+      header: "Start",
+      render: (term) => <span className="text-neutral-500">{term.startDate}</span>,
+    },
+    {
+      key: "end",
+      header: "End",
+      render: (term) => <span className="text-neutral-500">{term.endDate}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (term) =>
+        canManage ? (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                create.reset();
+                update.reset();
+                setEditing(term);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger-600 hover:bg-danger-50"
+              onClick={() => {
+                remove.reset();
+                setDeleting(term);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : (
+          <span className="text-neutral-400">—</span>
+        ),
+    },
+  ];
+
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link href="/academic/years" className="text-sm text-primary">
+      <PageHeader
+        breadcrumb={
+          <Link href="/academic/years" className="text-primary-700 hover:underline">
             ← Academic years
           </Link>
-          <h2 className="text-xl font-semibold text-foreground">
-            {year.data ? `Terms — ${year.data.name}` : "Terms"}
-          </h2>
-          {year.data ? (
-            <p className="text-sm text-muted-foreground">
-              {year.data.startDate} → {year.data.endDate} · {year.data.status}
-            </p>
-          ) : null}
-        </div>
-        {canManage ? (
-          <button
-            type="button"
-            onClick={() => {
-              create.reset();
-              update.reset();
-              setEditing("new");
-            }}
-            className={primaryBtn}
-          >
-            New term
-          </button>
-        ) : null}
-      </div>
+        }
+        title={year.data ? `Terms — ${year.data.name}` : "Terms"}
+        action={
+          canManage ? (
+            <Button
+              icon={Plus}
+              onClick={() => {
+                create.reset();
+                update.reset();
+                setEditing("new");
+              }}
+            >
+              New term
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <TableShell
-        head={["Name", "Start", "End", "Actions"]}
-        isLoading={terms.isLoading}
-        isError={terms.isError}
-        isEmpty={(terms.data ?? []).length === 0}
-        emptyText="No terms in this year yet."
-      >
-        {(terms.data ?? []).map((term) => (
-          <tr key={term.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">{term.name}</td>
-            <td className="px-4 py-3 text-muted-foreground">{term.startDate}</td>
-            <td className="px-4 py-3 text-muted-foreground">{term.endDate}</td>
-            <td className="px-4 py-3">
-              {canManage ? (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      create.reset();
-                      update.reset();
-                      setEditing(term);
-                    }}
-                    className={smallGhostBtn}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      remove.reset();
-                      setDeleting(term);
-                    }}
-                    className={smallDangerBtn}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </td>
-          </tr>
-        ))}
-      </TableShell>
+      {year.data ? (
+        <div className="flex items-center gap-2 text-sm text-neutral-500">
+          <span>
+            {year.data.startDate} → {year.data.endDate}
+          </span>
+          <StatusChip status={year.data.status} />
+        </div>
+      ) : null}
+
+      <DataTable
+        columns={columns}
+        rows={terms.data ?? []}
+        rowKey={(term) => term.id}
+        loading={terms.isLoading}
+        error={terms.isError}
+        onRetry={() => terms.refetch()}
+        empty={<EmptyState title="No terms in this year yet." />}
+      />
 
       {editing !== null ? (
         <TermFormModal
@@ -142,9 +185,10 @@ export default function AcademicYearDetailPage() {
       ) : null}
 
       {deleting !== null ? (
-        <ConfirmDelete
+        <ConfirmDialog
           title="Delete term"
-          message={`Permanently delete “${deleting.name}”? This cannot be undone.`}
+          objectName={deleting.name}
+          message="Permanently delete this term? This cannot be undone —"
           busy={remove.isPending}
           error={remove.error?.message ?? null}
           onCancel={() => setDeleting(null)}
@@ -175,56 +219,45 @@ function TermFormModal({
   const [endDate, setEndDate] = useState<string>(term?.endDate ?? "");
 
   return (
-    <Modal title={term ? "Edit term" : "New term"} onClose={onClose}>
+    <Dialog title={term ? "Edit term" : "New term"} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit({ name: name.trim(), startDate, endDate });
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="Term 1"
-            required
-          />
-        </label>
-        <label className={labelClass}>
-          Start date
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
-        <label className={labelClass}>
-          End date
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Term 1"
+          required
+        />
+        <DateField
+          label="Start date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          required
+        />
+        <DateField
+          label="End date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          required
+        />
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

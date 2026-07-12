@@ -3,22 +3,29 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { CalendarEventDto, CalendarEventTypeKey } from "@repo/types";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 
-import {
-  destructiveBtn,
-  inputClass,
-  labelClass,
-  outlineBtn,
-  primaryBtn,
-} from "@/src/components/academic/ui";
 import {
   CALENDAR_EVENT_TYPES,
   EVENT_TYPE_LABEL,
   formatDate,
 } from "@/src/components/announcement/ui";
 import { downloadCsv } from "@/src/components/attendance/ui";
+import {
+  Button,
+  Card,
+  DateField,
+  EmptyState,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+  SkeletonText,
+  StatusChip,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 const MONTHS = [
@@ -37,6 +44,9 @@ const MONTHS = [
 ];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const pad = (n: number) => String(n).padStart(2, "0");
+
+const textareaClass =
+  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:opacity-60";
 
 /**
  * Calendar management (M11, ADR-019 Step 7). A month grid + list of events with a type
@@ -88,25 +98,27 @@ export default function CalendarPage() {
   const eventsOn = (day: string) => events.filter((e) => e.startDate <= day && day <= e.endDate);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link href="/dashboard" className="text-sm text-primary">
+    <main className="mx-auto flex max-w-5xl flex-col gap-6 p-6">
+      <PageHeader
+        title="School calendar"
+        breadcrumb={
+          <Link href="/dashboard" className="hover:text-neutral-800">
             ← Dashboard
           </Link>
-          <h1 className="text-2xl font-semibold text-foreground">School calendar</h1>
-        </div>
-        <div className="flex gap-2">
-          <button type="button" className={outlineBtn} onClick={exportCsv}>
-            Export CSV
-          </button>
-          {canManage ? (
-            <button type="button" className={primaryBtn} onClick={() => setEditing("new")}>
-              New event
-            </button>
-          ) : null}
-        </div>
-      </header>
+        }
+        action={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={exportCsv}>
+              Export CSV
+            </Button>
+            {canManage ? (
+              <Button icon={CalendarDays} onClick={() => setEditing("new")}>
+                New event
+              </Button>
+            ) : null}
+          </div>
+        }
+      />
 
       {editing ? (
         <EventForm
@@ -116,20 +128,28 @@ export default function CalendarPage() {
         />
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <button type="button" className={outlineBtn} onClick={() => step(-1)}>
-            ←
-          </button>
-          <span className="min-w-40 text-center font-medium text-foreground">
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={ChevronLeft}
+            aria-label="Previous month"
+            onClick={() => step(-1)}
+          />
+          <span className="min-w-40 text-center font-medium text-neutral-800">
             {MONTHS[month - 1]} {year}
           </span>
-          <button type="button" className={outlineBtn} onClick={() => step(1)}>
-            →
-          </button>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={ChevronRight}
+            aria-label="Next month"
+            onClick={() => step(1)}
+          />
         </div>
-        <select
-          className={inputClass}
+        <Select
+          label="Type"
           value={type}
           onChange={(e) => setType(e.target.value as CalendarEventTypeKey | "ALL")}
         >
@@ -139,15 +159,15 @@ export default function CalendarPage() {
               {EVENT_TYPE_LABEL[t]}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Month grid */}
-      <div className="grid grid-cols-7 overflow-hidden rounded-md border border-border">
+      <div className="grid grid-cols-7 overflow-hidden rounded-card border border-neutral-200">
         {DOW.map((d) => (
           <div
             key={d}
-            className="border-b border-border bg-muted px-2 py-1 text-center text-xs font-medium text-muted-foreground"
+            className="border-b border-neutral-200 bg-neutral-50 px-2 py-1 text-center text-caption font-medium text-neutral-500"
           >
             {d}
           </div>
@@ -155,17 +175,17 @@ export default function CalendarPage() {
         {cells.map((day, i) => (
           <div
             key={day ?? `blank-${i}`}
-            className="min-h-20 border-b border-r border-border p-1 align-top"
+            className="min-h-20 border-b border-r border-neutral-200 p-1 align-top"
           >
             {day ? (
               <>
-                <div className="text-xs text-muted-foreground">{Number(day.slice(-2))}</div>
+                <div className="text-caption text-neutral-500">{Number(day.slice(-2))}</div>
                 <div className="flex flex-col gap-0.5">
                   {eventsOn(day).map((e) => (
                     <span
                       key={e.id}
                       title={e.title}
-                      className="truncate rounded bg-primary/10 px-1 text-[10px] text-primary"
+                      className="truncate rounded bg-primary-50 px-1 text-[10px] text-primary-700"
                     >
                       {e.title}
                     </span>
@@ -179,32 +199,31 @@ export default function CalendarPage() {
 
       {/* List */}
       <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">Events this month</h2>
+        <h2 className="text-sm font-medium text-neutral-500">Events this month</h2>
         {query.isLoading ? (
-          <p className="text-muted-foreground">Loading…</p>
+          <Card>
+            <SkeletonText lines={3} />
+          </Card>
         ) : events.length === 0 ? (
-          <p className="text-muted-foreground">No events.</p>
+          <Card>
+            <EmptyState icon={CalendarDays} title="No events" />
+          </Card>
         ) : (
           events.map((e) => (
-            <div
-              key={e.id}
-              className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-card p-3"
-            >
-              <span className="rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                {EVENT_TYPE_LABEL[e.eventType]}
-              </span>
-              <span className="flex-1 font-medium text-foreground">{e.title}</span>
-              <span className="text-sm text-muted-foreground">
+            <Card key={e.id} className="flex flex-wrap items-center gap-2 p-3">
+              <StatusChip status={e.eventType} label={EVENT_TYPE_LABEL[e.eventType]} />
+              <span className="flex-1 font-medium text-neutral-800">{e.title}</span>
+              <span className="text-sm text-neutral-500">
                 {e.startDate === e.endDate
                   ? formatDate(e.startDate)
                   : `${formatDate(e.startDate)} – ${formatDate(e.endDate)}`}
               </span>
               {canManage ? (
-                <button type="button" className={outlineBtn} onClick={() => setEditing(e)}>
+                <Button variant="secondary" size="sm" onClick={() => setEditing(e)}>
                   Edit
-                </button>
+                </Button>
               ) : null}
-            </div>
+            </Card>
           ))
         )}
       </section>
@@ -222,26 +241,29 @@ function EventForm({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { show } = useToast();
   const [title, setTitle] = useState(event?.title ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
   const [eventType, setEventType] = useState<CalendarEventTypeKey>(event?.eventType ?? "HOLIDAY");
   const [startDate, setStartDate] = useState(event?.startDate ?? "");
   const [endDate, setEndDate] = useState(event?.endDate ?? "");
   const [error, setError] = useState<string | null>(null);
+  const descId = useId();
 
-  const done = () => {
+  const done = (message: string) => () => {
     onSaved();
+    show("success", message);
     onClose();
   };
   const create = trpc.calendar.create.useMutation({
-    onSuccess: done,
+    onSuccess: done("Event created."),
     onError: (e) => setError(e.message),
   });
   const update = trpc.calendar.update.useMutation({
-    onSuccess: done,
+    onSuccess: done("Event saved."),
     onError: (e) => setError(e.message),
   });
-  const remove = trpc.calendar.delete.useMutation({ onSuccess: done });
+  const remove = trpc.calendar.delete.useMutation({ onSuccess: done("Event deleted.") });
 
   const valid = title.trim() && startDate && endDate && endDate >= startDate;
 
@@ -259,76 +281,54 @@ function EventForm({
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
+    <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-foreground">{event ? "Edit event" : "New event"}</h2>
-        <button type="button" className={outlineBtn} onClick={onClose}>
+        <h2 className="text-title text-neutral-900">{event ? "Edit event" : "New event"}</h2>
+        <Button variant="secondary" size="sm" onClick={onClose}>
           Close
-        </button>
+        </Button>
       </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-      <label className={labelClass}>
-        Title
-        <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />
-      </label>
-      <label className={labelClass}>
-        Description
+      <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <Field label="Description" htmlFor={descId}>
         <textarea
-          className={`${inputClass} min-h-20`}
+          id={descId}
+          className={`${textareaClass} min-h-20`}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
-      </label>
+      </Field>
       <div className="flex flex-wrap gap-3">
-        <label className={labelClass}>
-          Type
-          <select
-            className={inputClass}
-            value={eventType}
-            onChange={(e) => setEventType(e.target.value as CalendarEventTypeKey)}
-          >
-            {CALENDAR_EVENT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {EVENT_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Start date
-          <input
-            type="date"
-            className={inputClass}
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-          />
-        </label>
-        <label className={labelClass}>
-          End date
-          <input
-            type="date"
-            className={inputClass}
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </label>
+        <Select
+          label="Type"
+          value={eventType}
+          onChange={(e) => setEventType(e.target.value as CalendarEventTypeKey)}
+        >
+          {CALENDAR_EVENT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {EVENT_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </Select>
+        <DateField
+          label="Start date"
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+        />
+        <DateField label="End date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <button type="button" className={primaryBtn} disabled={!valid} onClick={save}>
+        <Button disabled={!valid} onClick={save}>
           {event ? "Save" : "Create"}
-        </button>
+        </Button>
         {event ? (
-          <button
-            type="button"
-            className={destructiveBtn}
-            onClick={() => remove.mutate({ id: event.id })}
-          >
+          <Button variant="destructive" onClick={() => remove.mutate({ id: event.id })}>
             Delete
-          </button>
+          </Button>
         ) : null}
       </div>
-    </div>
+    </Card>
   );
 }

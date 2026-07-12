@@ -10,14 +10,11 @@ import {
   inputClass,
   labelClass,
   Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
   TableShell,
 } from "@/src/components/academic/ui";
 import { downloadCsv, SectionPicker } from "@/src/components/attendance/ui";
 import { REGISTER_STATUS_LABEL } from "@/src/components/exam/ui";
+import { Button, PageHeader, StatusChip, useToast } from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /** A picked (assessment × section) target for the marks grid. */
@@ -51,19 +48,22 @@ export default function ExamDetailPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <div>
-        <Link href="/exams" className="text-sm text-primary">
-          ← All exams
-        </Link>
-        <h2 className="text-xl font-semibold text-foreground">
-          {exam.data?.name ?? "Exam"}
-          {published ? (
-            <span className="ml-2 align-middle text-sm font-normal text-muted-foreground">
-              (published — read only)
-            </span>
-          ) : null}
-        </h2>
-      </div>
+      <PageHeader
+        title={exam.data?.name ?? "Exam"}
+        breadcrumb={
+          <Link href="/exams" className="text-primary-700 hover:underline">
+            ← All exams
+          </Link>
+        }
+        action={
+          published ? (
+            <div className="flex items-center gap-2">
+              <StatusChip status="PUBLISHED" />
+              <span className="text-sm text-neutral-500">read only</span>
+            </div>
+          ) : undefined
+        }
+      />
 
       <Assessments
         examId={examId}
@@ -76,7 +76,7 @@ export default function ExamDetailPage() {
       />
 
       <div className="flex flex-col gap-3">
-        <h3 className="text-lg font-medium text-foreground">Registers</h3>
+        <h3 className="text-title text-neutral-800">Registers</h3>
         <TableShell
           head={["Subject", "Section", "Status", ""]}
           isLoading={registers.isLoading}
@@ -88,17 +88,19 @@ export default function ExamDetailPage() {
             <tr key={r.examSectionId} className="border-b border-border last:border-b-0">
               <td className="px-4 py-3 font-medium text-foreground">{r.subjectName}</td>
               <td className="px-4 py-3 text-muted-foreground">{r.sectionName}</td>
-              <td className="px-4 py-3 text-muted-foreground">{REGISTER_STATUS_LABEL[r.status]}</td>
               <td className="px-4 py-3">
-                <button
-                  type="button"
+                <StatusChip status={r.status} label={REGISTER_STATUS_LABEL[r.status]} />
+              </td>
+              <td className="px-4 py-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() =>
                     setTarget({ assessmentId: r.assessmentId, sectionId: r.sectionId })
                   }
-                  className={smallGhostBtn}
                 >
                   Open
-                </button>
+                </Button>
               </td>
             </tr>
           ))}
@@ -152,10 +154,23 @@ function Assessments({
   isLoading: boolean;
   isError: boolean;
 }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const invalidate = () => utils.assessment.list.invalidate();
-  const create = trpc.assessment.create.useMutation({ onSuccess: invalidate });
-  const remove = trpc.assessment.delete.useMutation({ onSuccess: invalidate });
+  const create = trpc.assessment.create.useMutation({
+    onSuccess: () => {
+      void invalidate();
+      show("success", "Assessment added");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.assessment.delete.useMutation({
+    onSuccess: () => {
+      void invalidate();
+      show("success", "Assessment deleted");
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<AssessmentDto | null>(null);
@@ -163,18 +178,16 @@ function Assessments({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-foreground">Assessments</h3>
+        <h3 className="text-title text-neutral-800">Assessments</h3>
         {published ? null : (
-          <button
-            type="button"
+          <Button
             onClick={() => {
               create.reset();
               setAdding(true);
             }}
-            className={primaryBtn}
           >
             Add assessment
-          </button>
+          </Button>
         )}
       </div>
 
@@ -197,16 +210,16 @@ function Assessments({
               {published ? (
                 <span className="text-muted-foreground">—</span>
               ) : (
-                <button
-                  type="button"
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={() => {
                     remove.reset();
                     setDeleting(a);
                   }}
-                  className={smallDangerBtn}
                 >
                   Delete
-                </button>
+                </Button>
               )}
             </td>
           </tr>
@@ -333,12 +346,12 @@ function AssessmentFormModal({
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy || subjectId === ""} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy} disabled={subjectId === ""}>
+            Save
+          </Button>
         </div>
       </form>
     </Modal>
@@ -380,14 +393,13 @@ function StartRegister({
         </select>
       </label>
       <SectionPicker onSection={setSectionId} />
-      <button
-        type="button"
+      <Button
+        variant="secondary"
         disabled={assessmentId === "" || sectionId === ""}
         onClick={() => onOpen({ assessmentId, sectionId })}
-        className={outlineBtn}
       >
         Open marks
-      </button>
+      </Button>
     </div>
   );
 }
@@ -418,6 +430,7 @@ function MarksGrid({
   target: Target;
   onClose: () => void;
 }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const roster = trpc.enrollment.sectionRoster.useQuery({
     academicYearId,
@@ -443,11 +456,31 @@ function MarksGrid({
     onSuccess: () => {
       setEdits({});
       refresh();
+      show("success", "Marks saved");
     },
+    onError: (e) => show("error", e.message),
   });
-  const submit = trpc.mark.submit.useMutation({ onSuccess: refresh });
-  const lock = trpc.mark.lock.useMutation({ onSuccess: refresh });
-  const unlock = trpc.mark.unlock.useMutation({ onSuccess: refresh });
+  const submit = trpc.mark.submit.useMutation({
+    onSuccess: () => {
+      refresh();
+      show("success", "Register submitted");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const lock = trpc.mark.lock.useMutation({
+    onSuccess: () => {
+      refresh();
+      show("success", "Register locked");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const unlock = trpc.mark.unlock.useMutation({
+    onSuccess: () => {
+      refresh();
+      show("success", "Register unlocked");
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [unlocking, setUnlocking] = useState(false);
 
@@ -505,12 +538,12 @@ function MarksGrid({
           </p>
         </div>
         <div className="flex gap-2">
-          <button type="button" onClick={exportCsv} className={outlineBtn}>
+          <Button variant="secondary" onClick={exportCsv}>
             Export CSV
-          </button>
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          </Button>
+          <Button variant="secondary" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -578,9 +611,8 @@ function MarksGrid({
 
       {editable && rows.length > 0 ? (
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            disabled={save.isPending}
+          <Button
+            loading={save.isPending}
             onClick={() =>
               save.mutate({
                 assessmentId: target.assessmentId,
@@ -596,37 +628,33 @@ function MarksGrid({
                 }),
               })
             }
-            className={primaryBtn}
           >
-            {save.isPending ? "Saving…" : "Save marks"}
-          </button>
+            Save marks
+          </Button>
           {register?.examSectionId != null && status === "DRAFT" ? (
-            <button
-              type="button"
-              disabled={submit.isPending}
+            <Button
+              variant="secondary"
+              loading={submit.isPending}
               onClick={() => submit.mutate({ examSectionId: register.examSectionId })}
-              className={outlineBtn}
             >
               Submit
-            </button>
+            </Button>
           ) : null}
         </div>
       ) : status === "SUBMITTED" && register ? (
         <div>
-          <button
-            type="button"
-            disabled={lock.isPending}
+          <Button
+            loading={lock.isPending}
             onClick={() => lock.mutate({ examSectionId: register.examSectionId })}
-            className={primaryBtn}
           >
-            {lock.isPending ? "Locking…" : "Lock register"}
-          </button>
+            Lock register
+          </Button>
         </div>
       ) : status === "LOCKED" && register ? (
         <div>
-          <button type="button" onClick={() => setUnlocking(true)} className={outlineBtn}>
+          <Button variant="secondary" onClick={() => setUnlocking(true)}>
             Unlock to edit
-          </button>
+          </Button>
         </div>
       ) : null}
 
@@ -688,12 +716,12 @@ function UnlockModal({
         </label>
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy || reason.trim() === ""} className={primaryBtn}>
-            {busy ? "Unlocking…" : "Unlock"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy} disabled={reason.trim() === ""}>
+            Unlock
+          </Button>
         </div>
       </form>
     </Modal>

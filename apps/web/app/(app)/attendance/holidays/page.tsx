@@ -1,18 +1,22 @@
 "use client";
 
 import type { HolidayDto, HolidayTypeKey } from "@repo/types";
+import { CalendarOff } from "lucide-react";
 import { useState } from "react";
 
 import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
-import { ConfirmAction } from "@/src/components/people/confirm";
+  Button,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  DateField,
+  Dialog,
+  EmptyState,
+  Input,
+  Select,
+  StatusChip,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 const HOLIDAY_TYPES: readonly HolidayTypeKey[] = [
@@ -28,6 +32,7 @@ const HOLIDAY_TYPES: readonly HolidayTypeKey[] = [
  * the working-day calendar is curated.
  */
 export default function HolidaysPage() {
+  const { show } = useToast();
   const years = trpc.academicYear.list.useQuery();
   const [academicYearId, setAcademicYearId] = useState("");
   const holidays = trpc.holiday.list.useQuery(
@@ -37,74 +42,99 @@ export default function HolidaysPage() {
 
   const utils = trpc.useUtils();
   const invalidate = () => void utils.holiday.list.invalidate({ academicYearId });
-  const create = trpc.holiday.create.useMutation({ onSuccess: invalidate });
-  const remove = trpc.holiday.delete.useMutation({ onSuccess: invalidate });
+  const create = trpc.holiday.create.useMutation({
+    onSuccess: () => {
+      show("success", "Holiday added");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.holiday.delete.useMutation({
+    onSuccess: () => {
+      show("success", "Holiday deleted");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<HolidayDto | null>(null);
 
+  const rows = holidays.data ?? [];
+
+  const columns: Column<HolidayDto>[] = [
+    {
+      key: "date",
+      header: "Date",
+      render: (h) => <span className="font-medium text-neutral-800">{h.date}</span>,
+    },
+    {
+      key: "name",
+      header: "Name",
+      render: (h) => <span className="text-neutral-500">{h.name}</span>,
+    },
+    { key: "type", header: "Type", render: (h) => <StatusChip status={h.type} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (h) => (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-danger-600 hover:bg-danger-50"
+            onClick={() => {
+              remove.reset();
+              setDeleting(h);
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className={labelClass}>
-          Academic year
-          <select
-            value={academicYearId}
-            onChange={(e) => setAcademicYearId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Select a year…</option>
-            {(years.data ?? []).map((y) => (
-              <option key={y.id} value={y.id}>
-                {y.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Academic year"
+          value={academicYearId}
+          onChange={(e) => setAcademicYearId(e.target.value)}
+        >
+          <option value="">Select a year…</option>
+          {(years.data ?? []).map((y) => (
+            <option key={y.id} value={y.id}>
+              {y.name}
+            </option>
+          ))}
+        </Select>
         {academicYearId !== "" ? (
-          <button
-            type="button"
+          <Button
             onClick={() => {
               create.reset();
               setCreating(true);
             }}
-            className={primaryBtn}
           >
             New holiday
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {academicYearId === "" ? (
-        <p className="text-muted-foreground">Pick a year to manage its holidays.</p>
+        <p className="text-sm text-neutral-500">Pick a year to manage its holidays.</p>
       ) : (
-        <TableShell
-          head={["Date", "Name", "Type", "Actions"]}
-          isLoading={holidays.isLoading}
-          isError={holidays.isError}
-          isEmpty={(holidays.data ?? []).length === 0}
-          emptyText="No holidays for this year."
-        >
-          {(holidays.data ?? []).map((h) => (
-            <tr key={h.id} className="border-b border-border last:border-b-0">
-              <td className="px-4 py-3 font-medium text-foreground">{h.date}</td>
-              <td className="px-4 py-3 text-muted-foreground">{h.name}</td>
-              <td className="px-4 py-3 text-muted-foreground">{h.type}</td>
-              <td className="px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    remove.reset();
-                    setDeleting(h);
-                  }}
-                  className={smallDangerBtn}
-                >
-                  Delete
-                </button>
-              </td>
-            </tr>
-          ))}
-        </TableShell>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(h) => h.id}
+          loading={holidays.isLoading}
+          error={holidays.isError}
+          onRetry={() => holidays.refetch()}
+          empty={<EmptyState icon={CalendarOff} title="No holidays for this year." />}
+        />
       )}
 
       {creating ? (
@@ -113,24 +143,22 @@ export default function HolidaysPage() {
           error={create.error?.message ?? null}
           onClose={() => setCreating(false)}
           onSubmit={(values) =>
-            create.mutate(
-              { academicYearId, ...values },
-              { onSuccess: () => setCreating(false) },
-            )
+            create.mutate({ academicYearId, ...values }, { onSuccess: () => setCreating(false) })
           }
         />
       ) : null}
 
       {deleting !== null ? (
-        <ConfirmAction
+        <ConfirmDialog
           title="Delete holiday"
-          message={`Delete “${deleting.name}” on ${deleting.date}? Attendance can then be recorded on that day.`}
-          actionLabel="Delete"
-          busyLabel="Deleting…"
+          objectName={deleting.name}
+          message={`Delete this holiday on ${deleting.date}? Attendance can then be recorded on that day —`}
           busy={remove.isPending}
           error={remove.error?.message ?? null}
           onCancel={() => setDeleting(null)}
-          onConfirm={() => remove.mutate({ id: deleting.id }, { onSuccess: () => setDeleting(null) })}
+          onConfirm={() =>
+            remove.mutate({ id: deleting.id }, { onSuccess: () => setDeleting(null) })
+          }
         />
       ) : null}
     </section>
@@ -153,54 +181,39 @@ function HolidayModal({
   const [type, setType] = useState<HolidayTypeKey>("SCHOOL");
 
   return (
-    <Modal title="New holiday" onClose={onClose}>
+    <Dialog title="New holiday" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit({ name, date, type });
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Name
-          <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} required />
-        </label>
-        <label className={labelClass}>
-          Date
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
-        <label className={labelClass}>
-          Type
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as HolidayTypeKey)}
-            className={inputClass}
-          >
-            {HOLIDAY_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <DateField label="Date" value={date} onChange={(e) => setDate(e.target.value)} required />
+        <Select
+          label="Type"
+          value={type}
+          onChange={(e) => setType(e.target.value as HolidayTypeKey)}
+        >
+          {HOLIDAY_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </Select>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

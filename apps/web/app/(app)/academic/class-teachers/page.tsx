@@ -6,16 +6,16 @@ import type { ClassTeacherAssignmentDto } from "@repo/types";
 import { useMemo, useState } from "react";
 
 import {
-  ConfirmDelete,
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
+  Button,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Select,
+  TableToolbar,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /**
@@ -27,6 +27,7 @@ import { trpc } from "@/src/trpc/react";
  * endpoint by design — the roster is one `classTeacher.get` per section.
  */
 export default function ClassTeachersPage() {
+  const { show } = useToast();
   const me = trpc.auth.me.useQuery();
   const canManage = me.data !== undefined && can(me.data.role, PERMISSIONS.ACADEMIC_MANAGE);
 
@@ -61,9 +62,27 @@ export default function ClassTeachersPage() {
 
   const utils = trpc.useUtils();
   const invalidate = () => utils.classTeacher.get.invalidate();
-  const assign = trpc.classTeacher.assign.useMutation({ onSuccess: invalidate });
-  const replace = trpc.classTeacher.replace.useMutation({ onSuccess: invalidate });
-  const remove = trpc.classTeacher.remove.useMutation({ onSuccess: invalidate });
+  const assign = trpc.classTeacher.assign.useMutation({
+    onSuccess: () => {
+      show("success", "Class teacher assigned");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const replace = trpc.classTeacher.replace.useMutation({
+    onSuccess: () => {
+      show("success", "Class teacher replaced");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.classTeacher.remove.useMutation({
+    onSuccess: () => {
+      show("success", "Class teacher removed");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   // Reuse the existing teacher directory for the picker (teacherProfile.list →
   // StaffDto{ userId, employeeId }; admins get the full list). No new API/logic.
@@ -88,107 +107,135 @@ export default function ClassTeachersPage() {
 
   const sectionsLoading = classes.isLoading || sectionLists.some((q) => q.isLoading);
 
+  const columns: Column<(typeof allSections)[number]>[] = [
+    {
+      key: "section",
+      header: "Section",
+      render: (section) => (
+        <span className="font-medium text-neutral-800">
+          {sectionLabel(section.id, section.classId, section.name)}
+        </span>
+      ),
+    },
+    {
+      key: "teacher",
+      header: "Class teacher",
+      render: (section) => {
+        const q = bySection.get(section.id);
+        const dto = q?.data ?? null;
+        if (!yearId) return <span className="text-neutral-500">—</span>;
+        if (q?.isLoading) return <span className="text-neutral-500">…</span>;
+        if (dto == null) return <span className="text-neutral-500">Not assigned</span>;
+        return (
+          <span className="text-neutral-800">
+            {dto.teacherName}
+            {dto.teacherId === me.data?.userId ? " (You)" : ""}
+          </span>
+        );
+      },
+    },
+    {
+      key: "since",
+      header: "Since",
+      render: (section) => {
+        const dto = bySection.get(section.id)?.data ?? null;
+        return (
+          <span className="text-neutral-500">
+            {dto ? new Date(dto.assignedAt).toLocaleDateString() : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (section) => {
+        const dto = bySection.get(section.id)?.data ?? null;
+        const label = sectionLabel(section.id, section.classId, section.name);
+        if (!canManage || !yearId) return <span className="text-neutral-400">—</span>;
+        if (dto == null) {
+          return (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                assign.reset();
+                setForm({ mode: "assign", sectionId: section.id, label, current: null });
+              }}
+            >
+              Assign
+            </Button>
+          );
+        }
+        return (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                replace.reset();
+                setForm({ mode: "replace", sectionId: section.id, label, current: dto.teacherId });
+              }}
+            >
+              Replace
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger-600 hover:bg-danger-50"
+              onClick={() => {
+                remove.reset();
+                setRemoving({ dto, label });
+              }}
+            >
+              Remove
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <label className={labelClass}>
-          Academic year
-          <select
-            value={yearId}
-            onChange={(e) => setPickedYearId(e.target.value)}
-            className={inputClass}
-          >
-            {(years.data ?? []).map((y) => (
-              <option key={y.id} value={y.id}>
-                {y.name}
-                {y.status === "ACTIVE" ? " (active)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-        {!canManage ? (
-          <p className="text-sm text-muted-foreground">
-            Read-only — you can’t manage class teachers.
-          </p>
-        ) : null}
-      </div>
-
-      <TableShell
-        head={["Section", "Class teacher", "Since", "Actions"]}
-        isLoading={sectionsLoading || years.isLoading}
-        isError={classes.isError || years.isError}
-        isEmpty={allSections.length === 0}
-        emptyText="No sections yet."
-      >
-        {allSections.map((section) => {
-          const q = bySection.get(section.id);
-          const dto = q?.data ?? null;
-          const label = sectionLabel(section.id, section.classId, section.name);
-          return (
-            <tr key={section.id} className="border-b border-border last:border-b-0">
-              <td className="px-4 py-3 font-medium text-foreground">{label}</td>
-              <td className="px-4 py-3 text-foreground">
-                {!yearId ? (
-                  "—"
-                ) : q?.isLoading ? (
-                  "…"
-                ) : dto == null ? (
-                  <span className="text-muted-foreground">Not assigned</span>
-                ) : (
-                  `${dto.teacherName}${dto.teacherId === me.data?.userId ? " (You)" : ""}`
-                )}
-              </td>
-              <td className="px-4 py-3 text-muted-foreground">
-                {dto ? new Date(dto.assignedAt).toLocaleDateString() : "—"}
-              </td>
-              <td className="px-4 py-3">
-                {!canManage || !yearId ? (
-                  <span className="text-muted-foreground">—</span>
-                ) : dto == null ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      assign.reset();
-                      setForm({ mode: "assign", sectionId: section.id, label, current: null });
-                    }}
-                    className={smallGhostBtn}
-                  >
-                    Assign
-                  </button>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        replace.reset();
-                        setForm({
-                          mode: "replace",
-                          sectionId: section.id,
-                          label,
-                          current: dto.teacherId,
-                        });
-                      }}
-                      className={smallGhostBtn}
-                    >
-                      Replace
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        remove.reset();
-                        setRemoving({ dto, label });
-                      }}
-                      className={smallDangerBtn}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
-              </td>
-            </tr>
-          );
-        })}
-      </TableShell>
+      <DataTable
+        columns={columns}
+        rows={allSections}
+        rowKey={(section) => section.id}
+        loading={sectionsLoading || years.isLoading}
+        error={classes.isError || years.isError}
+        onRetry={() => {
+          classes.refetch();
+          years.refetch();
+        }}
+        toolbar={
+          <TableToolbar
+            filters={
+              <Select
+                label="Academic year"
+                value={yearId}
+                onChange={(e) => setPickedYearId(e.target.value)}
+              >
+                {(years.data ?? []).map((y) => (
+                  <option key={y.id} value={y.id}>
+                    {y.name}
+                    {y.status === "ACTIVE" ? " (active)" : ""}
+                  </option>
+                ))}
+              </Select>
+            }
+            actions={
+              !canManage ? (
+                <p className="text-sm text-neutral-500">
+                  Read-only — you can’t manage class teachers.
+                </p>
+              ) : undefined
+            }
+          />
+        }
+        empty={<EmptyState title="No sections yet." />}
+      />
 
       {form !== null ? (
         <ClassTeacherFormModal
@@ -209,8 +256,9 @@ export default function ClassTeachersPage() {
       ) : null}
 
       {removing !== null ? (
-        <ConfirmDelete
+        <ConfirmDialog
           title="Remove class teacher"
+          confirmLabel="Remove"
           message={`Remove the class teacher from ${removing.label}? This frees the slot; history stays in the audit log.`}
           busy={remove.isPending}
           error={remove.error?.message ?? null}
@@ -247,7 +295,7 @@ function ClassTeacherFormModal({
   const currentLabel = teachers.find((t) => t.value === current)?.label ?? current;
 
   return (
-    <Modal
+    <Dialog
       title={`${mode === "assign" ? "Assign" : "Replace"} class teacher — ${sectionLabel}`}
       onClose={onClose}
     >
@@ -256,46 +304,40 @@ function ClassTeacherFormModal({
           e.preventDefault();
           onSubmit(teacherId);
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
         {mode === "replace" && current ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-neutral-500">
             Current class teacher: <span className="font-mono">{currentLabel}</span>. Replacing
             updates the slot in place (one row); the previous teacher is kept in the audit log.
           </p>
         ) : null}
-        <label className={labelClass}>
-          Teacher
-          <select
-            value={teacherId}
-            onChange={(e) => setTeacherId(e.target.value)}
-            className={inputClass}
-            required
-          >
-            <option value="">Select a teacher…</option>
-            {teachers.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-          <span className="text-xs font-normal text-muted-foreground">
-            Staff are labelled by employee id (no name directory). Must be an ACTIVE user with the
-            TEACHER role.
-          </span>
-        </label>
+        <Select
+          label="Teacher"
+          value={teacherId}
+          onChange={(e) => setTeacherId(e.target.value)}
+          helper="Staff are labelled by employee id (no name directory). Must be an ACTIVE user with the TEACHER role."
+          required
+        >
+          <option value="">Select a teacher…</option>
+          {teachers.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </Select>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : mode === "assign" ? "Assign" : "Replace"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            {mode === "assign" ? "Assign" : "Replace"}
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

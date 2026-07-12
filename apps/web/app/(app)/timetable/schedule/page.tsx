@@ -1,24 +1,26 @@
 "use client";
 
 import type { PeriodDto } from "@repo/types";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 
-import {
-  ConfirmDelete,
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
 import { YearSelect } from "@/src/components/timetable/ui";
+import {
+  Button,
+  Card,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Input,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /** Bell schedule (one per year) + its period CRUD. Overlap/order conflicts surface on save. */
 export default function SchedulePage() {
+  const { show } = useToast();
   const [yearId, setYearId] = useState<string>();
   const utils = trpc.useUtils();
 
@@ -33,51 +35,126 @@ export default function SchedulePage() {
   );
 
   const createSchedule = trpc.bellSchedule.create.useMutation({
-    onSuccess: () => utils.bellSchedule.getForYear.invalidate(),
+    onSuccess: () => {
+      show("success", "Bell schedule created");
+      return utils.bellSchedule.getForYear.invalidate();
+    },
+    onError: (e) => show("error", e.message),
   });
   const invalidatePeriods = () => utils.period.list.invalidate();
-  const createPeriod = trpc.period.create.useMutation({ onSuccess: invalidatePeriods });
-  const updatePeriod = trpc.period.update.useMutation({ onSuccess: invalidatePeriods });
-  const removePeriod = trpc.period.delete.useMutation({ onSuccess: invalidatePeriods });
+  const createPeriod = trpc.period.create.useMutation({
+    onSuccess: () => {
+      show("success", "Period created");
+      return invalidatePeriods();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const updatePeriod = trpc.period.update.useMutation({
+    onSuccess: () => {
+      show("success", "Period updated");
+      return invalidatePeriods();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const removePeriod = trpc.period.delete.useMutation({
+    onSuccess: () => {
+      show("success", "Period deleted");
+      return invalidatePeriods();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [editing, setEditing] = useState<PeriodDto | "new" | null>(null);
   const [deleting, setDeleting] = useState<PeriodDto | null>(null);
+
+  const columns: Column<PeriodDto>[] = [
+    {
+      key: "order",
+      header: "#",
+      render: (p) => <span className="text-neutral-500">{p.order}</span>,
+    },
+    {
+      key: "name",
+      header: "Name",
+      render: (p) => <span className="font-medium text-neutral-800">{p.name}</span>,
+    },
+    {
+      key: "time",
+      header: "Time",
+      render: (p) => (
+        <span className="text-neutral-800">
+          {p.startTime}–{p.endTime}
+        </span>
+      ),
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (p) => <span className="text-neutral-500">{p.isBreak ? "Break" : "Class"}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (p) => (
+        <div className="flex justify-end gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              createPeriod.reset();
+              updatePeriod.reset();
+              setEditing(p);
+            }}
+          >
+            Edit
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-danger-600 hover:bg-danger-50"
+            onClick={() => {
+              removePeriod.reset();
+              setDeleting(p);
+            }}
+          >
+            Delete
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <section className="flex flex-col gap-4">
       <YearSelect value={yearId} onChange={setYearId} />
 
       {!yearId ? (
-        <p className="text-muted-foreground">
-          Select an academic year to manage its bell schedule.
-        </p>
+        <p className="text-neutral-500">Select an academic year to manage its bell schedule.</p>
       ) : schedule.isLoading ? (
-        <p className="text-muted-foreground">Loading…</p>
+        <p className="text-neutral-500">Loading…</p>
       ) : !schedule.data ? (
-        <div className="flex flex-col items-start gap-3 rounded-md border border-border bg-card p-6">
-          <p className="text-foreground">This year has no bell schedule yet.</p>
+        <Card className="flex flex-col items-start gap-3">
+          <p className="text-neutral-800">This year has no bell schedule yet.</p>
           {createSchedule.error ? (
-            <p className="text-sm text-destructive">{createSchedule.error.message}</p>
+            <p className="text-sm text-danger-600">{createSchedule.error.message}</p>
           ) : null}
-          <button
-            type="button"
-            disabled={createSchedule.isPending}
-            className={primaryBtn}
+          <Button
+            loading={createSchedule.isPending}
             onClick={() => createSchedule.mutate({ academicYearId: yearId, name: "Regular Day" })}
           >
-            {createSchedule.isPending ? "Creating…" : "Create bell schedule"}
-          </button>
-        </div>
+            Create bell schedule
+          </Button>
+        </Card>
       ) : (
         <>
-          <div className="flex items-center justify-between rounded-md border border-border bg-card px-4 py-3">
+          <Card className="flex items-center justify-between p-4">
             <div>
-              <div className="text-sm text-muted-foreground">Bell schedule</div>
-              <div className="font-medium text-foreground">{schedule.data.name}</div>
+              <div className="text-sm text-neutral-500">Bell schedule</div>
+              <div className="font-medium text-neutral-800">{schedule.data.name}</div>
             </div>
-            <button
-              type="button"
-              className={primaryBtn}
+            <Button
+              icon={Plus}
               onClick={() => {
                 createPeriod.reset();
                 updatePeriod.reset();
@@ -85,52 +162,18 @@ export default function SchedulePage() {
               }}
             >
               New period
-            </button>
-          </div>
+            </Button>
+          </Card>
 
-          <TableShell
-            head={["#", "Name", "Time", "Type", "Actions"]}
-            isLoading={periods.isLoading}
-            isError={periods.isError}
-            isEmpty={(periods.data ?? []).length === 0}
-            emptyText="No periods yet. Add the first period to start the day."
-          >
-            {(periods.data ?? []).map((p) => (
-              <tr key={p.id} className="border-b border-border last:border-b-0">
-                <td className="px-4 py-3 text-muted-foreground">{p.order}</td>
-                <td className="px-4 py-3 font-medium text-foreground">{p.name}</td>
-                <td className="px-4 py-3 text-foreground">
-                  {p.startTime}–{p.endTime}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground">{p.isBreak ? "Break" : "Class"}</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      className={smallGhostBtn}
-                      onClick={() => {
-                        createPeriod.reset();
-                        updatePeriod.reset();
-                        setEditing(p);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      className={smallDangerBtn}
-                      onClick={() => {
-                        removePeriod.reset();
-                        setDeleting(p);
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </TableShell>
+          <DataTable
+            columns={columns}
+            rows={periods.data ?? []}
+            rowKey={(p) => p.id}
+            loading={periods.isLoading}
+            error={periods.isError}
+            onRetry={() => periods.refetch()}
+            empty={<EmptyState title="No periods yet. Add the first period to start the day." />}
+          />
         </>
       )}
 
@@ -149,9 +192,10 @@ export default function SchedulePage() {
       ) : null}
 
       {deleting !== null ? (
-        <ConfirmDelete
+        <ConfirmDialog
           title="Delete period"
-          message={`Delete “${deleting.name}”? Periods used by timetable entries cannot be deleted.`}
+          objectName={deleting.name}
+          message="Delete this period? Periods used by timetable entries cannot be deleted —"
           busy={removePeriod.isPending}
           error={removePeriod.error?.message ?? null}
           onCancel={() => setDeleting(null)}
@@ -192,73 +236,65 @@ function PeriodFormModal({
   const [isBreak, setIsBreak] = useState(period?.isBreak ?? false);
 
   return (
-    <Modal title={period ? "Edit period" : "New period"} onClose={onClose}>
+    <Dialog title={period ? "Edit period" : "New period"} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit({ name: name.trim(), order: Number(order), startTime, endTime, isBreak });
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="Period 1"
-            required
-          />
-        </label>
-        <label className={labelClass}>
-          Order
-          <input
-            type="number"
-            min={1}
-            value={order}
-            onChange={(e) => setOrder(e.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
-        <div className="flex gap-3">
-          <label className={labelClass}>
-            Start
-            <input
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Period 1"
+          required
+        />
+        <Input
+          label="Order"
+          type="number"
+          min={1}
+          value={order}
+          onChange={(e) => setOrder(e.target.value)}
+          required
+        />
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <Input
+              label="Start"
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              className={inputClass}
               required
             />
-          </label>
-          <label className={labelClass}>
-            End
-            <input
+          </div>
+          <div className="flex-1">
+            <Input
+              label="End"
               type="time"
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
-              className={inputClass}
               required
             />
-          </label>
+          </div>
         </div>
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
           <input type="checkbox" checked={isBreak} onChange={(e) => setIsBreak(e.target.checked)} />
           This is a break (no class scheduled)
         </label>
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

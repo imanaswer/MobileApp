@@ -3,19 +3,24 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { FeeStructureDto } from "@repo/types";
+import { Wallet, X } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
 import { formatPaise } from "@/src/components/fees/ui";
+import {
+  Banner,
+  Button,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Input,
+  PageHeader,
+  Select,
+  StatusChip,
+  useToast,
+  type Column,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 interface DraftComponent {
@@ -35,6 +40,7 @@ export default function FeeStructuresPage() {
   const me = trpc.auth.me.useQuery();
   const role = me.data?.role;
   const canManage = role !== undefined && can(role, PERMISSIONS.FEE_MANAGE);
+  const { show } = useToast();
 
   const years = trpc.academicYear.list.useQuery(undefined, { enabled: canManage });
   const list = trpc.fee.listStructures.useQuery({}, { enabled: canManage });
@@ -48,63 +54,89 @@ export default function FeeStructuresPage() {
     onSuccess: () => {
       refresh();
       setEditing(null);
+      show("success", "Fee structure created");
     },
+    onError: (e) => show("error", e.message),
   });
   const update = trpc.fee.updateStructure.useMutation({
     onSuccess: () => {
       refresh();
       setEditing(null);
+      show("success", "Fee structure updated");
     },
+    onError: (e) => show("error", e.message),
   });
 
   if (!me.isLoading && !canManage) {
     return (
       <main className="mx-auto max-w-4xl p-6">
-        <p className="text-destructive">You don’t have access to fee structures.</p>
+        <Banner tone="danger">You don’t have access to fee structures.</Banner>
       </main>
     );
   }
 
+  const columns: Column<FeeStructureDto>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (s) => <span className="font-medium text-neutral-800">{s.name}</span>,
+    },
+    {
+      key: "year",
+      header: "Year",
+      render: (s) => years.data?.find((y) => y.id === s.academicYearId)?.name ?? "—",
+    },
+    { key: "components", header: "Components", render: (s) => s.components.length },
+    {
+      key: "total",
+      header: "Total",
+      align: "right",
+      render: (s) =>
+        formatPaise(s.components.reduce((sum, c) => sum + (c.mandatory ? c.amount : 0), 0)),
+    },
+    {
+      key: "active",
+      header: "Active",
+      render: (s) => (
+        <StatusChip tone={s.active ? "success" : "neutral"} label={s.active ? "Yes" : "No"} />
+      ),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (s) => (
+        <Button variant="ghost" size="sm" onClick={() => setEditing(s)}>
+          Edit
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link href="/fees" className="text-sm text-primary">
+      <PageHeader
+        title="Fee structures"
+        breadcrumb={
+          <Link href="/fees" className="text-primary-700 hover:underline">
             ← Fees
           </Link>
-          <h1 className="text-2xl font-semibold text-foreground">Fee structures</h1>
-        </div>
-        <button type="button" className={primaryBtn} onClick={() => setEditing("new")}>
-          New structure
-        </button>
-      </header>
+        }
+        action={
+          <Button icon={Wallet} onClick={() => setEditing("new")}>
+            New structure
+          </Button>
+        }
+      />
 
-      <TableShell
-        head={["Name", "Year", "Components", "Total", "Active", ""]}
-        isLoading={list.isLoading}
-        isError={list.isError}
-        isEmpty={rows.length === 0}
-        emptyText="No fee structures yet."
-      >
-        {rows.map((s) => {
-          const total = s.components.reduce((sum, c) => sum + (c.mandatory ? c.amount : 0), 0);
-          const yearName = years.data?.find((y) => y.id === s.academicYearId)?.name ?? "—";
-          return (
-            <tr key={s.id} className="border-b border-border align-top last:border-b-0">
-              <td className="px-4 py-3 font-medium text-foreground">{s.name}</td>
-              <td className="px-4 py-3 text-muted-foreground">{yearName}</td>
-              <td className="px-4 py-3 text-muted-foreground">{s.components.length}</td>
-              <td className="px-4 py-3 text-muted-foreground">{formatPaise(total)}</td>
-              <td className="px-4 py-3 text-muted-foreground">{s.active ? "Yes" : "No"}</td>
-              <td className="px-4 py-3">
-                <button type="button" className={smallGhostBtn} onClick={() => setEditing(s)}>
-                  Edit
-                </button>
-              </td>
-            </tr>
-          );
-        })}
-      </TableShell>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(s) => s.id}
+        loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => void list.refetch()}
+        empty={<EmptyState icon={Wallet} title="No fee structures yet." />}
+      />
 
       {editing ? (
         <StructureModal
@@ -125,6 +157,9 @@ export default function FeeStructuresPage() {
     </main>
   );
 }
+
+const componentInputClass =
+  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 placeholder:text-neutral-400 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600";
 
 function StructureModal({
   initial,
@@ -195,54 +230,49 @@ function StructureModal({
   };
 
   return (
-    <Modal title={initial ? "Edit fee structure" : "New fee structure"} onClose={onClose}>
-      <div className="flex flex-col gap-3">
-        <label className={labelClass}>
-          Name
-          <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
-        </label>
-        <label className={labelClass}>
-          Academic year
-          <select
-            className={inputClass}
-            value={academicYearId}
-            onChange={(e) => setAcademicYearId(e.target.value)}
-            disabled={!!initial}
-          >
-            {years.map((y) => (
-              <option key={y.id} value={y.id}>
-                {y.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Description (optional)
-          <input
-            className={inputClass}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
-        </label>
+    <Dialog
+      title={initial ? "Edit fee structure" : "New fee structure"}
+      onClose={onClose}
+      size="lg"
+    >
+      <div className="flex flex-col gap-4">
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+        <Select
+          label="Academic year"
+          value={academicYearId}
+          onChange={(e) => setAcademicYearId(e.target.value)}
+          disabled={!!initial}
+        >
+          {years.map((y) => (
+            <option key={y.id} value={y.id}>
+              {y.name}
+            </option>
+          ))}
+        </Select>
+        <Input
+          label="Description (optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-foreground">Components (₹)</span>
+          <span className="text-sm font-medium text-neutral-800">Components (₹)</span>
           {components.map((c, i) => (
             <div key={i} className="flex items-center gap-2">
               <input
-                className={inputClass}
+                className={componentInputClass}
                 placeholder="Name (e.g. Tuition)"
                 value={c.name}
                 onChange={(e) => setComp(i, { name: e.target.value })}
               />
               <input
-                className={`${inputClass} w-28`}
+                className={`${componentInputClass} w-28`}
                 placeholder="Amount"
                 inputMode="decimal"
                 value={c.amount}
                 onChange={(e) => setComp(i, { amount: e.target.value })}
               />
-              <label className="flex items-center gap-1 text-xs text-muted-foreground">
+              <label className="flex items-center gap-1 text-caption text-neutral-500">
                 <input
                   type="checkbox"
                   checked={c.mandatory}
@@ -250,44 +280,46 @@ function StructureModal({
                 />
                 Req.
               </label>
-              <button
+              <Button
                 type="button"
-                className={smallGhostBtn}
+                variant="ghost"
+                size="sm"
+                icon={X}
+                aria-label="Remove component"
                 onClick={() => setComponents((cs) => cs.filter((_, idx) => idx !== i))}
-              >
-                ✕
-              </button>
+              />
             </div>
           ))}
-          <button
+          <Button
             type="button"
-            className={outlineBtn}
+            variant="secondary"
+            size="sm"
             onClick={() => setComponents((cs) => [...cs, emptyComponent()])}
           >
             Add component
-          </button>
+          </Button>
         </div>
 
         {initial ? (
-          <label className="flex items-center gap-2 text-sm text-foreground">
+          <label className="flex items-center gap-2 text-sm text-neutral-800">
             <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
             Active (available for invoice generation)
           </label>
         ) : null}
 
         {(localError ?? error) ? (
-          <p className="text-sm text-destructive">{localError ?? error}</p>
+          <p className="text-sm text-danger-600">{localError ?? error}</p>
         ) : null}
 
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" className={outlineBtn} onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="button" className={primaryBtn} disabled={busy} onClick={submit}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="button" loading={busy} onClick={submit}>
+            Save
+          </Button>
         </div>
       </div>
-    </Modal>
+    </Dialog>
   );
 }

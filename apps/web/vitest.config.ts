@@ -11,5 +11,8 @@ export default defineConfig({
   },
   test: {
     exclude: ["e2e/**", "node_modules/**", ".next/**"],
+    // The (app) layout now imports the shell, which transitively pulls in the
+    // env module; skip its fail-fast validation in tests (as CI/build do).
+    env: { SKIP_ENV_VALIDATION: "true" },
   },
 });

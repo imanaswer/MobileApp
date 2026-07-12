@@ -3,26 +3,27 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { SubjectDto } from "@repo/types";
+import { BookMarked, Plus } from "lucide-react";
 import { useCallback, useState } from "react";
 
+import { Paginator, usePagedSearch } from "@/src/components/academic/ui";
 import {
-  ConfirmDelete,
-  inputClass,
-  labelClass,
-  ListToolbar,
-  Modal,
-  outlineBtn,
-  Paginator,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-  usePagedSearch,
-} from "@/src/components/academic/ui";
+  Button,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Input,
+  SearchInput,
+  TableToolbar,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /** Subjects CRUD — a school-wide catalog; names are unique per school. */
 export default function SubjectsPage() {
+  const { show } = useToast();
   const me = trpc.auth.me.useQuery();
   const canManage = me.data !== undefined && can(me.data.role, PERMISSIONS.ACADEMIC_MANAGE);
 
@@ -30,9 +31,27 @@ export default function SubjectsPage() {
   const utils = trpc.useUtils();
   const invalidate = () => utils.subject.list.invalidate();
 
-  const create = trpc.subject.create.useMutation({ onSuccess: invalidate });
-  const update = trpc.subject.update.useMutation({ onSuccess: invalidate });
-  const remove = trpc.subject.delete.useMutation({ onSuccess: invalidate });
+  const create = trpc.subject.create.useMutation({
+    onSuccess: () => {
+      show("success", "Subject created");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const update = trpc.subject.update.useMutation({
+    onSuccess: () => {
+      show("success", "Subject updated");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.subject.delete.useMutation({
+    onSuccess: () => {
+      show("success", "Subject deleted");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [editing, setEditing] = useState<SubjectDto | "new" | null>(null);
   const [deleting, setDeleting] = useState<SubjectDto | null>(null);
@@ -42,77 +61,87 @@ export default function SubjectsPage() {
     useCallback((subject: SubjectDto, q: string) => subject.name.toLowerCase().includes(q), []),
   );
 
-  return (
-    <section className="flex flex-col gap-4">
-      <ListToolbar
-        searchValue={paged.query}
-        onSearch={paged.setQuery}
-        searchLabel="Search subjects"
-        action={
-          canManage ? (
-            <button
-              type="button"
+  const columns: Column<SubjectDto>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (subject) => <span className="font-medium text-neutral-800">{subject.name}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (subject) =>
+        canManage ? (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 create.reset();
                 update.reset();
-                setEditing("new");
+                setEditing(subject);
               }}
-              className={primaryBtn}
             >
-              New subject
-            </button>
-          ) : undefined
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger-600 hover:bg-danger-50"
+              onClick={() => {
+                remove.reset();
+                setDeleting(subject);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : (
+          <span className="text-neutral-400">—</span>
+        ),
+    },
+  ];
+
+  return (
+    <section className="flex flex-col gap-4">
+      <DataTable
+        columns={columns}
+        rows={paged.pageItems}
+        rowKey={(subject) => subject.id}
+        loading={subjects.isLoading}
+        error={subjects.isError}
+        onRetry={() => subjects.refetch()}
+        toolbar={
+          <TableToolbar
+            search={
+              <SearchInput value={paged.query} onChange={(e) => paged.setQuery(e.target.value)} />
+            }
+            actions={
+              canManage ? (
+                <Button
+                  icon={Plus}
+                  onClick={() => {
+                    create.reset();
+                    update.reset();
+                    setEditing("new");
+                  }}
+                >
+                  New subject
+                </Button>
+              ) : undefined
+            }
+          />
         }
-      />
-
-      <TableShell
-        head={["Name", "Actions"]}
-        isLoading={subjects.isLoading}
-        isError={subjects.isError}
-        isEmpty={paged.total === 0}
-        emptyText="No subjects yet."
-      >
-        {paged.pageItems.map((subject) => (
-          <tr key={subject.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">{subject.name}</td>
-            <td className="px-4 py-3">
-              {canManage ? (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      create.reset();
-                      update.reset();
-                      setEditing(subject);
-                    }}
-                    className={smallGhostBtn}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      remove.reset();
-                      setDeleting(subject);
-                    }}
-                    className={smallDangerBtn}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </td>
-          </tr>
-        ))}
-      </TableShell>
-
-      <Paginator
-        page={paged.page}
-        pageCount={paged.pageCount}
-        total={paged.total}
-        onPage={paged.setPage}
+        empty={<EmptyState icon={BookMarked} title="No subjects yet." />}
+        footer={
+          <Paginator
+            page={paged.page}
+            pageCount={paged.pageCount}
+            total={paged.total}
+            onPage={paged.setPage}
+          />
+        }
       />
 
       {editing !== null ? (
@@ -130,9 +159,10 @@ export default function SubjectsPage() {
       ) : null}
 
       {deleting !== null ? (
-        <ConfirmDelete
+        <ConfirmDialog
           title="Delete subject"
-          message={`Permanently delete “${deleting.name}”? Subjects with teacher assignments cannot be deleted.`}
+          objectName={deleting.name}
+          message="Permanently delete this subject? Subjects with teacher assignments cannot be deleted —"
           busy={remove.isPending}
           error={remove.error?.message ?? null}
           onCancel={() => setDeleting(null)}
@@ -161,36 +191,33 @@ function SubjectFormModal({
   const [name, setName] = useState(subject?.name ?? "");
 
   return (
-    <Modal title={subject ? "Edit subject" : "New subject"} onClose={onClose}>
+    <Dialog title={subject ? "Edit subject" : "New subject"} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit({ name: name.trim() });
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="Mathematics"
-            required
-          />
-        </label>
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Mathematics"
+          required
+        />
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

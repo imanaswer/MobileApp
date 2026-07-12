@@ -1,20 +1,28 @@
 "use client";
 
 import type { DocumentTemplateDto, DocumentTypeKey } from "@repo/types";
+import { FileText } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
-import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
 import { CERT_TYPES, DOCUMENT_TYPE_LABEL } from "@/src/components/documents/ui";
+import {
+  Button,
+  type Column,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Input,
+  PageHeader,
+  Select,
+  StatusChip,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
+
+// Link-as-secondary-button (avoid nesting <Button> in <Link>).
+const linkBtn =
+  "inline-flex h-11 items-center justify-center rounded-md border border-neutral-300 bg-white px-4 text-body font-medium text-neutral-800 hover:bg-neutral-50";
 
 /**
  * Document templates (M15, ADR-023 §4 Step 7) — admin (document:manage). Minimal in v1:
@@ -22,6 +30,7 @@ import { trpc } from "@/src/trpc/react";
  * renderer body is not authored yet). Create, rename, and (de)activate.
  */
 export default function DocumentTemplatesPage() {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const list = trpc.documentTemplate.list.useQuery({});
   const rows = list.data ?? [];
@@ -29,52 +38,81 @@ export default function DocumentTemplatesPage() {
 
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<DocumentTemplateDto | null>(null);
-  const update = trpc.documentTemplate.update.useMutation({ onSuccess: invalidate });
+  const update = trpc.documentTemplate.update.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Template updated.");
+    },
+    onError: (e) => show("error", e.message),
+  });
+
+  const columns: Column<DocumentTemplateDto>[] = [
+    {
+      key: "type",
+      header: "Type",
+      render: (t) => <span className="text-neutral-500">{DOCUMENT_TYPE_LABEL[t.type]}</span>,
+    },
+    {
+      key: "name",
+      header: "Name",
+      render: (t) => <span className="font-medium text-neutral-800">{t.name}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (t) => (
+        <StatusChip
+          status={t.active ? "APPROVED" : "ARCHIVED"}
+          label={t.active ? "Active" : "Inactive"}
+        />
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (t) => (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={() => setEditing(t)}>
+            Rename
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={update.isPending}
+            onClick={() => update.mutate({ id: t.id, active: !t.active })}
+          >
+            {t.active ? "Deactivate" : "Activate"}
+          </Button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-4 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <Link href="/documents" className={outlineBtn}>
+      <PageHeader
+        title="Templates"
+        breadcrumb={
+          <Link href="/documents" className={linkBtn}>
             ← Documents
           </Link>
-          <h1 className="text-2xl font-semibold text-foreground">Templates</h1>
-        </div>
-        <button type="button" onClick={() => setCreating(true)} className={primaryBtn}>
-          New template
-        </button>
-      </div>
+        }
+        action={
+          <Button icon={FileText} onClick={() => setCreating(true)}>
+            New template
+          </Button>
+        }
+      />
 
-      <TableShell
-        head={["Type", "Name", "Status", "Actions"]}
-        isLoading={list.isLoading}
-        isError={list.isError}
-        isEmpty={rows.length === 0}
-        emptyText="No templates yet."
-      >
-        {rows.map((t) => (
-          <tr key={t.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 text-muted-foreground">{DOCUMENT_TYPE_LABEL[t.type]}</td>
-            <td className="px-4 py-3 font-medium text-foreground">{t.name}</td>
-            <td className="px-4 py-3 text-muted-foreground">{t.active ? "Active" : "Inactive"}</td>
-            <td className="px-4 py-3">
-              <div className="flex gap-1">
-                <button type="button" onClick={() => setEditing(t)} className={smallGhostBtn}>
-                  Rename
-                </button>
-                <button
-                  type="button"
-                  disabled={update.isPending}
-                  onClick={() => update.mutate({ id: t.id, active: !t.active })}
-                  className={smallGhostBtn}
-                >
-                  {t.active ? "Deactivate" : "Activate"}
-                </button>
-              </div>
-            </td>
-          </tr>
-        ))}
-      </TableShell>
+      <DataTable<DocumentTemplateDto>
+        columns={columns}
+        rows={rows}
+        rowKey={(t) => t.id}
+        loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => void list.refetch()}
+        empty={<EmptyState icon={FileText} title="No templates yet" />}
+      />
 
       {creating ? (
         <CreateModal
@@ -100,16 +138,20 @@ export default function DocumentTemplatesPage() {
 }
 
 function CreateModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { show } = useToast();
   const [type, setType] = useState<DocumentTypeKey>("BONAFIDE_CERTIFICATE");
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const create = trpc.documentTemplate.create.useMutation({
-    onSuccess: onDone,
+    onSuccess: () => {
+      show("success", "Template created.");
+      onDone();
+    },
     onError: (e) => setError(e.message),
   });
 
   return (
-    <Modal title="New template" onClose={onClose}>
+    <Dialog title="New template" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -122,40 +164,29 @@ function CreateModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         }}
         className="flex flex-col gap-3"
       >
-        <label className={labelClass}>
-          Type
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as DocumentTypeKey)}
-            className={inputClass}
-          >
-            {CERT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DOCUMENT_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <Select
+          label="Type"
+          value={type}
+          onChange={(e) => setType(e.target.value as DocumentTypeKey)}
+        >
+          {CERT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {DOCUMENT_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </Select>
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={create.isPending} className={primaryBtn}>
-            {create.isPending ? "Creating…" : "Create"}
-          </button>
+          </Button>
+          <Button type="submit" loading={create.isPending}>
+            Create
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }
 
@@ -168,15 +199,19 @@ function RenameModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { show } = useToast();
   const [name, setName] = useState(template.name);
   const [error, setError] = useState<string | null>(null);
   const update = trpc.documentTemplate.update.useMutation({
-    onSuccess: onDone,
+    onSuccess: () => {
+      show("success", "Template saved.");
+      onDone();
+    },
     onError: (e) => setError(e.message),
   });
 
   return (
-    <Modal title="Rename template" onClose={onClose}>
+    <Dialog title="Rename template" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -189,25 +224,17 @@ function RenameModal({
         }}
         className="flex flex-col gap-3"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            required
-          />
-        </label>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        <Input label="Name" value={name} onChange={(e) => setName(e.target.value)} required />
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={update.isPending} className={primaryBtn}>
-            {update.isPending ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={update.isPending}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

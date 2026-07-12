@@ -1,20 +1,43 @@
 "use client";
 
+import { Award } from "lucide-react";
 import { useState } from "react";
 
 import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
+  Button,
+  DataTable,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  Input,
+  PageHeader,
+  Skeleton,
+  useToast,
+  type Column,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 type BandForm = { grade: string; minPercent: string; maxPercent: string; gradePoint: string };
 const blankBand: BandForm = { grade: "", minPercent: "", maxPercent: "", gradePoint: "" };
+
+type Band = {
+  id: string;
+  grade: string;
+  minPercent: number;
+  maxPercent: number;
+  gradePoint: number | null;
+};
+
+const bandColumns: Column<Band>[] = [
+  {
+    key: "grade",
+    header: "Grade",
+    render: (b) => <span className="font-medium text-neutral-800">{b.grade}</span>,
+  },
+  { key: "min", header: "Min %", align: "right", render: (b) => b.minPercent },
+  { key: "max", header: "Max %", align: "right", render: (b) => b.maxPercent },
+  { key: "point", header: "Point", align: "right", render: (b) => b.gradePoint ?? "—" },
+];
 
 /**
  * Grade-scale management (M5, ADR-012). A scale is a set of percent bands with an
@@ -27,46 +50,39 @@ export default function GradeScalesPage() {
 
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-foreground">Grade scales</h2>
-        <button type="button" onClick={() => setCreating(true)} className={primaryBtn}>
-          New grade scale
-        </button>
-      </div>
+      <PageHeader
+        title="Grade scales"
+        action={
+          <Button icon={Award} onClick={() => setCreating(true)}>
+            New grade scale
+          </Button>
+        }
+      />
 
       {scales.isLoading ? (
-        <p className="text-muted-foreground">Loading…</p>
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
       ) : scales.isError ? (
-        <p className="text-destructive">Couldn’t load grade scales.</p>
+        <ErrorState message="Couldn’t load grade scales." onRetry={() => void scales.refetch()} />
       ) : (scales.data ?? []).length === 0 ? (
-        <p className="text-muted-foreground">No grade scales yet.</p>
+        <EmptyState icon={Award} title="No grade scales yet." />
       ) : (
         (scales.data ?? []).map((scale) => (
-          <div key={scale.id} className="flex flex-col gap-2 rounded-md border border-border p-4">
-            <p className="font-medium text-foreground">
+          <div key={scale.id} className="flex flex-col gap-2">
+            <p className="font-medium text-neutral-800">
               {scale.name}
               {scale.isDefault ? (
-                <span className="ml-2 text-sm font-normal text-muted-foreground">(default)</span>
+                <span className="ml-2 text-sm font-normal text-neutral-500">(default)</span>
               ) : null}
             </p>
-            <TableShell
-              head={["Grade", "Min %", "Max %", "Point"]}
-              isLoading={false}
-              isError={false}
-              isEmpty={scale.bands.length === 0}
-              emptyText="No bands."
-            >
-              {[...scale.bands]
-                .sort((a, b) => b.minPercent - a.minPercent)
-                .map((b) => (
-                  <tr key={b.id} className="border-b border-border last:border-b-0">
-                    <td className="px-4 py-2 font-medium text-foreground">{b.grade}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{b.minPercent}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{b.maxPercent}</td>
-                    <td className="px-4 py-2 text-muted-foreground">{b.gradePoint ?? "—"}</td>
-                  </tr>
-                ))}
-            </TableShell>
+            <DataTable
+              columns={bandColumns}
+              rows={[...scale.bands].sort((a, b) => b.minPercent - a.minPercent)}
+              rowKey={(b) => b.id}
+              empty={<EmptyState title="No bands." />}
+            />
           </div>
         ))
       )}
@@ -77,12 +93,15 @@ export default function GradeScalesPage() {
 }
 
 function GradeScaleFormModal({ onClose }: { onClose: () => void }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const create = trpc.gradeScale.create.useMutation({
     onSuccess: () => {
       void utils.gradeScale.list.invalidate();
+      show("success", "Grade scale created");
       onClose();
     },
+    onError: (e) => show("error", e.message),
   });
 
   const [name, setName] = useState("");
@@ -93,7 +112,7 @@ function GradeScaleFormModal({ onClose }: { onClose: () => void }) {
     setBands((prev) => prev.map((b, j) => (j === i ? { ...b, ...patch } : b)));
 
   return (
-    <Modal title="New grade scale" onClose={onClose}>
+    <Dialog title="New grade scale" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -110,17 +129,14 @@ function GradeScaleFormModal({ onClose }: { onClose: () => void }) {
         }}
         className="flex max-h-[70vh] flex-col gap-3 overflow-y-auto"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="CBSE 2024"
-            required
-          />
-        </label>
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="CBSE 2024"
+          required
+        />
+        <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
           <input
             type="checkbox"
             checked={isDefault}
@@ -130,83 +146,78 @@ function GradeScaleFormModal({ onClose }: { onClose: () => void }) {
         </label>
 
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-foreground">Bands</span>
+          <span className="text-sm font-medium text-neutral-800">Bands</span>
           {bands.map((b, i) => (
             <div key={i} className="flex flex-wrap items-end gap-2">
-              <label className={`${labelClass} text-xs`}>
-                Grade
-                <input
-                  value={b.grade}
-                  onChange={(e) => setBand(i, { grade: e.target.value })}
-                  className={`${inputClass} w-16`}
-                  required
-                />
-              </label>
-              <label className={`${labelClass} text-xs`}>
-                Min %
-                <input
-                  type="number"
-                  min={0}
-                  value={b.minPercent}
-                  onChange={(e) => setBand(i, { minPercent: e.target.value })}
-                  className={`${inputClass} w-20`}
-                  required
-                />
-              </label>
-              <label className={`${labelClass} text-xs`}>
-                Max %
-                <input
-                  type="number"
-                  min={0}
-                  value={b.maxPercent}
-                  onChange={(e) => setBand(i, { maxPercent: e.target.value })}
-                  className={`${inputClass} w-20`}
-                  required
-                />
-              </label>
-              <label className={`${labelClass} text-xs`}>
-                Point
-                <input
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  value={b.gradePoint}
-                  onChange={(e) => setBand(i, { gradePoint: e.target.value })}
-                  className={`${inputClass} w-20`}
-                  placeholder="—"
-                />
-              </label>
+              <Input
+                label="Grade"
+                value={b.grade}
+                onChange={(e) => setBand(i, { grade: e.target.value })}
+                className="w-16"
+                required
+              />
+              <Input
+                label="Min %"
+                type="number"
+                min={0}
+                value={b.minPercent}
+                onChange={(e) => setBand(i, { minPercent: e.target.value })}
+                className="w-20"
+                required
+              />
+              <Input
+                label="Max %"
+                type="number"
+                min={0}
+                value={b.maxPercent}
+                onChange={(e) => setBand(i, { maxPercent: e.target.value })}
+                className="w-20"
+                required
+              />
+              <Input
+                label="Point"
+                type="number"
+                min={0}
+                step="0.1"
+                value={b.gradePoint}
+                onChange={(e) => setBand(i, { gradePoint: e.target.value })}
+                className="w-20"
+                placeholder="—"
+              />
               {bands.length > 1 ? (
-                <button
+                <Button
                   type="button"
+                  variant="destructive"
+                  size="sm"
                   onClick={() => setBands((prev) => prev.filter((_, j) => j !== i))}
-                  className={smallDangerBtn}
                 >
                   Remove
-                </button>
+                </Button>
               ) : null}
             </div>
           ))}
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
+            className="self-start"
             onClick={() => setBands((prev) => [...prev, { ...blankBand }])}
-            className={`${outlineBtn} self-start`}
           >
             Add band
-          </button>
+          </Button>
         </div>
 
-        {create.error ? <p className="text-sm text-destructive">{create.error.message}</p> : null}
+        {create.error ? <p className="text-sm text-danger-600">{create.error.message}</p> : null}
 
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={create.isPending} className={primaryBtn}>
-            {create.isPending ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={create.isPending}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

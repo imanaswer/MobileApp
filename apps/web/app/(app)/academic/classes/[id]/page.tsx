@@ -3,25 +3,28 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { SectionDto } from "@repo/types";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
 import {
-  ConfirmDelete,
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
+  Button,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  Dialog,
+  EmptyState,
+  ErrorState,
+  Input,
+  PageHeader,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /** Sections of one class (class detail). Section names are unique per class. */
 export default function ClassDetailPage() {
+  const { show } = useToast();
   const params = useParams<{ id: string }>();
   const classId = params.id;
 
@@ -33,9 +36,27 @@ export default function ClassDetailPage() {
   const utils = trpc.useUtils();
   const invalidate = () => utils.section.list.invalidate({ classId });
 
-  const create = trpc.section.create.useMutation({ onSuccess: invalidate });
-  const update = trpc.section.update.useMutation({ onSuccess: invalidate });
-  const remove = trpc.section.delete.useMutation({ onSuccess: invalidate });
+  const create = trpc.section.create.useMutation({
+    onSuccess: () => {
+      show("success", "Section created");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const update = trpc.section.update.useMutation({
+    onSuccess: () => {
+      show("success", "Section updated");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.section.delete.useMutation({
+    onSuccess: () => {
+      show("success", "Section deleted");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [editing, setEditing] = useState<SectionDto | "new" | null>(null);
   const [deleting, setDeleting] = useState<SectionDto | null>(null);
@@ -43,82 +64,92 @@ export default function ClassDetailPage() {
   if (classQuery.isError) {
     return (
       <section className="flex flex-col gap-3">
-        <p className="text-destructive">Class not found.</p>
-        <Link href="/academic/classes" className="text-sm text-primary">
+        <ErrorState message="Class not found." />
+        <Link href="/academic/classes" className="text-sm text-primary-700 hover:underline">
           ← Back to classes
         </Link>
       </section>
     );
   }
 
+  const columns: Column<SectionDto>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (sectionRow) => (
+        <span className="font-medium text-neutral-800">{sectionRow.name}</span>
+      ),
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      render: (sectionRow) =>
+        canManage ? (
+          <div className="flex justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                create.reset();
+                update.reset();
+                setEditing(sectionRow);
+              }}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-danger-600 hover:bg-danger-50"
+              onClick={() => {
+                remove.reset();
+                setDeleting(sectionRow);
+              }}
+            >
+              Delete
+            </Button>
+          </div>
+        ) : (
+          <span className="text-neutral-400">—</span>
+        ),
+    },
+  ];
+
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link href="/academic/classes" className="text-sm text-primary">
+      <PageHeader
+        breadcrumb={
+          <Link href="/academic/classes" className="text-primary-700 hover:underline">
             ← Classes
           </Link>
-          <h2 className="text-xl font-semibold text-foreground">
-            {classQuery.data ? `Sections — ${classQuery.data.name}` : "Sections"}
-          </h2>
-        </div>
-        {canManage ? (
-          <button
-            type="button"
-            onClick={() => {
-              create.reset();
-              update.reset();
-              setEditing("new");
-            }}
-            className={primaryBtn}
-          >
-            New section
-          </button>
-        ) : null}
-      </div>
+        }
+        title={classQuery.data ? `Sections — ${classQuery.data.name}` : "Sections"}
+        action={
+          canManage ? (
+            <Button
+              icon={Plus}
+              onClick={() => {
+                create.reset();
+                update.reset();
+                setEditing("new");
+              }}
+            >
+              New section
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <TableShell
-        head={["Name", "Actions"]}
-        isLoading={sections.isLoading}
-        isError={sections.isError}
-        isEmpty={(sections.data ?? []).length === 0}
-        emptyText="No sections in this class yet."
-      >
-        {(sections.data ?? []).map((sectionRow) => (
-          <tr key={sectionRow.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">{sectionRow.name}</td>
-            <td className="px-4 py-3">
-              {canManage ? (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      create.reset();
-                      update.reset();
-                      setEditing(sectionRow);
-                    }}
-                    className={smallGhostBtn}
-                  >
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      remove.reset();
-                      setDeleting(sectionRow);
-                    }}
-                    className={smallDangerBtn}
-                  >
-                    Delete
-                  </button>
-                </div>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </td>
-          </tr>
-        ))}
-      </TableShell>
+      <DataTable
+        columns={columns}
+        rows={sections.data ?? []}
+        rowKey={(sectionRow) => sectionRow.id}
+        loading={sections.isLoading}
+        error={sections.isError}
+        onRetry={() => sections.refetch()}
+        empty={<EmptyState title="No sections in this class yet." />}
+      />
 
       {editing !== null ? (
         <SectionFormModal
@@ -135,9 +166,10 @@ export default function ClassDetailPage() {
       ) : null}
 
       {deleting !== null ? (
-        <ConfirmDelete
+        <ConfirmDialog
           title="Delete section"
-          message={`Permanently delete section “${deleting.name}”? Sections with teacher assignments cannot be deleted.`}
+          objectName={deleting.name}
+          message="Permanently delete this section? Sections with teacher assignments cannot be deleted —"
           busy={remove.isPending}
           error={remove.error?.message ?? null}
           onCancel={() => setDeleting(null)}
@@ -166,36 +198,33 @@ function SectionFormModal({
   const [name, setName] = useState(sectionRow?.name ?? "");
 
   return (
-    <Modal title={sectionRow ? "Edit section" : "New section"} onClose={onClose}>
+    <Dialog title={sectionRow ? "Edit section" : "New section"} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           onSubmit({ name: name.trim() });
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="A"
-            required
-          />
-        </label>
+        <Input
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="A"
+          required
+        />
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+        <div className="mt-1 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

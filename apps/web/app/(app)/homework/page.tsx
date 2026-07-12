@@ -1,18 +1,24 @@
 "use client";
 
 import type { HomeworkTargetDto } from "@repo/types";
+import { BookOpen } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
 import { HW_STATUS_LABEL } from "@/src/components/homework/ui";
+import {
+  Button,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Input,
+  PageHeader,
+  Select,
+  StatusChip,
+  TableToolbar,
+  useToast,
+  type Column,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /**
@@ -52,61 +58,89 @@ export default function HomeworkDashboardPage() {
   const [creating, setCreating] = useState(false);
   const rows = homework.data ?? [];
 
+  type Row = (typeof rows)[number];
+  const columns: Column<Row>[] = [
+    {
+      key: "title",
+      header: "Title",
+      render: (h) => (
+        <Link href={`/homework/${h.id}`} className="font-medium text-primary-700 hover:underline">
+          {h.title}
+        </Link>
+      ),
+    },
+    ...(isParent
+      ? []
+      : [
+          {
+            key: "target",
+            header: "Subject · Section",
+            render: (h: Row) => (
+              <span className="text-neutral-500">
+                {label.get(`${h.subjectId}:${h.sectionId}`) ?? "—"}
+              </span>
+            ),
+          },
+        ]),
+    {
+      key: "due",
+      header: "Due",
+      render: (h) => <span className="text-neutral-500">{h.dueDate}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (h) => <StatusChip status={h.status} label={HW_STATUS_LABEL[h.status]} />,
+    },
+  ];
+
   return (
     <section className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        {isAdmin ? (
-          <label className={labelClass}>
-            Academic year
-            <select
-              value={yearId}
-              onChange={(e) => setYearId(e.target.value)}
-              className={inputClass}
-            >
-              {(years.data ?? []).map((y) => (
-                <option key={y.id} value={y.id}>
-                  {y.name}
-                  {y.status === "ACTIVE" ? " (active)" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : (
-          <div />
-        )}
-        {canManage ? (
-          <button type="button" onClick={() => setCreating(true)} className={primaryBtn}>
-            New homework
-          </button>
-        ) : null}
-      </div>
-
-      <TableShell
-        head={
-          isParent ? ["Title", "Due", "Status"] : ["Title", "Subject · Section", "Due", "Status"]
+      <PageHeader
+        title="Homework"
+        action={
+          canManage ? (
+            <Button icon={BookOpen} onClick={() => setCreating(true)}>
+              New homework
+            </Button>
+          ) : undefined
         }
-        isLoading={homework.isLoading}
-        isError={homework.isError}
-        isEmpty={rows.length === 0}
-        emptyText={isParent ? "No homework published for your children yet." : "No homework yet."}
-      >
-        {rows.map((h) => (
-          <tr key={h.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">
-              <Link href={`/homework/${h.id}`} className="text-primary hover:underline">
-                {h.title}
-              </Link>
-            </td>
-            {!isParent ? (
-              <td className="px-4 py-3 text-muted-foreground">
-                {label.get(`${h.subjectId}:${h.sectionId}`) ?? "—"}
-              </td>
-            ) : null}
-            <td className="px-4 py-3 text-muted-foreground">{h.dueDate}</td>
-            <td className="px-4 py-3 text-muted-foreground">{HW_STATUS_LABEL[h.status]}</td>
-          </tr>
-        ))}
-      </TableShell>
+      />
+
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(h) => h.id}
+        loading={homework.isLoading}
+        error={homework.isError}
+        onRetry={() => void homework.refetch()}
+        toolbar={
+          isAdmin ? (
+            <TableToolbar
+              filters={
+                <Select
+                  label="Academic year"
+                  value={yearId}
+                  onChange={(e) => setYearId(e.target.value)}
+                >
+                  {(years.data ?? []).map((y) => (
+                    <option key={y.id} value={y.id}>
+                      {y.name}
+                      {y.status === "ACTIVE" ? " (active)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              }
+            />
+          ) : undefined
+        }
+        empty={
+          <EmptyState
+            icon={BookOpen}
+            title={isParent ? "No homework published for your children yet." : "No homework yet."}
+          />
+        }
+      />
 
       {creating ? (
         <CreateHomeworkModal
@@ -131,7 +165,14 @@ function CreateHomeworkModal({
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const create = trpc.homework.create.useMutation({ onSuccess: onCreated });
+  const { show } = useToast();
+  const create = trpc.homework.create.useMutation({
+    onSuccess: () => {
+      show("success", "Homework draft created");
+      onCreated();
+    },
+    onError: (e) => show("error", e.message),
+  });
   const [pair, setPair] = useState(
     targets[0] ? `${targets[0].subjectId}:${targets[0].sectionId}` : "",
   );
@@ -141,9 +182,9 @@ function CreateHomeworkModal({
   const selected = targets.find((t) => `${t.subjectId}:${t.sectionId}` === pair);
 
   return (
-    <Modal title="New homework" onClose={onClose}>
+    <Dialog title="New homework" onClose={onClose}>
       {targets.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-neutral-500">
           You have no subject/section assignments to create homework for. (Admins: create from a
           teacher account, or assign yourself in academic structure.)
         </p>
@@ -162,67 +203,46 @@ function CreateHomeworkModal({
           }}
           className="flex flex-col gap-3"
         >
-          <label className={labelClass}>
-            Subject &amp; section
-            <select
-              value={pair}
-              onChange={(e) => setPair(e.target.value)}
-              className={inputClass}
-              required
-            >
-              {targets.map((t) => (
-                <option
-                  key={`${t.subjectId}:${t.sectionId}`}
-                  value={`${t.subjectId}:${t.sectionId}`}
-                >
-                  {t.subjectName} · {t.sectionName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className={labelClass}>
-            Title
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className={inputClass}
-              required
-            />
-          </label>
-          <label className={labelClass}>
+          <Select
+            label="Subject & section"
+            value={pair}
+            onChange={(e) => setPair(e.target.value)}
+            required
+          >
+            {targets.map((t) => (
+              <option key={`${t.subjectId}:${t.sectionId}`} value={`${t.subjectId}:${t.sectionId}`}>
+                {t.subjectName} · {t.sectionName}
+              </option>
+            ))}
+          </Select>
+          <Input label="Title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+          <label className="flex flex-col gap-1 text-sm font-medium text-neutral-800">
             Description
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className={inputClass}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600"
               rows={3}
             />
           </label>
-          <label className={labelClass}>
-            Due date
-            <input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              className={inputClass}
-              required
-            />
-          </label>
-          {create.error ? <p className="text-sm text-destructive">{create.error.message}</p> : null}
+          <Input
+            label="Due date"
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+            required
+          />
+          {create.error ? <p className="text-sm text-danger-600">{create.error.message}</p> : null}
           <div className="mt-2 flex justify-end gap-2">
-            <button type="button" onClick={onClose} className={outlineBtn}>
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={create.isPending || title.trim() === ""}
-              className={primaryBtn}
-            >
-              {create.isPending ? "Creating…" : "Create draft"}
-            </button>
+            </Button>
+            <Button type="submit" loading={create.isPending} disabled={title.trim() === ""}>
+              Create draft
+            </Button>
           </div>
         </form>
       )}
-    </Modal>
+    </Dialog>
   );
 }

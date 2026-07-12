@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 /**
- * Minimal admin-CRUD primitives for the M2 academic screens, styled per
- * UI_DESIGN_SYSTEM.md (tokens only, visible labels, loading/empty/error table
- * states, destructive confirm dialog). No component library is installed yet —
- * these are deliberately small; a shadcn/ui adoption can replace them wholesale.
+ * Legacy M2 CRUD primitives. The full component kit (ADR-UX1 Step 2) now lives in
+ * `@/src/components/ui` and is re-exported below, so existing screens importing
+ * from here keep working while Step 4 migrates them onto the new components.
+ * These legacy class constants + Modal/TableShell/etc. remain until migrated.
  */
+export * from "@/src/components/ui";
 
 export const inputClass =
   "rounded-md border border-input px-3 py-2 text-foreground disabled:opacity-60";

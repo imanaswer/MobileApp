@@ -5,16 +5,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
-import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
 import { downloadCsv } from "@/src/components/attendance/ui";
 import {
   fileError,
@@ -23,6 +13,17 @@ import {
   pushToSignedUrl,
   SUB_STATUS_LABEL,
 } from "@/src/components/homework/ui";
+import {
+  Button,
+  DataTable,
+  Dialog,
+  EmptyState,
+  PageHeader,
+  Select,
+  StatusChip,
+  useToast,
+  type Column,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /**
@@ -40,15 +41,15 @@ export default function HomeworkDetailPage() {
   const hw = trpc.homework.get.useQuery({ homeworkId }, { enabled: homeworkId !== "" });
 
   if (hw.isLoading) {
-    return <p className="text-muted-foreground">Loading…</p>;
+    return <p className="text-neutral-500">Loading…</p>;
   }
   if (hw.data === undefined) {
     return (
       <section className="flex flex-col gap-3">
-        <Link href="/homework" className="text-sm text-primary">
+        <Link href="/homework" className="text-sm text-primary-700 hover:underline">
           ← All homework
         </Link>
-        <p className="text-muted-foreground">Homework not found.</p>
+        <p className="text-neutral-500">Homework not found.</p>
       </section>
     );
   }
@@ -56,17 +57,18 @@ export default function HomeworkDetailPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <div>
-        <Link href="/homework" className="text-sm text-primary">
-          ← All homework
-        </Link>
-        <h2 className="text-xl font-semibold text-foreground">
-          {h.title}
-          <span className="ml-2 align-middle text-sm font-normal text-muted-foreground">
-            (Due {h.dueDate} · {HW_STATUS_LABEL[h.status]})
-          </span>
-        </h2>
-        {h.description ? <p className="mt-1 text-foreground">{h.description}</p> : null}
+      <div className="flex flex-col gap-2">
+        <PageHeader
+          title={h.title}
+          breadcrumb={
+            <Link href="/homework" className="text-primary-700 hover:underline">
+              ← All homework
+            </Link>
+          }
+          action={<StatusChip status={h.status} label={HW_STATUS_LABEL[h.status]} />}
+        />
+        <p className="text-sm text-neutral-500">Due {h.dueDate}</p>
+        {h.description ? <p className="text-neutral-800">{h.description}</p> : null}
       </div>
 
       <TeacherFiles homeworkId={homeworkId} status={h.status} canManage={!isParent} />
@@ -94,13 +96,26 @@ function TeacherFiles({
   status: string;
   canManage: boolean;
 }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const files = trpc.homework.attachments.useQuery({ homeworkId });
   const invalidate = () => void utils.homework.attachments.invalidate({ homeworkId });
 
   const mintUpload = trpc.homework.attachmentUploadUrl.useMutation();
-  const add = trpc.homework.attachmentAdd.useMutation({ onSuccess: invalidate });
-  const remove = trpc.homework.attachmentRemove.useMutation({ onSuccess: invalidate });
+  const add = trpc.homework.attachmentAdd.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "File added");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.homework.attachmentRemove.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "File removed");
+    },
+    onError: (e) => show("error", e.message),
+  });
   const mintDownload = trpc.homework.attachmentDownloadUrl.useMutation();
   const [error, setError] = useState<string | null>(null);
   const editable = canManage && status === "DRAFT";
@@ -134,35 +149,35 @@ function TeacherFiles({
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-lg font-medium text-foreground">Teacher files</h3>
+      <h3 className="text-title text-neutral-800">Teacher files</h3>
       {(files.data ?? []).length === 0 ? (
-        <p className="text-sm text-muted-foreground">No files attached.</p>
+        <p className="text-sm text-neutral-500">No files attached.</p>
       ) : (
         (files.data ?? []).map((a) => (
           <div
             key={a.id}
-            className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+            className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2"
           >
-            <span className="text-foreground">
-              📎 {a.fileName} <span className="text-muted-foreground">· {kb(a.sizeBytes)}</span>
+            <span className="text-neutral-800">
+              📎 {a.fileName} <span className="text-neutral-500">· {kb(a.sizeBytes)}</span>
             </span>
             <div className="flex gap-1">
               <FileOpenButton onOpen={() => mintDownload.mutateAsync({ attachmentId: a.id })} />
               {editable ? (
-                <button
-                  type="button"
+                <Button
+                  variant="destructive"
+                  size="sm"
                   onClick={() => remove.mutate({ attachmentId: a.id })}
-                  className={smallDangerBtn}
                 >
                   Remove
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
         ))
       )}
       {editable ? (
-        <label className={`${outlineBtn} cursor-pointer self-start`}>
+        <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 self-start rounded-md border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
           {mintUpload.isPending || add.isPending ? "Uploading…" : "Add file"}
           <input
             type="file"
@@ -175,7 +190,7 @@ function TeacherFiles({
           />
         </label>
       ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-sm text-danger-600">{error}</p> : null}
     </div>
   );
 }
@@ -183,56 +198,71 @@ function TeacherFiles({
 /* ------------------------------------------------------------------- lifecycle */
 
 function Lifecycle({ homework, onChanged }: { homework: HomeworkDto; onChanged: () => void }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const done = () => {
     onChanged();
     void utils.homework.list.invalidate();
   };
-  const publish = trpc.homework.publish.useMutation({ onSuccess: done });
-  const close = trpc.homework.close.useMutation({ onSuccess: done });
-  const reopen = trpc.homework.reopen.useMutation({ onSuccess: done });
-  const remove = trpc.homework.delete.useMutation({ onSuccess: done });
+  const publish = trpc.homework.publish.useMutation({
+    onSuccess: () => {
+      done();
+      show("success", "Homework published");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const close = trpc.homework.close.useMutation({
+    onSuccess: () => {
+      done();
+      show("success", "Homework closed");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const reopen = trpc.homework.reopen.useMutation({
+    onSuccess: () => {
+      done();
+      show("success", "Homework reopened");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const remove = trpc.homework.delete.useMutation({
+    onSuccess: () => {
+      done();
+      show("success", "Draft deleted");
+    },
+    onError: (e) => show("error", e.message),
+  });
   const [reopening, setReopening] = useState(false);
   const err = publish.error ?? close.error ?? reopen.error ?? remove.error;
 
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-lg font-medium text-foreground">Lifecycle</h3>
+      <h3 className="text-title text-neutral-800">Lifecycle</h3>
       <div className="flex flex-wrap gap-2">
         {homework.status === "DRAFT" ? (
           <>
-            <button
-              type="button"
-              onClick={() => publish.mutate({ homeworkId: homework.id })}
-              className={primaryBtn}
-            >
-              Publish
-            </button>
-            <button
-              type="button"
+            <Button onClick={() => publish.mutate({ homeworkId: homework.id })}>Publish</Button>
+            <Button
+              variant="destructive"
+              size="sm"
               onClick={() => remove.mutate({ homeworkId: homework.id })}
-              className={smallDangerBtn}
             >
               Delete draft
-            </button>
+            </Button>
           </>
         ) : null}
         {homework.status === "PUBLISHED" ? (
-          <button
-            type="button"
-            onClick={() => close.mutate({ homeworkId: homework.id })}
-            className={outlineBtn}
-          >
+          <Button variant="secondary" onClick={() => close.mutate({ homeworkId: homework.id })}>
             Close
-          </button>
+          </Button>
         ) : null}
         {homework.status === "CLOSED" ? (
-          <button type="button" onClick={() => setReopening(true)} className={outlineBtn}>
+          <Button variant="secondary" onClick={() => setReopening(true)}>
             Reopen
-          </button>
+          </Button>
         ) : null}
       </div>
-      {err ? <p className="text-sm text-destructive">{err.message}</p> : null}
+      {err ? <p className="text-sm text-danger-600">{err.message}</p> : null}
       {reopening ? (
         <ReasonModal
           title="Reopen homework"
@@ -284,37 +314,50 @@ function SubmissionsTable({ homeworkId, homework }: { homeworkId: string; homewo
       ]),
     ]);
 
+  type Row = (typeof rows)[number];
+  const columns: Column<Row>[] = [
+    {
+      key: "student",
+      header: "Student",
+      render: (s) => <span className="font-medium text-neutral-800">{nameOf(s.enrollmentId)}</span>,
+    },
+    { key: "attempt", header: "Attempt", align: "right", render: (s) => s.attempt },
+    {
+      key: "status",
+      header: "Status",
+      render: (s) => <StatusChip status={s.status} label={SUB_STATUS_LABEL[s.status]} />,
+    },
+    { key: "late", header: "Late", render: (s) => (s.isLate ? "Yes" : "No") },
+    {
+      key: "action",
+      header: "",
+      render: (s) => (
+        <Button variant="ghost" size="sm" onClick={() => setReviewing(s.id)}>
+          {s.status === "SUBMITTED" ? "Review" : "View"}
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-foreground">Submissions</h3>
+        <h3 className="text-title text-neutral-800">Submissions</h3>
         {rows.length > 0 ? (
-          <button type="button" onClick={exportCsv} className={outlineBtn}>
+          <Button variant="secondary" onClick={exportCsv}>
             Export CSV
-          </button>
+          </Button>
         ) : null}
       </div>
-      <TableShell
-        head={["Student", "Attempt", "Status", "Late", ""]}
-        isLoading={subs.isLoading}
-        isError={subs.isError}
-        isEmpty={rows.length === 0}
-        emptyText="No submissions yet."
-      >
-        {rows.map((s) => (
-          <tr key={s.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">{nameOf(s.enrollmentId)}</td>
-            <td className="px-4 py-3 text-muted-foreground">{s.attempt}</td>
-            <td className="px-4 py-3 text-muted-foreground">{SUB_STATUS_LABEL[s.status]}</td>
-            <td className="px-4 py-3 text-muted-foreground">{s.isLate ? "Yes" : "No"}</td>
-            <td className="px-4 py-3">
-              <button type="button" onClick={() => setReviewing(s.id)} className={smallGhostBtn}>
-                {s.status === "SUBMITTED" ? "Review" : "View"}
-              </button>
-            </td>
-          </tr>
-        ))}
-      </TableShell>
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(s) => s.id}
+        loading={subs.isLoading}
+        error={subs.isError}
+        onRetry={() => void subs.refetch()}
+        empty={<EmptyState title="No submissions yet." />}
+      />
       {reviewing ? (
         <SubmissionModal submissionId={reviewing} onClose={() => setReviewing(null)} />
       ) : null}
@@ -324,6 +367,7 @@ function SubmissionsTable({ homeworkId, homework }: { homeworkId: string; homewo
 
 /** Teacher submission view + review (files, feedback history, return/accept). */
 function SubmissionModal({ submissionId, onClose }: { submissionId: string; onClose: () => void }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const sub = trpc.submission.get.useQuery({ submissionId });
   const files = trpc.submission.attachments.useQuery({ submissionId });
@@ -334,7 +378,9 @@ function SubmissionModal({ submissionId, onClose }: { submissionId: string; onCl
       void utils.submission.get.invalidate({ submissionId });
       void utils.submission.feedback.invalidate({ submissionId });
       void utils.submission.listByHomework.invalidate();
+      show("success", "Review submitted");
     },
+    onError: (e) => show("error", e.message),
   });
   const [decision, setDecision] = useState<"RETURNED" | "REVIEWED">("RETURNED");
   const [body, setBody] = useState("");
@@ -342,25 +388,25 @@ function SubmissionModal({ submissionId, onClose }: { submissionId: string; onCl
   const canReview = s?.status === "SUBMITTED";
 
   return (
-    <Modal title="Submission" onClose={onClose}>
+    <Dialog title="Submission" onClose={onClose}>
       <div className="flex flex-col gap-3">
         {s ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-neutral-500">
             Attempt {s.attempt} · {SUB_STATUS_LABEL[s.status]}
             {s.isLate ? " · Late" : ""}
           </p>
         ) : null}
-        {s?.note ? <p className="text-foreground">{s.note}</p> : null}
+        {s?.note ? <p className="text-neutral-800">{s.note}</p> : null}
 
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">Files</p>
+          <p className="text-sm font-medium text-neutral-500">Files</p>
           {(files.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">No files.</p>
+            <p className="text-sm text-neutral-500">No files.</p>
           ) : (
             (files.data ?? []).map((a) => (
               <div key={a.id} className="flex items-center justify-between">
-                <span className="text-foreground">
-                  📎 {a.fileName} <span className="text-muted-foreground">(att. {a.attempt})</span>
+                <span className="text-neutral-800">
+                  📎 {a.fileName} <span className="text-neutral-500">(att. {a.attempt})</span>
                 </span>
                 <FileOpenButton onOpen={() => mintDownload.mutateAsync({ attachmentId: a.id })} />
               </div>
@@ -369,16 +415,16 @@ function SubmissionModal({ submissionId, onClose }: { submissionId: string; onCl
         </div>
 
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">Feedback</p>
+          <p className="text-sm font-medium text-neutral-500">Feedback</p>
           {(feedback.data ?? []).length === 0 ? (
-            <p className="text-sm text-muted-foreground">No feedback yet.</p>
+            <p className="text-sm text-neutral-500">No feedback yet.</p>
           ) : (
             (feedback.data ?? []).map((f) => (
-              <div key={f.id} className="rounded-md border border-border p-2">
-                <p className="text-xs text-muted-foreground">
+              <div key={f.id} className="rounded-md border border-neutral-200 p-2">
+                <p className="text-caption text-neutral-500">
                   Attempt {f.attempt} · {SUB_STATUS_LABEL[f.decision]}
                 </p>
-                <p className="text-foreground">{f.body}</p>
+                <p className="text-neutral-800">{f.body}</p>
               </div>
             ))
           )}
@@ -392,52 +438,45 @@ function SubmissionModal({ submissionId, onClose }: { submissionId: string; onCl
             }}
             className="flex flex-col gap-2"
           >
-            <label className={labelClass}>
-              Decision
-              <select
-                value={decision}
-                onChange={(e) => setDecision(e.target.value as "RETURNED" | "REVIEWED")}
-                className={inputClass}
-              >
-                <option value="RETURNED">Request changes (parent may resubmit)</option>
-                <option value="REVIEWED">Accept (final)</option>
-              </select>
-            </label>
-            <label className={labelClass}>
+            <Select
+              label="Decision"
+              value={decision}
+              onChange={(e) => setDecision(e.target.value as "RETURNED" | "REVIEWED")}
+            >
+              <option value="RETURNED">Request changes (parent may resubmit)</option>
+              <option value="REVIEWED">Accept (final)</option>
+            </Select>
+            <label className="flex flex-col gap-1 text-sm font-medium text-neutral-800">
               Feedback
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                className={inputClass}
+                className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600"
                 rows={3}
                 required
               />
             </label>
             {review.error ? (
-              <p className="text-sm text-destructive">{review.error.message}</p>
+              <p className="text-sm text-danger-600">{review.error.message}</p>
             ) : null}
             <div className="flex justify-end gap-2">
-              <button type="button" onClick={onClose} className={outlineBtn}>
+              <Button type="button" variant="secondary" onClick={onClose}>
                 Close
-              </button>
-              <button
-                type="submit"
-                disabled={review.isPending || body.trim() === ""}
-                className={primaryBtn}
-              >
-                {review.isPending ? "Saving…" : "Submit review"}
-              </button>
+              </Button>
+              <Button type="submit" loading={review.isPending} disabled={body.trim() === ""}>
+                Submit review
+              </Button>
             </div>
           </form>
         ) : (
           <div className="flex justify-end">
-            <button type="button" onClick={onClose} className={outlineBtn}>
+            <Button type="button" variant="secondary" onClick={onClose}>
               Close
-            </button>
+            </Button>
           </div>
         )}
       </div>
-    </Modal>
+    </Dialog>
   );
 }
 
@@ -447,14 +486,14 @@ function ParentSubmissions({ homeworkId, canSubmit }: { homeworkId: string; canS
   const ctxQuery = trpc.submission.childContext.useQuery({ homeworkId });
   const rows = ctxQuery.data ?? [];
   if (ctxQuery.isLoading) {
-    return <p className="text-muted-foreground">Loading…</p>;
+    return <p className="text-neutral-500">Loading…</p>;
   }
   if (rows.length === 0) {
-    return <p className="text-muted-foreground">This homework isn’t for your children.</p>;
+    return <p className="text-neutral-500">This homework isn’t for your children.</p>;
   }
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="text-lg font-medium text-foreground">Your children</h3>
+      <h3 className="text-title text-neutral-800">Your children</h3>
       {rows.map((row) => (
         <ChildSubmission
           key={row.studentId}
@@ -476,6 +515,7 @@ function ChildSubmission({
   row: HomeworkChildContextDto;
   canSubmit: boolean;
 }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const sub = row.submission;
   const isResubmit = sub !== null;
@@ -550,6 +590,7 @@ function ChildSubmission({
         setNote("");
         setStaged([]);
         void utils.submission.childContext.invalidate({ homeworkId });
+        show("success", isResubmit ? "Resubmitted" : "Submitted");
       },
       onError: (e: { message: string }) => setError(e.message),
     };
@@ -560,16 +601,16 @@ function ChildSubmission({
   const sending = submit.isPending || resubmit.isPending;
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border p-4">
+    <div className="flex flex-col gap-3 rounded-md border border-neutral-200 p-4">
       <div className="flex items-center justify-between">
-        <p className="font-medium text-foreground">{row.studentName}</p>
+        <p className="font-medium text-neutral-800">{row.studentName}</p>
         {sub ? (
-          <span className="text-sm text-muted-foreground">
+          <span className="text-sm text-neutral-500">
             Attempt {sub.attempt} · {SUB_STATUS_LABEL[sub.status]}
             {sub.isLate ? " · Late" : ""}
           </span>
         ) : (
-          <span className="text-sm text-muted-foreground">Not submitted</span>
+          <span className="text-sm text-neutral-500">Not submitted</span>
         )}
       </div>
 
@@ -577,7 +618,7 @@ function ChildSubmission({
         <div className="flex flex-col gap-1">
           {(files.data ?? []).map((a) => (
             <div key={a.id} className="flex items-center justify-between">
-              <span className="text-foreground">📎 {a.fileName}</span>
+              <span className="text-neutral-800">📎 {a.fileName}</span>
               <FileOpenButton onOpen={() => mintDownload.mutateAsync({ attachmentId: a.id })} />
             </div>
           ))}
@@ -586,13 +627,13 @@ function ChildSubmission({
 
       {sub && (feedback.data ?? []).length > 0 ? (
         <div className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">Feedback</p>
+          <p className="text-sm font-medium text-neutral-500">Feedback</p>
           {(feedback.data ?? []).map((f) => (
-            <div key={f.id} className="rounded-md border border-border p-2">
-              <p className="text-xs text-muted-foreground">
+            <div key={f.id} className="rounded-md border border-neutral-200 p-2">
+              <p className="text-caption text-neutral-500">
                 Attempt {f.attempt} · {SUB_STATUS_LABEL[f.decision]}
               </p>
-              <p className="text-foreground">{f.body}</p>
+              <p className="text-neutral-800">{f.body}</p>
             </div>
           ))}
         </div>
@@ -600,24 +641,24 @@ function ChildSubmission({
 
       {actionable ? (
         <div className="flex flex-col gap-2">
-          <label className={labelClass}>
+          <label className="flex flex-col gap-1 text-sm font-medium text-neutral-800">
             Note
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className={inputClass}
+              className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600"
               rows={2}
             />
           </label>
           {staged.length > 0 ? (
-            <ul className="text-sm text-muted-foreground">
+            <ul className="text-sm text-neutral-500">
               {staged.map((f) => (
                 <li key={f.storagePath}>📎 {f.fileName}</li>
               ))}
             </ul>
           ) : null}
           <div className="flex flex-wrap gap-2">
-            <label className={`${outlineBtn} cursor-pointer`}>
+            <label className="inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-md border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-800 hover:bg-neutral-50">
               {busy ? "Uploading…" : "Attach file"}
               <input
                 type="file"
@@ -629,20 +670,20 @@ function ChildSubmission({
                 }}
               />
             </label>
-            <button
+            <Button
               type="button"
-              disabled={sending || busy || (note.trim() === "" && staged.length === 0)}
+              loading={sending}
+              disabled={busy || (note.trim() === "" && staged.length === 0)}
               onClick={onSend}
-              className={primaryBtn}
             >
-              {sending ? "Sending…" : isResubmit ? "Resubmit" : "Submit"}
-            </button>
+              {isResubmit ? "Resubmit" : "Submit"}
+            </Button>
           </div>
         </div>
       ) : reviewed ? (
-        <p className="text-sm text-success">Reviewed — no further changes.</p>
+        <p className="text-sm text-success-700">Reviewed — no further changes.</p>
       ) : null}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-sm text-danger-600">{error}</p> : null}
     </div>
   );
 }
@@ -652,19 +693,19 @@ function ChildSubmission({
 function FileOpenButton({ onOpen }: { onOpen: () => Promise<{ url: string }> }) {
   const [busy, setBusy] = useState(false);
   return (
-    <button
-      type="button"
-      disabled={busy}
+    <Button
+      variant="ghost"
+      size="sm"
+      loading={busy}
       onClick={() => {
         setBusy(true);
         onOpen()
           .then(({ url }) => window.open(url, "_blank", "noopener,noreferrer"))
           .finally(() => setBusy(false));
       }}
-      className={smallGhostBtn}
     >
       Open
-    </button>
+    </Button>
   );
 }
 
@@ -685,7 +726,7 @@ function ReasonModal({
 }) {
   const [reason, setReason] = useState("");
   return (
-    <Modal title={title} onClose={onClose}>
+    <Dialog title={title} onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -693,27 +734,27 @@ function ReasonModal({
         }}
         className="flex flex-col gap-3"
       >
-        <p className="text-sm text-muted-foreground">{hint}</p>
-        <label className={labelClass}>
+        <p className="text-sm text-neutral-500">{hint}</p>
+        <label className="flex flex-col gap-1 text-sm font-medium text-neutral-800">
           Reason
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            className={inputClass}
+            className="w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 focus:border-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-600"
             rows={3}
             required
           />
         </label>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy || reason.trim() === ""} className={primaryBtn}>
-            {busy ? "Reopening…" : "Reopen"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy} disabled={reason.trim() === ""}>
+            Reopen
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }

@@ -3,13 +3,28 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { NotificationDto, NotificationPriorityKey } from "@repo/types";
+import { Bell } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useId, useState } from "react";
 
-import { inputClass, labelClass, outlineBtn, primaryBtn } from "@/src/components/academic/ui";
 import { deepLinkForType, timeAgo } from "@/src/components/notification/ui";
+import {
+  Badge,
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+  SkeletonText,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
+
+const textareaClass =
+  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:opacity-60";
 
 /**
  * Notifications page (M10, ADR-018 Step 8). The signed-in user's inbox — mark read
@@ -42,54 +57,65 @@ export default function NotificationsPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link href="/dashboard" className="text-sm text-primary">
+    <main className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
+      <PageHeader
+        title="Notifications"
+        breadcrumb={
+          <Link href="/dashboard" className="hover:text-neutral-800">
             ← Dashboard
           </Link>
-          <h1 className="text-2xl font-semibold text-foreground">Notifications</h1>
-        </div>
-        {hasUnread ? (
-          <button type="button" className={outlineBtn} onClick={() => markAllRead.mutate()}>
-            Mark all read
-          </button>
-        ) : null}
-      </header>
+        }
+        action={
+          hasUnread ? (
+            <Button variant="secondary" onClick={() => markAllRead.mutate()}>
+              Mark all read
+            </Button>
+          ) : null
+        }
+      />
 
       {canAnnounce ? <AnnouncementComposer onSent={refresh} /> : null}
 
       <section className="flex flex-col gap-3">
         {list.isLoading ? (
-          <p className="text-muted-foreground">Loading…</p>
+          <Card>
+            <SkeletonText lines={4} />
+          </Card>
         ) : notifications.length === 0 ? (
-          <p className="text-muted-foreground">You have no notifications.</p>
+          <Card>
+            <EmptyState icon={Bell} title="No notifications" message="You have no notifications." />
+          </Card>
         ) : (
           notifications.map((n) => (
-            <div
-              key={n.id}
-              className="flex items-start gap-3 rounded-md border border-border bg-card p-4"
-            >
+            <Card key={n.id} className="flex items-start gap-3">
               <span className="mt-1.5 w-2">
-                {!n.isRead ? <span className="block h-2 w-2 rounded-full bg-primary" /> : null}
+                {!n.isRead ? <span className="block size-2 rounded-full bg-primary-600" /> : null}
               </span>
-              <button type="button" onClick={() => open(n)} className="flex-1 text-left">
-                <span
-                  className={`block ${n.isRead ? "text-foreground" : "font-semibold text-foreground"}`}
-                >
-                  {n.title}
-                </span>
-                <span className="block text-sm text-muted-foreground">{n.body}</span>
-                <span className="block text-xs text-muted-foreground">{timeAgo(n.createdAt)}</span>
-              </button>
               <button
                 type="button"
+                onClick={() => open(n)}
+                className="flex-1 cursor-pointer text-left"
+              >
+                <span className="flex items-center gap-2">
+                  <span
+                    className={n.isRead ? "text-neutral-800" : "font-semibold text-neutral-900"}
+                  >
+                    {n.title}
+                  </span>
+                  {!n.isRead ? <Badge tone="info">New</Badge> : null}
+                </span>
+                <span className="block text-sm text-neutral-500">{n.body}</span>
+                <span className="block text-caption text-neutral-500">{timeAgo(n.createdAt)}</span>
+              </button>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="Archive"
                 onClick={() => archive.mutate({ id: n.id })}
-                className="rounded-md px-2 py-1 text-sm font-medium text-muted-foreground hover:bg-accent"
               >
                 Archive
-              </button>
-            </div>
+              </Button>
+            </Card>
           ))
         )}
       </section>
@@ -101,6 +127,7 @@ const PRIORITIES: readonly NotificationPriorityKey[] = ["LOW", "NORMAL", "HIGH",
 
 /** Admin composer — bulk (whole school) or one section. */
 function AnnouncementComposer({ onSent }: { onSent: () => void }) {
+  const { show } = useToast();
   const [scope, setScope] = useState<"SCHOOL" | "SECTION">("SCHOOL");
   const [classId, setClassId] = useState<string>();
   const [sectionId, setSectionId] = useState<string>();
@@ -108,6 +135,7 @@ function AnnouncementComposer({ onSent }: { onSent: () => void }) {
   const [body, setBody] = useState("");
   const [priority, setPriority] = useState<NotificationPriorityKey>("NORMAL");
   const [sent, setSent] = useState<number | null>(null);
+  const bodyId = useId();
 
   const classes = trpc.class.list.useQuery();
   const sections = trpc.section.list.useQuery({ classId: classId! }, { enabled: !!classId });
@@ -118,7 +146,12 @@ function AnnouncementComposer({ onSent }: { onSent: () => void }) {
       setTitle("");
       setBody("");
       onSent();
+      show(
+        "success",
+        `Sent to ${res.recipientCount} recipient${res.recipientCount === 1 ? "" : "s"}.`,
+      );
     },
+    onError: (e) => show("error", e.message),
   });
 
   const canSubmit =
@@ -139,111 +172,96 @@ function AnnouncementComposer({ onSent }: { onSent: () => void }) {
   };
 
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-border bg-card p-4">
-      <h2 className="text-lg font-semibold text-foreground">New announcement</h2>
+    <Card className="flex flex-col gap-3">
+      <h2 className="text-title text-neutral-900">New announcement</h2>
 
       <div className="flex flex-wrap items-end gap-3">
-        <label className={labelClass}>
-          Audience
-          <select
-            value={scope}
-            onChange={(e) => setScope(e.target.value as "SCHOOL" | "SECTION")}
-            className={inputClass}
-          >
-            <option value="SCHOOL">Whole school (all parents &amp; teachers)</option>
-            <option value="SECTION">One section</option>
-          </select>
-        </label>
+        <Select
+          label="Audience"
+          value={scope}
+          onChange={(e) => setScope(e.target.value as "SCHOOL" | "SECTION")}
+        >
+          <option value="SCHOOL">Whole school (all parents &amp; teachers)</option>
+          <option value="SECTION">One section</option>
+        </Select>
 
         {scope === "SECTION" ? (
           <>
-            <label className={labelClass}>
-              Class
-              <select
-                value={classId ?? ""}
-                onChange={(e) => {
-                  setClassId(e.target.value || undefined);
-                  setSectionId(undefined);
-                }}
-                className={inputClass}
-              >
-                <option value="">Select…</option>
-                {(classes.data ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className={labelClass}>
-              Section
-              <select
-                value={sectionId ?? ""}
-                onChange={(e) => setSectionId(e.target.value || undefined)}
-                className={inputClass}
-                disabled={!classId}
-              >
-                <option value="">Select…</option>
-                {(sections.data ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Class"
+              value={classId ?? ""}
+              onChange={(e) => {
+                setClassId(e.target.value || undefined);
+                setSectionId(undefined);
+              }}
+            >
+              <option value="">Select…</option>
+              {(classes.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+            <Select
+              label="Section"
+              value={sectionId ?? ""}
+              onChange={(e) => setSectionId(e.target.value || undefined)}
+              disabled={!classId}
+            >
+              <option value="">Select…</option>
+              {(sections.data ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
           </>
         ) : null}
 
-        <label className={labelClass}>
-          Priority
-          <select
-            value={priority}
-            onChange={(e) => setPriority(e.target.value as NotificationPriorityKey)}
-            className={inputClass}
-          >
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {p.charAt(0) + p.slice(1).toLowerCase()}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Priority"
+          value={priority}
+          onChange={(e) => setPriority(e.target.value as NotificationPriorityKey)}
+        >
+          {PRIORITIES.map((p) => (
+            <option key={p} value={p}>
+              {p.charAt(0) + p.slice(1).toLowerCase()}
+            </option>
+          ))}
+        </Select>
       </div>
 
-      <label className={labelClass}>
-        Title
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          maxLength={200}
-          className={inputClass}
-          placeholder="Announcement title"
-        />
-      </label>
-      <label className={labelClass}>
-        Message
+      <Input
+        label="Title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={200}
+        placeholder="Announcement title"
+      />
+      <Field label="Message" htmlFor={bodyId}>
         <textarea
+          id={bodyId}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           maxLength={2000}
           rows={3}
-          className={inputClass}
+          className={textareaClass}
           placeholder="What do you want to tell them?"
         />
-      </label>
+      </Field>
 
-      {create.isError ? <p className="text-sm text-destructive">{create.error.message}</p> : null}
+      {create.isError ? <p className="text-sm text-danger-600">{create.error.message}</p> : null}
       {sent !== null ? (
-        <p className="text-sm text-success">
+        <p className="text-sm text-success-700">
           Sent to {sent} recipient{sent === 1 ? "" : "s"}.
         </p>
       ) : null}
 
       <div>
-        <button type="button" className={primaryBtn} disabled={!canSubmit} onClick={submit}>
-          {create.isPending ? "Sending…" : "Send announcement"}
-        </button>
+        <Button loading={create.isPending} disabled={!canSubmit} onClick={submit}>
+          Send announcement
+        </Button>
       </div>
-    </section>
+    </Card>
   );
 }

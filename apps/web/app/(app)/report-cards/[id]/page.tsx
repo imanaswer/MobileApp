@@ -7,16 +7,9 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 
-import {
-  destructiveBtn,
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
-import { KIND_LABEL, sameScope, StatusBadge } from "@/src/components/report-card/ui";
+import { inputClass, labelClass, Modal, TableShell } from "@/src/components/academic/ui";
+import { KIND_LABEL, sameScope } from "@/src/components/report-card/ui";
+import { Button, PageHeader, StatusChip, useToast } from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /**
@@ -35,15 +28,18 @@ export default function ReportCardDetailPage() {
     { enabled: card.data != null },
   );
 
+  const { show } = useToast();
   const utils = trpc.useUtils();
-  const edit = trpc.reportCard.edit.useMutation();
-  const draftRemark = trpc.reportCard.draftRemark.useMutation();
-  const submit = trpc.reportCard.submit.useMutation();
-  const approve = trpc.reportCard.approve.useMutation();
-  const publish = trpc.reportCard.publish.useMutation();
-  const reopen = trpc.reportCard.reopen.useMutation();
-  const revoke = trpc.reportCard.revoke.useMutation();
-  const correct = trpc.reportCard.correct.useMutation();
+  const onErr = (e: { message: string }) => show("error", e.message);
+  const ok = (message: string) => ({ onSuccess: () => show("success", message), onError: onErr });
+  const edit = trpc.reportCard.edit.useMutation(ok("Report card updated"));
+  const draftRemark = trpc.reportCard.draftRemark.useMutation(ok("Remark saved"));
+  const submit = trpc.reportCard.submit.useMutation(ok("Submitted for review"));
+  const approve = trpc.reportCard.approve.useMutation(ok("Report card approved"));
+  const publish = trpc.reportCard.publish.useMutation(ok("Report card published"));
+  const reopen = trpc.reportCard.reopen.useMutation(ok("Report card reopened"));
+  const revoke = trpc.reportCard.revoke.useMutation(ok("Report card revoked"));
+  const correct = trpc.reportCard.correct.useMutation(ok("New version created"));
 
   const [editing, setEditing] = useState(false);
   const [remarking, setRemarking] = useState(false);
@@ -73,94 +69,84 @@ export default function ReportCardDetailPage() {
 
   return (
     <section className="flex flex-col gap-5 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <Link href="/report-cards" className="text-sm text-primary">
+      <PageHeader
+        title={`${KIND_LABEL[c.kind]} report card · v${c.version}`}
+        breadcrumb={
+          <Link href="/report-cards" className="text-primary-700 hover:underline">
             ← Report cards
           </Link>
-          <h1 className="text-2xl font-semibold text-foreground">
-            {KIND_LABEL[c.kind]} report card · v{c.version}
-          </h1>
-          <StatusBadge status={c.status} />
-        </div>
-      </div>
+        }
+        action={<StatusChip status={c.status} />}
+      />
 
       {/* actions */}
       <div className="flex flex-wrap gap-2">
         {canRemark && c.status === "DRAFT" ? (
           <>
-            <button type="button" onClick={() => setRemarking(true)} className={outlineBtn}>
+            <Button variant="secondary" onClick={() => setRemarking(true)}>
               Edit teacher remark
-            </button>
-            <button
-              type="button"
-              disabled={submit.isPending}
+            </Button>
+            <Button
+              loading={submit.isPending}
               onClick={() => submit.mutate({ reportCardId: c.id }, done)}
-              className={primaryBtn}
             >
               Submit for review
-            </button>
+            </Button>
           </>
         ) : null}
 
         {canManage && c.status === "DRAFT" ? (
           <>
-            <button type="button" onClick={() => setEditing(true)} className={outlineBtn}>
+            <Button variant="secondary" onClick={() => setEditing(true)}>
               Edit
-            </button>
-            <span className="self-center text-sm text-muted-foreground">
+            </Button>
+            <span className="self-center text-sm text-neutral-500">
               Awaiting class-teacher submission.
             </span>
           </>
         ) : null}
         {canManage && c.status === "SUBMITTED" ? (
           <>
-            <button
-              type="button"
-              disabled={approve.isPending}
+            <Button
+              loading={approve.isPending}
               onClick={() => approve.mutate({ reportCardId: c.id }, done)}
-              className={primaryBtn}
             >
               Approve
-            </button>
-            <button type="button" onClick={() => setReasonFor("reopen")} className={outlineBtn}>
+            </Button>
+            <Button variant="secondary" onClick={() => setReasonFor("reopen")}>
               Reopen
-            </button>
+            </Button>
           </>
         ) : null}
         {canManage && c.status === "APPROVED" ? (
           <>
-            <button
-              type="button"
-              disabled={publish.isPending}
+            <Button
+              loading={publish.isPending}
               onClick={() => publish.mutate({ reportCardId: c.id }, done)}
-              className={primaryBtn}
             >
               Publish
-            </button>
-            <button type="button" onClick={() => setReasonFor("reopen")} className={outlineBtn}>
+            </Button>
+            <Button variant="secondary" onClick={() => setReasonFor("reopen")}>
               Reopen
-            </button>
+            </Button>
           </>
         ) : null}
         {canManage && c.status === "PUBLISHED" ? (
           <>
-            <button
-              type="button"
-              disabled={correct.isPending}
+            <Button
+              loading={correct.isPending}
               onClick={() =>
                 correct.mutate(
                   { reportCardId: c.id },
                   { onSuccess: (dto) => router.push(`/report-cards/${dto.id}`) },
                 )
               }
-              className={primaryBtn}
             >
               Correct (new version)
-            </button>
-            <button type="button" onClick={() => setReasonFor("revoke")} className={destructiveBtn}>
+            </Button>
+            <Button variant="destructive" onClick={() => setReasonFor("revoke")}>
               Revoke
-            </button>
+            </Button>
           </>
         ) : null}
       </div>
@@ -205,7 +191,7 @@ export default function ReportCardDetailPage() {
                 {v.id === c.id ? " (this)" : ""}
               </td>
               <td className="px-4 py-3">
-                <StatusBadge status={v.status} />
+                <StatusChip status={v.status} />
               </td>
             </tr>
           ))}
@@ -344,12 +330,12 @@ function AdminEditModal({
           </select>
         </label>
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
     </Modal>
@@ -387,12 +373,12 @@ function RemarkModal({
           />
         </label>
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy} className={primaryBtn}>
-            {busy ? "Saving…" : "Save"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy}>
+            Save
+          </Button>
         </div>
       </form>
     </Modal>
@@ -438,16 +424,16 @@ function ReasonModal({
           />
         </label>
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={busy}
-            className={action === "revoke" ? destructiveBtn : primaryBtn}
+            variant={action === "revoke" ? "destructive" : "primary"}
+            loading={busy}
           >
-            {busy ? "Working…" : action === "reopen" ? "Reopen" : "Revoke"}
-          </button>
+            {action === "reopen" ? "Reopen" : "Revoke"}
+          </Button>
         </div>
       </form>
     </Modal>

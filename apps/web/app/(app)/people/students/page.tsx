@@ -3,22 +3,26 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { StudentDto, StudentStatusKey } from "@repo/types";
+import { Users } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
-import {
-  inputClass,
-  labelClass,
-  ListToolbar,
-  Paginator,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-  usePagedSearch,
-} from "@/src/components/academic/ui";
-import { ConfirmAction } from "@/src/components/people/confirm";
+import { Paginator, usePagedSearch } from "@/src/components/academic/ui";
 import { StudentFormModal, type StudentFormValues } from "@/src/components/people/student-form";
+import {
+  Avatar,
+  Button,
+  ConfirmDialog,
+  DataTable,
+  EmptyState,
+  PageHeader,
+  Select,
+  SearchInput,
+  StatusChip,
+  TableToolbar,
+  useToast,
+  type Column,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 const STATUSES: readonly StudentStatusKey[] = ["ACTIVE", "ARCHIVED", "GRADUATED", "WITHDRAWN"];
@@ -32,15 +36,34 @@ const STATUSES: readonly StudentStatusKey[] = ["ACTIVE", "ARCHIVED", "GRADUATED"
 export default function StudentsPage() {
   const me = trpc.auth.me.useQuery();
   const canManage = me.data !== undefined && can(me.data.role, PERMISSIONS.STUDENT_MANAGE);
+  const { show } = useToast();
 
   const [status, setStatus] = useState<StudentStatusKey | "">("");
   const students = trpc.student.list.useQuery(status ? { status } : undefined);
   const utils = trpc.useUtils();
   const invalidate = () => utils.student.list.invalidate();
 
-  const create = trpc.student.create.useMutation({ onSuccess: invalidate });
-  const update = trpc.student.update.useMutation({ onSuccess: invalidate });
-  const archive = trpc.student.archive.useMutation({ onSuccess: invalidate });
+  const create = trpc.student.create.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Student created");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const update = trpc.student.update.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Student updated");
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const archive = trpc.student.archive.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Student archived");
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [editing, setEditing] = useState<StudentDto | "new" | null>(null);
   const [archiving, setArchiving] = useState<StudentDto | null>(null);
@@ -55,20 +78,97 @@ export default function StudentsPage() {
     ),
   );
 
+  const columns: Column<StudentDto>[] = [
+    {
+      key: "name",
+      header: "Name",
+      render: (s) => (
+        <div className="flex items-center gap-3">
+          <Avatar name={`${s.firstName} ${s.lastName}`} size="sm" />
+          <Link
+            href={`/people/students/${s.id}`}
+            className="font-medium text-primary-700 hover:underline"
+          >
+            {s.firstName} {s.lastName}
+          </Link>
+        </div>
+      ),
+    },
+    { key: "admissionNo", header: "Admission no", render: (s) => s.admissionNo },
+    { key: "dob", header: "Date of birth", render: (s) => s.dob ?? "—" },
+    { key: "status", header: "Status", render: (s) => <StatusChip status={s.status} /> },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (s) =>
+        canManage ? (
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                create.reset();
+                update.reset();
+                setEditing(s);
+              }}
+            >
+              Edit
+            </Button>
+            {s.status === "ACTIVE" ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-danger-600 hover:bg-danger-50"
+                onClick={() => {
+                  archive.reset();
+                  setArchiving(s);
+                }}
+              >
+                Archive
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <span className="text-neutral-500">—</span>
+        ),
+    },
+  ];
+
   return (
     <section className="flex flex-col gap-4">
-      <ListToolbar
-        searchValue={paged.query}
-        onSearch={paged.setQuery}
-        searchLabel="Search students"
+      <PageHeader
+        title="Students"
         action={
-          <div className="flex items-end gap-3">
-            <label className={labelClass}>
-              Status
-              <select
+          canManage ? (
+            <Button
+              icon={Users}
+              onClick={() => {
+                create.reset();
+                update.reset();
+                setEditing("new");
+              }}
+            >
+              New student
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <DataTable
+        columns={columns}
+        rows={paged.pageItems}
+        rowKey={(s) => s.id}
+        loading={students.isLoading}
+        error={students.isError}
+        onRetry={() => void students.refetch()}
+        empty={<EmptyState icon={Users} title="No students match." />}
+        toolbar={
+          <TableToolbar
+            filters={
+              <Select
+                label="Status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as StudentStatusKey | "")}
-                className={inputClass}
               >
                 <option value="">All statuses</option>
                 {STATUSES.map((s) => (
@@ -76,85 +176,25 @@ export default function StudentsPage() {
                     {s}
                   </option>
                 ))}
-              </select>
-            </label>
-            {canManage ? (
-              <button
-                type="button"
-                onClick={() => {
-                  create.reset();
-                  update.reset();
-                  setEditing("new");
-                }}
-                className={primaryBtn}
-              >
-                New student
-              </button>
-            ) : null}
-          </div>
+              </Select>
+            }
+            search={
+              <SearchInput
+                value={paged.query}
+                onChange={(e) => paged.setQuery(e.target.value)}
+                aria-label="Search students"
+              />
+            }
+          />
         }
-      />
-
-      <TableShell
-        head={["Name", "Admission no", "Date of birth", "Status", "Actions"]}
-        isLoading={students.isLoading}
-        isError={students.isError}
-        isEmpty={paged.total === 0}
-        emptyText="No students match."
-      >
-        {paged.pageItems.map((student) => (
-          <tr key={student.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">
-              <Link
-                href={`/people/students/${student.id}`}
-                className="text-primary hover:underline"
-              >
-                {student.firstName} {student.lastName}
-              </Link>
-            </td>
-            <td className="px-4 py-3 text-muted-foreground">{student.admissionNo}</td>
-            <td className="px-4 py-3 text-muted-foreground">{student.dob ?? "—"}</td>
-            <td className="px-4 py-3 text-muted-foreground">{student.status}</td>
-            <td className="px-4 py-3">
-              {canManage ? (
-                <div className="flex gap-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      create.reset();
-                      update.reset();
-                      setEditing(student);
-                    }}
-                    className={smallGhostBtn}
-                  >
-                    Edit
-                  </button>
-                  {student.status === "ACTIVE" ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        archive.reset();
-                        setArchiving(student);
-                      }}
-                      className={smallDangerBtn}
-                    >
-                      Archive
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <span className="text-muted-foreground">—</span>
-              )}
-            </td>
-          </tr>
-        ))}
-      </TableShell>
-
-      <Paginator
-        page={paged.page}
-        pageCount={paged.pageCount}
-        total={paged.total}
-        onPage={paged.setPage}
+        footer={
+          <Paginator
+            page={paged.page}
+            pageCount={paged.pageCount}
+            total={paged.total}
+            onPage={paged.setPage}
+          />
+        }
       />
 
       {editing !== null ? (
@@ -203,11 +243,11 @@ export default function StudentsPage() {
       ) : null}
 
       {archiving !== null ? (
-        <ConfirmAction
+        <ConfirmDialog
           title="Archive student"
-          message={`Archive “${archiving.firstName} ${archiving.lastName}”? The record is kept (history is never deleted) but the student can no longer be enrolled.`}
-          actionLabel="Archive"
-          busyLabel="Archiving…"
+          objectName={`${archiving.firstName} ${archiving.lastName}`}
+          message="Archive this student? The record is kept (history is never deleted) but the student can no longer be enrolled:"
+          confirmLabel="Archive"
           busy={archive.isPending}
           error={archive.error?.message ?? null}
           onCancel={() => setArchiving(null)}

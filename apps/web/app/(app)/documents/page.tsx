@@ -3,30 +3,38 @@
 import { PERMISSIONS, STORAGE_BUCKETS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { DocumentDto, DocumentTypeKey } from "@repo/types";
+import { FileText } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-  smallGhostBtn,
-  TableShell,
-} from "@/src/components/academic/ui";
 import { downloadCsv } from "@/src/components/analytics/csv";
 import {
   CERT_TYPES,
   DOCUMENT_STATUS_LABEL,
   DOCUMENT_STATUSES,
   DOCUMENT_TYPE_LABEL,
-  DocumentStatusBadge,
   GENERATABLE_TYPES,
 } from "@/src/components/documents/ui";
+import {
+  Button,
+  Card,
+  type Column,
+  ConfirmDialog,
+  DataTable,
+  Dialog,
+  EmptyState,
+  Field,
+  PageHeader,
+  Select,
+  StatusChip,
+  useToast,
+} from "@/src/components/ui";
 import { getSupabaseClient } from "@/src/lib/supabase/client";
 import { trpc } from "@/src/trpc/react";
+
+// Link-as-secondary-button (avoid nesting <Button> in <Link>).
+const linkBtn =
+  "inline-flex h-11 items-center justify-center rounded-md border border-neutral-300 bg-white px-4 text-body font-medium text-neutral-800 hover:bg-neutral-50";
 
 /**
  * Document management (M15, ADR-023 Step 7). Admin (document:manage) gets the school-wide
@@ -40,7 +48,7 @@ export default function DocumentsPage() {
   const me = trpc.auth.me.useQuery();
   const role = me.data?.role;
   if (role === undefined) {
-    return <p className="p-6 text-muted-foreground">Loading…</p>;
+    return <p className="p-6 text-neutral-500">Loading…</p>;
   }
   return can(role, PERMISSIONS.DOCUMENT_MANAGE) ? (
     <AdminConsole canApprove={can(role, PERMISSIONS.DOCUMENT_APPROVE)} />
@@ -54,6 +62,7 @@ export default function DocumentsPage() {
 // ---------------------------------------------------------------------------
 
 function AdminConsole({ canApprove }: { canApprove: boolean }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const [studentId, setStudentId] = useState("");
   const [type, setType] = useState<DocumentTypeKey | "">("");
@@ -76,11 +85,32 @@ function AdminConsole({ canApprove }: { canApprove: boolean }) {
   });
   const rows = list.data ?? [];
   const invalidate = () => void utils.document.list.invalidate();
-  const onErr = (e: { message: string }) => setError(e.message);
+  const onErr = (e: { message: string }) => {
+    setError(e.message);
+    show("error", e.message);
+  };
 
-  const approve = trpc.document.approve.useMutation({ onSuccess: invalidate, onError: onErr });
-  const archive = trpc.document.archive.useMutation({ onSuccess: invalidate, onError: onErr });
-  const remove = trpc.document.deleteDraft.useMutation({ onSuccess: invalidate, onError: onErr });
+  const approve = trpc.document.approve.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Document approved.");
+    },
+    onError: onErr,
+  });
+  const archive = trpc.document.archive.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Document archived.");
+    },
+    onError: onErr,
+  });
+  const remove = trpc.document.deleteDraft.useMutation({
+    onSuccess: () => {
+      invalidate();
+      show("success", "Draft deleted.");
+    },
+    onError: onErr,
+  });
   const mintDownload = trpc.document.downloadUrl.useMutation();
 
   async function preview(doc: DocumentDto) {
@@ -109,141 +139,147 @@ function AdminConsole({ canApprove }: { canApprove: boolean }) {
 
   const busy = approve.isPending || archive.isPending || remove.isPending;
 
+  const columns: Column<DocumentDto>[] = [
+    {
+      key: "student",
+      header: "Student",
+      render: (d) => (
+        <span className="font-medium text-neutral-800">{studentName.get(d.studentId) ?? "—"}</span>
+      ),
+    },
+    {
+      key: "type",
+      header: "Type",
+      render: (d) => <span className="text-neutral-500">{DOCUMENT_TYPE_LABEL[d.type]}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (d) => <StatusChip status={d.status} label={DOCUMENT_STATUS_LABEL[d.status]} />,
+    },
+    {
+      key: "issued",
+      header: "Issued",
+      render: (d) => <span className="text-neutral-500">{d.snapshot?.issuedOn ?? "—"}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (d) => (
+        <div className="flex flex-wrap gap-1">
+          {d.hasFile ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={mintDownload.isPending}
+              onClick={() => void preview(d)}
+            >
+              Preview
+            </Button>
+          ) : (
+            <span className="self-center px-1 text-caption text-neutral-500">No file</span>
+          )}
+          {canApprove && (d.status === "GENERATED" || d.status === "UPLOADED") ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => approve.mutate({ id: d.id })}
+            >
+              Approve
+            </Button>
+          ) : null}
+          {d.status === "APPROVED" ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={busy}
+              onClick={() => archive.mutate({ id: d.id })}
+            >
+              Archive
+            </Button>
+          ) : null}
+          {d.status === "GENERATED" || d.status === "UPLOADED" ? (
+            <Button variant="destructive" size="sm" onClick={() => setDeleting(d)}>
+              Delete
+            </Button>
+          ) : null}
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-4 p-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-semibold text-foreground">Documents &amp; certificates</h1>
-        <div className="flex gap-2">
-          <Link href="/documents/templates" className={outlineBtn}>
-            Templates
-          </Link>
-          <button type="button" onClick={() => setUploading(true)} className={outlineBtn}>
-            Upload
-          </button>
-          <button type="button" onClick={() => setGenerating(true)} className={primaryBtn}>
-            Generate
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Documents & certificates"
+        action={
+          <div className="flex gap-2">
+            <Link href="/documents/templates" className={linkBtn}>
+              Templates
+            </Link>
+            <Button variant="secondary" onClick={() => setUploading(true)}>
+              Upload
+            </Button>
+            <Button icon={FileText} onClick={() => setGenerating(true)}>
+              Generate
+            </Button>
+          </div>
+        }
+      />
 
       {/* filters */}
-      <div className="flex flex-wrap gap-3">
-        <label className={labelClass}>
-          Student
-          <select
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">All students</option>
-            {(students.data ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.firstName} {s.lastName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Type
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as DocumentTypeKey | "")}
-            className={inputClass}
-          >
-            <option value="">All types</option>
-            {CERT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DOCUMENT_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Status
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputClass}>
-            <option value="">All statuses</option>
-            {DOCUMENT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {DOCUMENT_STATUS_LABEL[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="flex items-end">
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={rows.length === 0}
-            className={outlineBtn}
-          >
-            Export CSV
-          </button>
-        </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <Select label="Student" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
+          <option value="">All students</option>
+          {(students.data ?? []).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.firstName} {s.lastName}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Type"
+          value={type}
+          onChange={(e) => setType(e.target.value as DocumentTypeKey | "")}
+        >
+          <option value="">All types</option>
+          {CERT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {DOCUMENT_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </Select>
+        <Select label="Status" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <option value="">All statuses</option>
+          {DOCUMENT_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {DOCUMENT_STATUS_LABEL[s]}
+            </option>
+          ))}
+        </Select>
+        <Button variant="secondary" onClick={exportCsv} disabled={rows.length === 0}>
+          Export CSV
+        </Button>
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-      <TableShell
-        head={["Student", "Type", "Status", "Issued", "Actions"]}
-        isLoading={list.isLoading}
-        isError={list.isError}
-        isEmpty={rows.length === 0}
-        emptyText="No documents match these filters."
-      >
-        {rows.map((d) => (
-          <tr key={d.id} className="border-b border-border last:border-b-0">
-            <td className="px-4 py-3 font-medium text-foreground">
-              {studentName.get(d.studentId) ?? "—"}
-            </td>
-            <td className="px-4 py-3 text-muted-foreground">{DOCUMENT_TYPE_LABEL[d.type]}</td>
-            <td className="px-4 py-3">
-              <DocumentStatusBadge status={d.status} />
-            </td>
-            <td className="px-4 py-3 text-muted-foreground">{d.snapshot?.issuedOn ?? "—"}</td>
-            <td className="px-4 py-3">
-              <div className="flex flex-wrap gap-1">
-                {d.hasFile ? (
-                  <button
-                    type="button"
-                    onClick={() => void preview(d)}
-                    disabled={mintDownload.isPending}
-                    className={smallGhostBtn}
-                  >
-                    Preview
-                  </button>
-                ) : (
-                  <span className="self-center px-1 text-xs text-muted-foreground">No file</span>
-                )}
-                {canApprove && (d.status === "GENERATED" || d.status === "UPLOADED") ? (
-                  <button
-                    type="button"
-                    onClick={() => approve.mutate({ id: d.id })}
-                    disabled={busy}
-                    className={smallGhostBtn}
-                  >
-                    Approve
-                  </button>
-                ) : null}
-                {d.status === "APPROVED" ? (
-                  <button
-                    type="button"
-                    onClick={() => archive.mutate({ id: d.id })}
-                    disabled={busy}
-                    className={smallGhostBtn}
-                  >
-                    Archive
-                  </button>
-                ) : null}
-                {d.status === "GENERATED" || d.status === "UPLOADED" ? (
-                  <button type="button" onClick={() => setDeleting(d)} className={smallDangerBtn}>
-                    Delete
-                  </button>
-                ) : null}
-              </div>
-            </td>
-          </tr>
-        ))}
-      </TableShell>
+      <DataTable<DocumentDto>
+        columns={columns}
+        rows={rows}
+        rowKey={(d) => d.id}
+        loading={list.isLoading}
+        error={list.isError}
+        onRetry={() => void list.refetch()}
+        empty={
+          <EmptyState
+            icon={FileText}
+            title="No documents"
+            message="No documents match these filters."
+          />
+        }
+      />
 
       {generating ? (
         <GenerateModal
@@ -268,27 +304,16 @@ function AdminConsole({ canApprove }: { canApprove: boolean }) {
       ) : null}
 
       {deleting ? (
-        <Modal title="Delete draft document" onClose={() => setDeleting(null)}>
-          <p className="text-sm text-muted-foreground">
-            Delete this {DOCUMENT_TYPE_LABEL[deleting.type].toLowerCase()} draft? Approved and
-            archived documents can’t be deleted.
-          </p>
-          <div className="mt-3 flex justify-end gap-2">
-            <button type="button" onClick={() => setDeleting(null)} className={outlineBtn}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              disabled={remove.isPending}
-              onClick={() =>
-                remove.mutate({ id: deleting.id }, { onSuccess: () => setDeleting(null) })
-              }
-              className={smallDangerBtn}
-            >
-              {remove.isPending ? "Deleting…" : "Delete"}
-            </button>
-          </div>
-        </Modal>
+        <ConfirmDialog
+          title="Delete draft document"
+          objectName={DOCUMENT_TYPE_LABEL[deleting.type]}
+          message={`Delete this ${DOCUMENT_TYPE_LABEL[deleting.type].toLowerCase()} draft? Approved and archived documents can’t be deleted.`}
+          busy={remove.isPending}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() =>
+            remove.mutate({ id: deleting.id }, { onSuccess: () => setDeleting(null) })
+          }
+        />
       ) : null}
     </div>
   );
@@ -305,16 +330,20 @@ function GenerateModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { show } = useToast();
   const [studentId, setStudentId] = useState("");
   const [type, setType] = useState<DocumentTypeKey>("BONAFIDE_CERTIFICATE");
   const [error, setError] = useState<string | null>(null);
   const generate = trpc.document.generate.useMutation({
-    onSuccess: onDone,
+    onSuccess: () => {
+      show("success", "Certificate generated.");
+      onDone();
+    },
     onError: (e) => setError(e.message),
   });
 
   return (
-    <Modal title="Generate certificate" onClose={onClose}>
+    <Dialog title="Generate certificate" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -327,51 +356,45 @@ function GenerateModal({
         }}
         className="flex flex-col gap-3"
       >
-        <label className={labelClass}>
-          Student
-          <select
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value)}
-            className={inputClass}
-            required
-          >
-            <option value="">Select a student…</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.firstName} {s.lastName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Certificate type
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as DocumentTypeKey)}
-            className={inputClass}
-          >
-            {GENERATABLE_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DOCUMENT_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="text-xs text-muted-foreground">
+        <Select
+          label="Student"
+          value={studentId}
+          onChange={(e) => setStudentId(e.target.value)}
+          required
+        >
+          <option value="">Select a student…</option>
+          {students.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.firstName} {s.lastName}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Certificate type"
+          value={type}
+          onChange={(e) => setType(e.target.value as DocumentTypeKey)}
+        >
+          {GENERATABLE_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {DOCUMENT_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </Select>
+        <p className="text-caption text-neutral-500">
           The student’s current details are snapshotted at generation, so a later profile change
           won’t alter this certificate.
         </p>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={generate.isPending} className={primaryBtn}>
-            {generate.isPending ? "Generating…" : "Generate"}
-          </button>
+          </Button>
+          <Button type="submit" loading={generate.isPending}>
+            Generate
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }
 
@@ -384,6 +407,7 @@ function UploadModal({
   onClose: () => void;
   onDone: () => void;
 }) {
+  const { show } = useToast();
   const [studentId, setStudentId] = useState("");
   const [type, setType] = useState<DocumentTypeKey>("FEE_RECEIPT");
   const [file, setFile] = useState<File | null>(null);
@@ -416,6 +440,7 @@ function UploadModal({
         ...(file.type ? { mimeType: file.type } : {}),
         sizeBytes: file.size,
       });
+      show("success", "Document uploaded.");
       onDone();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload failed");
@@ -425,7 +450,7 @@ function UploadModal({
   }
 
   return (
-    <Modal title="Upload document" onClose={onClose}>
+    <Dialog title="Upload document" onClose={onClose}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -433,56 +458,49 @@ function UploadModal({
         }}
         className="flex flex-col gap-3"
       >
-        <label className={labelClass}>
-          Student
-          <select
-            value={studentId}
-            onChange={(e) => setStudentId(e.target.value)}
-            className={inputClass}
-            required
-          >
-            <option value="">Select a student…</option>
-            {students.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.firstName} {s.lastName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          Document type
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as DocumentTypeKey)}
-            className={inputClass}
-          >
-            {CERT_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {DOCUMENT_TYPE_LABEL[t]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={labelClass}>
-          File
+        <Select
+          label="Student"
+          value={studentId}
+          onChange={(e) => setStudentId(e.target.value)}
+          required
+        >
+          <option value="">Select a student…</option>
+          {students.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.firstName} {s.lastName}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Document type"
+          value={type}
+          onChange={(e) => setType(e.target.value as DocumentTypeKey)}
+        >
+          {CERT_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {DOCUMENT_TYPE_LABEL[t]}
+            </option>
+          ))}
+        </Select>
+        <Field label="File">
           <input
             type="file"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className={inputClass}
+            className="text-sm text-neutral-800"
             required
           />
-        </label>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        </Field>
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
         <div className="mt-2 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={outlineBtn}>
+          <Button variant="secondary" type="button" onClick={onClose}>
             Cancel
-          </button>
-          <button type="submit" disabled={busy || file === null} className={primaryBtn}>
-            {busy ? "Uploading…" : "Upload"}
-          </button>
+          </Button>
+          <Button type="submit" loading={busy} disabled={file === null}>
+            Upload
+          </Button>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }
 
@@ -507,59 +525,72 @@ function ReadOnlyDocuments() {
     }
   }
 
+  const docs = list.data ?? [];
+  const columns: Column<DocumentDto>[] = [
+    {
+      key: "type",
+      header: "Type",
+      render: (d) => (
+        <span className="font-medium text-neutral-800">{DOCUMENT_TYPE_LABEL[d.type]}</span>
+      ),
+    },
+    {
+      key: "issued",
+      header: "Issued",
+      render: (d) => <span className="text-neutral-500">{d.snapshot?.issuedOn ?? "—"}</span>,
+    },
+    {
+      key: "file",
+      header: "File",
+      render: (d) => <span className="text-neutral-500">{d.fileName ?? "—"}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (d) =>
+        d.hasFile ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={mintDownload.isPending}
+            onClick={() => void open(d)}
+          >
+            Download
+          </Button>
+        ) : (
+          <span className="text-caption text-neutral-500">No file yet</span>
+        ),
+    },
+  ];
+
   return (
     <div className="flex flex-col gap-4 p-6">
-      <h1 className="text-2xl font-semibold text-foreground">Documents</h1>
-      <label className={labelClass}>
-        Student
-        <select
-          value={studentId}
-          onChange={(e) => setStudentId(e.target.value)}
-          className={inputClass}
-        >
+      <PageHeader title="Documents" />
+      <Card className="max-w-sm">
+        <Select label="Student" value={studentId} onChange={(e) => setStudentId(e.target.value)}>
           <option value="">Select a student…</option>
           {(students.data ?? []).map((s) => (
             <option key={s.id} value={s.id}>
               {s.firstName} {s.lastName}
             </option>
           ))}
-        </select>
-      </label>
+        </Select>
+      </Card>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
       {studentId ? (
-        <TableShell
-          head={["Type", "Issued", "File", "Actions"]}
-          isLoading={list.isLoading}
-          isError={list.isError}
-          isEmpty={(list.data ?? []).length === 0}
-          emptyText="No documents available."
-        >
-          {(list.data ?? []).map((d) => (
-            <tr key={d.id} className="border-b border-border last:border-b-0">
-              <td className="px-4 py-3 font-medium text-foreground">
-                {DOCUMENT_TYPE_LABEL[d.type]}
-              </td>
-              <td className="px-4 py-3 text-muted-foreground">{d.snapshot?.issuedOn ?? "—"}</td>
-              <td className="px-4 py-3 text-muted-foreground">{d.fileName ?? "—"}</td>
-              <td className="px-4 py-3">
-                {d.hasFile ? (
-                  <button
-                    type="button"
-                    onClick={() => void open(d)}
-                    disabled={mintDownload.isPending}
-                    className={smallGhostBtn}
-                  >
-                    Download
-                  </button>
-                ) : (
-                  <span className="text-xs text-muted-foreground">No file yet</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </TableShell>
+        <DataTable<DocumentDto>
+          columns={columns}
+          rows={docs}
+          rowKey={(d) => d.id}
+          loading={list.isLoading}
+          error={list.isError}
+          onRetry={() => void list.refetch()}
+          empty={
+            <EmptyState icon={FileText} title="No documents" message="No documents available." />
+          }
+        />
       ) : null}
     </div>
   );

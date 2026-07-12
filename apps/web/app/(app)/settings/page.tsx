@@ -3,10 +3,11 @@
 import { PERMISSIONS, STORAGE_BUCKETS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { BrandingDto, SchoolSettingsDto, SystemSettingsDto } from "@repo/types";
+import { Download } from "lucide-react";
 import { useState } from "react";
 
-import { inputClass, labelClass, primaryBtn } from "@/src/components/academic/ui";
 import { downloadCsv } from "@/src/components/analytics/csv";
+import { Button, Card, Field, Input, PageHeader, Select, useToast } from "@/src/components/ui";
 import { getSupabaseClient } from "@/src/lib/supabase/client";
 import { trpc } from "@/src/trpc/react";
 
@@ -26,17 +27,17 @@ export default function SettingsPage() {
   const me = trpc.auth.me.useQuery();
   const role = me.data?.role;
   if (role === undefined) {
-    return <p className="p-6 text-muted-foreground">Loading…</p>;
+    return <p className="p-6 text-neutral-500">Loading…</p>;
   }
   return can(role, PERMISSIONS.SETTINGS_MANAGE) ? <AdminConsole /> : <ReadOnlySettings />;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5">
-      <h2 className="text-lg font-semibold text-foreground">{title}</h2>
+    <Card className="flex flex-col gap-4">
+      <h2 className="text-title text-neutral-800">{title}</h2>
       {children}
-    </section>
+    </Card>
   );
 }
 
@@ -48,22 +49,22 @@ function AdminConsole() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold text-foreground">Administration</h1>
-          <p className="text-muted-foreground">School configuration &amp; branding</p>
-        </div>
-        {branding.data && school.data && system.data ? (
-          <ExportButton branding={branding.data} school={school.data} system={system.data} />
-        ) : null}
-      </div>
+      <PageHeader
+        title="Administration"
+        breadcrumb="School configuration & branding"
+        action={
+          branding.data && school.data && system.data ? (
+            <ExportButton branding={branding.data} school={school.data} system={system.data} />
+          ) : undefined
+        }
+      />
 
       {branding.data ? <BrandingForm current={branding.data} utils={utils} /> : null}
       {school.data ? <SchoolForm current={school.data} utils={utils} /> : null}
       {system.data ? <SystemForm current={system.data} utils={utils} /> : null}
 
-      <Section title="Configuration history &amp; audit">
-        <p className="text-sm text-muted-foreground">
+      <Section title="Configuration history & audit">
+        <p className="text-sm text-neutral-500">
           Every change here is written to the audit log. A dedicated audit-history viewer is not
           part of this milestone (no audit-read surface exists yet — deferred, ADR-024).
         </p>
@@ -75,6 +76,7 @@ function AdminConsole() {
 type Utils = ReturnType<typeof trpc.useUtils>;
 
 function BrandingForm({ current, utils }: { current: BrandingDto; utils: Utils }) {
+  const { show } = useToast();
   const [displayName, setDisplayName] = useState(current.displayName ?? "");
   const [primaryColor, setPrimaryColor] = useState(current.primaryColor ?? "#1d4ed8");
   const [secondaryColor, setSecondaryColor] = useState(current.secondaryColor ?? "#0f172a");
@@ -84,7 +86,11 @@ function BrandingForm({ current, utils }: { current: BrandingDto; utils: Utils }
 
   const mintLogo = trpc.branding.logoUploadUrl.useMutation();
   const save = trpc.branding.update.useMutation({
-    onSuccess: () => void utils.branding.get.invalidate(),
+    onSuccess: () => {
+      show("success", "Branding saved");
+      return utils.branding.get.invalidate();
+    },
+    onError: (e) => show("error", e.message),
   });
 
   async function onLogo(file: File) {
@@ -104,39 +110,36 @@ function BrandingForm({ current, utils }: { current: BrandingDto; utils: Utils }
 
   return (
     <Section title="Branding">
-      <label className={labelClass}>
-        Display name
-        <input
-          className={inputClass}
-          value={displayName}
-          onChange={(e) => setDisplayName(e.target.value)}
-          placeholder="School name shown in the app"
-        />
-      </label>
+      <Input
+        label="Display name"
+        value={displayName}
+        onChange={(e) => setDisplayName(e.target.value)}
+        placeholder="School name shown in the app"
+      />
       <div className="flex gap-4">
-        <label className={labelClass}>
-          Primary colour
+        <Field label="Primary colour" htmlFor="primary-colour">
           <input
+            id="primary-colour"
             type="color"
-            className="h-10 w-16 rounded border border-border"
+            className="h-11 w-16 rounded-md border border-neutral-300"
             value={primaryColor}
             onChange={(e) => setPrimaryColor(e.target.value)}
           />
-        </label>
-        <label className={labelClass}>
-          Secondary colour
+        </Field>
+        <Field label="Secondary colour" htmlFor="secondary-colour">
           <input
+            id="secondary-colour"
             type="color"
-            className="h-10 w-16 rounded border border-border"
+            className="h-11 w-16 rounded-md border border-neutral-300"
             value={secondaryColor}
             onChange={(e) => setSecondaryColor(e.target.value)}
           />
-        </label>
+        </Field>
       </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">Logo</span>
+      <Field label="Logo" htmlFor="logo-upload">
         <div className="flex items-center gap-3">
           <input
+            id="logo-upload"
             type="file"
             accept="image/*"
             disabled={busy}
@@ -146,26 +149,20 @@ function BrandingForm({ current, utils }: { current: BrandingDto; utils: Utils }
             }}
           />
           {logoPath ? (
-            <button
-              type="button"
-              className="text-sm text-primary underline"
-              onClick={() => logoUrl.mutate()}
-            >
+            <Button variant="ghost" size="sm" onClick={() => logoUrl.mutate()}>
               Preview current logo
-            </button>
+            </Button>
           ) : (
-            <span className="text-sm text-muted-foreground">No logo uploaded</span>
+            <span className="text-sm text-neutral-500">No logo uploaded</span>
           )}
         </div>
-        {logoUrl.data ? (
-          <img src={logoUrl.data.url} alt="School logo" className="h-16 w-auto rounded border" />
-        ) : null}
-      </div>
-      <div>
-        <button
-          type="button"
-          className={primaryBtn}
-          disabled={save.isPending}
+      </Field>
+      {logoUrl.data ? (
+        <img src={logoUrl.data.url} alt="School logo" className="h-16 w-auto rounded-md border" />
+      ) : null}
+      <div className="flex items-center gap-3">
+        <Button
+          loading={save.isPending}
           onClick={() =>
             save.mutate({
               displayName: displayName.trim() || null,
@@ -174,17 +171,16 @@ function BrandingForm({ current, utils }: { current: BrandingDto; utils: Utils }
             })
           }
         >
-          {save.isPending ? "Saving…" : "Save branding"}
-        </button>
-        {save.error ? (
-          <span className="ml-3 text-sm text-destructive">{save.error.message}</span>
-        ) : null}
+          Save branding
+        </Button>
+        {save.error ? <span className="text-sm text-danger-600">{save.error.message}</span> : null}
       </div>
     </Section>
   );
 }
 
 function SchoolForm({ current, utils }: { current: SchoolSettingsDto; utils: Utils }) {
+  const { show } = useToast();
   const [f, setF] = useState({
     contactEmail: current.contactEmail ?? "",
     contactPhone: current.contactPhone ?? "",
@@ -197,59 +193,44 @@ function SchoolForm({ current, utils }: { current: SchoolSettingsDto; utils: Uti
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setF((p) => ({ ...p, [k]: e.target.value }));
   const save = trpc.settings.update.useMutation({
-    onSuccess: () => void utils.settings.get.invalidate(),
+    onSuccess: () => {
+      show("success", "School settings saved");
+      return utils.settings.get.invalidate();
+    },
+    onError: (e) => show("error", e.message),
   });
 
   return (
-    <Section title="School profile, numbering &amp; academic defaults">
+    <Section title="School profile, numbering & academic defaults">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <label className={labelClass}>
-          Principal name
-          <input className={inputClass} value={f.principalName} onChange={set("principalName")} />
-        </label>
-        <label className={labelClass}>
-          Contact email
-          <input className={inputClass} value={f.contactEmail} onChange={set("contactEmail")} />
-        </label>
-        <label className={labelClass}>
-          Contact phone
-          <input className={inputClass} value={f.contactPhone} onChange={set("contactPhone")} />
-        </label>
-        <label className={labelClass}>
-          Website
-          <input className={inputClass} value={f.website} onChange={set("website")} />
-        </label>
-        <label className={labelClass}>
-          Invoice number prefix
-          <input className={inputClass} value={f.invoicePrefix} onChange={set("invoicePrefix")} />
-        </label>
-        <label className={labelClass}>
-          Certificate number prefix
-          <input
-            className={inputClass}
-            value={f.certificatePrefix}
-            onChange={set("certificatePrefix")}
-          />
-        </label>
-        <label className={labelClass}>
-          Academic year start month (1–12)
-          <input
-            className={inputClass}
-            inputMode="numeric"
-            value={f.academicYearStartMonth}
-            onChange={set("academicYearStartMonth")}
-          />
-        </label>
+        <Input label="Principal name" value={f.principalName} onChange={set("principalName")} />
+        <Input label="Contact email" value={f.contactEmail} onChange={set("contactEmail")} />
+        <Input label="Contact phone" value={f.contactPhone} onChange={set("contactPhone")} />
+        <Input label="Website" value={f.website} onChange={set("website")} />
+        <Input
+          label="Invoice number prefix"
+          value={f.invoicePrefix}
+          onChange={set("invoicePrefix")}
+        />
+        <Input
+          label="Certificate number prefix"
+          value={f.certificatePrefix}
+          onChange={set("certificatePrefix")}
+        />
+        <Input
+          label="Academic year start month (1–12)"
+          inputMode="numeric"
+          value={f.academicYearStartMonth}
+          onChange={set("academicYearStartMonth")}
+        />
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-caption text-neutral-500">
         Numbering &amp; academic defaults are stored but not yet applied to invoice/certificate
         generation (ADR-024 §5 — configuration influences future actions only).
       </p>
-      <div>
-        <button
-          type="button"
-          className={primaryBtn}
-          disabled={save.isPending}
+      <div className="flex items-center gap-3">
+        <Button
+          loading={save.isPending}
           onClick={() => {
             const m = parseInt(f.academicYearStartMonth, 10);
             save.mutate({
@@ -263,17 +244,16 @@ function SchoolForm({ current, utils }: { current: SchoolSettingsDto; utils: Uti
             });
           }}
         >
-          {save.isPending ? "Saving…" : "Save school settings"}
-        </button>
-        {save.error ? (
-          <span className="ml-3 text-sm text-destructive">{save.error.message}</span>
-        ) : null}
+          Save school settings
+        </Button>
+        {save.error ? <span className="text-sm text-danger-600">{save.error.message}</span> : null}
       </div>
     </Section>
   );
 }
 
 function SystemForm({ current, utils }: { current: SystemSettingsDto; utils: Utils }) {
+  const { show } = useToast();
   const [timezone, setTimezone] = useState(current.timezone);
   const [language, setLanguage] = useState<"en" | "ml">(current.language);
   const [theme, setTheme] = useState<"light" | "dark" | "system">(
@@ -281,7 +261,11 @@ function SystemForm({ current, utils }: { current: SystemSettingsDto; utils: Uti
   );
   const [workingDays, setWorkingDays] = useState<number[]>(current.workingDays);
   const save = trpc.configuration.update.useMutation({
-    onSuccess: () => void utils.configuration.get.invalidate(),
+    onSuccess: () => {
+      show("success", "System settings saved");
+      return utils.configuration.get.invalidate();
+    },
+    onError: (e) => show("error", e.message),
   });
 
   const toggleDay = (d: number) =>
@@ -290,74 +274,53 @@ function SystemForm({ current, utils }: { current: SystemSettingsDto; utils: Uti
     );
 
   return (
-    <Section title="System &amp; localization">
+    <Section title="System & localization">
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <label className={labelClass}>
-          Timezone
-          <input
-            className={inputClass}
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-          />
-        </label>
-        <label className={labelClass}>
-          Language
-          <select
-            className={inputClass}
-            value={language}
-            onChange={(e) => setLanguage(e.target.value as "en" | "ml")}
-          >
-            <option value="en">English</option>
-            <option value="ml">Malayalam</option>
-          </select>
-        </label>
-        <label className={labelClass}>
-          Theme
-          <select
-            className={inputClass}
-            value={theme}
-            onChange={(e) => setTheme(e.target.value as "light" | "dark" | "system")}
-          >
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-            <option value="system">System</option>
-          </select>
-        </label>
+        <Input label="Timezone" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+        <Select
+          label="Language"
+          value={language}
+          onChange={(e) => setLanguage(e.target.value as "en" | "ml")}
+        >
+          <option value="en">English</option>
+          <option value="ml">Malayalam</option>
+        </Select>
+        <Select
+          label="Theme"
+          value={theme}
+          onChange={(e) => setTheme(e.target.value as "light" | "dark" | "system")}
+        >
+          <option value="light">Light</option>
+          <option value="dark">Dark</option>
+          <option value="system">System</option>
+        </Select>
       </div>
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium text-foreground">Working week</span>
+      <Field label="Working week">
         <div className="flex flex-wrap gap-2">
           {DAYS.map((d, i) => {
             const on = workingDays.includes(i);
             return (
-              <button
+              <Button
                 key={d}
                 type="button"
+                variant={on ? "primary" : "secondary"}
+                aria-pressed={on}
                 onClick={() => toggleDay(i)}
-                className={`min-h-11 rounded-md border px-3 py-2 text-sm font-medium ${
-                  on
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-foreground"
-                }`}
               >
                 {d}
-              </button>
+              </Button>
             );
           })}
         </div>
-      </div>
-      <div>
-        <button
-          type="button"
-          className={primaryBtn}
-          disabled={save.isPending}
+      </Field>
+      <div className="flex items-center gap-3">
+        <Button
+          loading={save.isPending}
           onClick={() => save.mutate({ timezone: timezone.trim(), language, theme, workingDays })}
         >
-          {save.isPending ? "Saving…" : "Save system settings"}
-        </button>
-        {save.error ? (
-          <span className="ml-3 text-sm text-destructive">{save.error.message}</span>
-        ) : null}
+          Save system settings
+        </Button>
+        {save.error ? <span className="text-sm text-danger-600">{save.error.message}</span> : null}
       </div>
     </Section>
   );
@@ -373,9 +336,9 @@ function ExportButton({
   system: SystemSettingsDto;
 }) {
   return (
-    <button
-      type="button"
-      className={primaryBtn}
+    <Button
+      variant="secondary"
+      icon={Download}
       onClick={() => {
         const rows: [string, string][] = [
           ["Display name", branding.displayName ?? ""],
@@ -397,18 +360,18 @@ function ExportButton({
       }}
     >
       Export CSV
-    </button>
+    </Button>
   );
 }
 
 function ReadOnlySettings() {
   const pub = trpc.settings.getPublic.useQuery();
   if (!pub.data) {
-    return <p className="p-6 text-muted-foreground">Loading…</p>;
+    return <p className="p-6 text-neutral-500">Loading…</p>;
   }
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-6">
-      <h1 className="text-3xl font-semibold text-foreground">Settings</h1>
+      <PageHeader title="Settings" />
       <Section title="School">
         <Row label="Name" value={pub.data.branding.displayName ?? "—"} />
         <Row label="Theme" value={pub.data.theme} />
@@ -420,9 +383,9 @@ function ReadOnlySettings() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between border-b border-border py-2 text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-foreground">{value}</span>
+    <div className="flex justify-between border-b border-neutral-200 py-2 text-sm">
+      <span className="text-neutral-500">{label}</span>
+      <span className="font-medium text-neutral-800">{value}</span>
     </div>
   );
 }

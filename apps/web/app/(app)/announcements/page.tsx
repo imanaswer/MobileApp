@@ -3,16 +3,10 @@
 import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import type { AnnouncementScopeKey, AnnouncementStatusKey } from "@repo/types";
+import { Megaphone, Paperclip } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useId, useState } from "react";
 
-import {
-  destructiveBtn,
-  inputClass,
-  labelClass,
-  outlineBtn,
-  primaryBtn,
-} from "@/src/components/academic/ui";
 import {
   formatDate,
   kb,
@@ -21,10 +15,27 @@ import {
   STATUS_LABEL,
   validateAnnouncementFile,
 } from "@/src/components/announcement/ui";
+import {
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Input,
+  PageHeader,
+  Select,
+  SkeletonText,
+  StatusChip,
+  type Tab,
+  Tabs,
+  useToast,
+} from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 const ADMIN_TABS: AnnouncementStatusKey[] = ["DRAFT", "PUBLISHED", "ARCHIVED"];
 const TEACHER_TABS: AnnouncementStatusKey[] = ["DRAFT", "PUBLISHED"];
+
+const textareaClass =
+  "w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-body text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-600 focus:border-primary-600 disabled:cursor-not-allowed disabled:bg-neutral-50 disabled:opacity-60";
 
 /**
  * Announcement console (M11, ADR-019 Step 7). Draft / Published / Archive tabs with a
@@ -38,7 +49,8 @@ export default function AnnouncementsPage() {
   const canManage = role !== undefined && can(role, PERMISSIONS.ANNOUNCEMENT_MANAGE);
   const canDraft = role !== undefined && can(role, PERMISSIONS.ANNOUNCEMENT_DRAFT);
   const isAuthor = canManage || canDraft;
-  const tabs = canManage ? ADMIN_TABS : TEACHER_TABS;
+  const tabKeys = canManage ? ADMIN_TABS : TEACHER_TABS;
+  const tabs: Tab[] = tabKeys.map((t) => ({ key: t, label: STATUS_LABEL[t] }));
 
   const [tab, setTab] = useState<AnnouncementStatusKey>("PUBLISHED");
   const [scopeFilter, setScopeFilter] = useState<AnnouncementScopeKey | "ALL">("ALL");
@@ -48,20 +60,22 @@ export default function AnnouncementsPage() {
   const rows = (list.data ?? []).filter((a) => scopeFilter === "ALL" || a.scope === scopeFilter);
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Link href="/dashboard" className="text-sm text-primary">
+    <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
+      <PageHeader
+        title="Announcements"
+        breadcrumb={
+          <Link href="/dashboard" className="hover:text-neutral-800">
             ← Dashboard
           </Link>
-          <h1 className="text-2xl font-semibold text-foreground">Announcements</h1>
-        </div>
-        {isAuthor ? (
-          <button type="button" className={primaryBtn} onClick={() => setEditing("new")}>
-            New announcement
-          </button>
-        ) : null}
-      </header>
+        }
+        action={
+          isAuthor ? (
+            <Button icon={Megaphone} onClick={() => setEditing("new")}>
+              New announcement
+            </Button>
+          ) : null
+        }
+      />
 
       {editing ? (
         <Composer
@@ -72,21 +86,10 @@ export default function AnnouncementsPage() {
         />
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex gap-2">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={tab === t ? primaryBtn : outlineBtn}
-            >
-              {STATUS_LABEL[t]}
-            </button>
-          ))}
-        </div>
-        <select
-          className={inputClass}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Tabs tabs={tabs} active={tab} onChange={(k) => setTab(k as AnnouncementStatusKey)} />
+        <Select
+          label="Audience"
           value={scopeFilter}
           onChange={(e) => setScopeFilter(e.target.value as AnnouncementScopeKey | "ALL")}
         >
@@ -96,34 +99,40 @@ export default function AnnouncementsPage() {
               {SCOPE_LABEL[s]}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <section className="flex flex-col gap-2">
         {list.isLoading ? (
-          <p className="text-muted-foreground">Loading…</p>
+          <Card>
+            <SkeletonText lines={4} />
+          </Card>
         ) : rows.length === 0 ? (
-          <p className="text-muted-foreground">No announcements.</p>
+          <Card>
+            <EmptyState icon={Megaphone} title="No announcements" />
+          </Card>
         ) : (
           rows.map((a) => (
-            <button
+            <Card
               key={a.id}
-              type="button"
+              interactive
               onClick={() => setEditing(a.id)}
-              className="flex flex-col gap-1 rounded-md border border-border bg-card p-4 text-left hover:bg-accent"
+              className="flex flex-col gap-1"
             >
               <div className="flex items-center gap-2">
-                <span className="flex-1 font-semibold text-foreground">{a.title}</span>
+                <span className="flex-1 font-semibold text-neutral-900">{a.title}</span>
                 {a.attachments.length > 0 ? (
-                  <span className="text-xs text-muted-foreground">📎 {a.attachments.length}</span>
+                  <span className="flex items-center gap-1 text-caption text-neutral-500">
+                    <Paperclip aria-hidden className="size-3.5" /> {a.attachments.length}
+                  </span>
                 ) : null}
+                <StatusChip status={a.status} label={STATUS_LABEL[a.status]} />
               </div>
-              <span className="line-clamp-2 text-sm text-muted-foreground">{a.body}</span>
-              <span className="text-xs text-muted-foreground">
-                {SCOPE_LABEL[a.scope]} · {STATUS_LABEL[a.status]} ·{" "}
-                {formatDate(a.publishedAt ?? a.createdAt)}
+              <span className="line-clamp-2 text-sm text-neutral-500">{a.body}</span>
+              <span className="text-caption text-neutral-500">
+                {SCOPE_LABEL[a.scope]} · {formatDate(a.publishedAt ?? a.createdAt)}
               </span>
-            </button>
+            </Card>
           ))
         )}
       </section>
@@ -143,6 +152,7 @@ function Composer({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { show } = useToast();
   const utils = trpc.useUtils();
   const existing = trpc.announcement.get.useQuery({ id: id ?? "" }, { enabled: !!id });
   const a = existing.data;
@@ -154,6 +164,7 @@ function Composer({
   const [sectionId, setSectionId] = useState<string>();
   const [error, setError] = useState<string | null>(null);
   const [hydratedId, setHydratedId] = useState<string | null>(null);
+  const bodyId = useId();
 
   // Prefill once when the edited row loads.
   if (a && hydratedId !== a.id) {
@@ -180,29 +191,36 @@ function Composer({
   const create = trpc.announcement.create.useMutation({
     onSuccess: () => {
       refresh();
+      show("success", "Draft created.");
       onClose();
     },
     onError: (e) => setError(e.message),
   });
   const update = trpc.announcement.update.useMutation({
-    onSuccess: refresh,
+    onSuccess: () => {
+      refresh();
+      show("success", "Draft saved.");
+    },
     onError: (e) => setError(e.message),
   });
   const publish = trpc.announcement.publish.useMutation({
     onSuccess: () => {
       onSaved();
+      show("success", "Announcement published.");
       onClose();
     },
   });
   const archive = trpc.announcement.archive.useMutation({
     onSuccess: () => {
       onSaved();
+      show("success", "Announcement archived.");
       onClose();
     },
   });
   const remove = trpc.announcement.delete.useMutation({
     onSuccess: () => {
       onSaved();
+      show("success", "Draft deleted.");
       onClose();
     },
   });
@@ -263,124 +281,109 @@ function Composer({
     (scope !== "CLASS" || !!classId);
 
   return (
-    <div className="flex flex-col gap-4 rounded-md border border-border bg-card p-4">
+    <Card className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-foreground">
+        <h2 className="text-title text-neutral-900">
           {id ? "Edit announcement" : "New announcement"}
         </h2>
-        <button type="button" className={outlineBtn} onClick={onClose}>
+        <Button variant="secondary" size="sm" onClick={onClose}>
           Close
-        </button>
+        </Button>
       </div>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-      <label className={labelClass}>
-        Title
-        <input
-          className={inputClass}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          disabled={!canEdit}
-        />
-      </label>
-      <label className={labelClass}>
-        Message
+      <Input
+        label="Title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        disabled={!canEdit}
+      />
+      <Field label="Message" htmlFor={bodyId}>
         <textarea
-          className={`${inputClass} min-h-28`}
+          id={bodyId}
+          className={`${textareaClass} min-h-28`}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           disabled={!canEdit}
         />
-      </label>
+      </Field>
 
       {/* Scope is chosen at creation only. */}
       {!id ? (
         <div className="flex flex-wrap items-end gap-3">
-          <label className={labelClass}>
-            Audience
-            <select
-              className={inputClass}
-              value={scope}
+          <Select
+            label="Audience"
+            value={scope}
+            onChange={(e) => {
+              setScope(e.target.value as AnnouncementScopeKey);
+              setClassId(undefined);
+              setSectionId(undefined);
+            }}
+          >
+            {canManage ? (
+              <>
+                <option value="WHOLE_SCHOOL">Whole school</option>
+                <option value="TEACHERS">Teachers</option>
+                <option value="PARENTS">Parents</option>
+                <option value="CLASS">Class</option>
+                <option value="SECTION">Section</option>
+              </>
+            ) : (
+              <option value="SECTION">Section</option>
+            )}
+          </Select>
+
+          {canManage && (scope === "CLASS" || scope === "SECTION") ? (
+            <Select
+              label="Class"
+              value={classId ?? ""}
               onChange={(e) => {
-                setScope(e.target.value as AnnouncementScopeKey);
-                setClassId(undefined);
+                setClassId(e.target.value || undefined);
                 setSectionId(undefined);
               }}
             >
-              {canManage ? (
-                <>
-                  <option value="WHOLE_SCHOOL">Whole school</option>
-                  <option value="TEACHERS">Teachers</option>
-                  <option value="PARENTS">Parents</option>
-                  <option value="CLASS">Class</option>
-                  <option value="SECTION">Section</option>
-                </>
-              ) : (
-                <option value="SECTION">Section</option>
-              )}
-            </select>
-          </label>
-
-          {canManage && (scope === "CLASS" || scope === "SECTION") ? (
-            <label className={labelClass}>
-              Class
-              <select
-                className={inputClass}
-                value={classId ?? ""}
-                onChange={(e) => {
-                  setClassId(e.target.value || undefined);
-                  setSectionId(undefined);
-                }}
-              >
-                <option value="">Select…</option>
-                {(classes.data ?? []).map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+              <option value="">Select…</option>
+              {(classes.data ?? []).map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
           ) : null}
 
           {canManage && scope === "SECTION" && classId ? (
-            <label className={labelClass}>
-              Section
-              <select
-                className={inputClass}
-                value={sectionId ?? ""}
-                onChange={(e) => setSectionId(e.target.value || undefined)}
-              >
-                <option value="">Select…</option>
-                {(sections.data ?? []).map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Section"
+              value={sectionId ?? ""}
+              onChange={(e) => setSectionId(e.target.value || undefined)}
+            >
+              <option value="">Select…</option>
+              {(sections.data ?? []).map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
           ) : null}
 
           {!canManage ? (
-            <label className={labelClass}>
-              Section
-              <select
-                className={inputClass}
-                value={sectionId ?? ""}
-                onChange={(e) => setSectionId(e.target.value || undefined)}
-              >
-                <option value="">Select…</option>
-                {teacherSections.map(([sid, name]) => (
-                  <option key={sid} value={sid}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <Select
+              label="Section"
+              value={sectionId ?? ""}
+              onChange={(e) => setSectionId(e.target.value || undefined)}
+            >
+              <option value="">Select…</option>
+              {teacherSections.map(([sid, name]) => (
+                <option key={sid} value={sid}>
+                  {name}
+                </option>
+              ))}
+            </Select>
           ) : null}
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-caption text-neutral-500">
           Audience: {SCOPE_LABEL[scope]} (fixed after creation)
         </p>
       )}
@@ -388,33 +391,33 @@ function Composer({
       {/* Attachments — DRAFT only, after the row exists. */}
       {id && a && isDraft ? (
         <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-foreground">Attachments</span>
+          <span className="text-sm font-medium text-neutral-800">Attachments</span>
           {a.attachments.map((att) => (
             <div key={att.id} className="flex items-center gap-2 text-sm">
               <button
                 type="button"
-                className="flex-1 text-left text-primary underline"
+                className="flex flex-1 items-center gap-1 text-left text-primary-700 underline"
                 onClick={() =>
                   void download
                     .mutateAsync({ attachmentId: att.id })
                     .then(({ url }) => window.open(url, "_blank"))
                 }
               >
-                📎 {att.fileName}
+                <Paperclip aria-hidden className="size-3.5" /> {att.fileName}
               </button>
-              <span className="text-xs text-muted-foreground">{kb(att.sizeBytes)}</span>
-              <button
-                type="button"
-                className="text-xs text-destructive"
+              <span className="text-caption text-neutral-500">{kb(att.sizeBytes)}</span>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => removeAttachment.mutate({ attachmentId: att.id })}
               >
                 Remove
-              </button>
+              </Button>
             </div>
           ))}
           <input
             type="file"
-            className="text-sm"
+            className="text-sm text-neutral-800"
             onChange={(e) => void onFile(e.target.files?.[0])}
           />
         </div>
@@ -422,26 +425,24 @@ function Composer({
 
       <div className="flex flex-wrap gap-2">
         {canEdit ? (
-          <button type="button" className={primaryBtn} disabled={!valid} onClick={save}>
+          <Button disabled={!valid} onClick={save}>
             {id ? "Save draft" : "Create draft"}
-          </button>
+          </Button>
         ) : null}
         {id && a?.status === "DRAFT" && canManage ? (
-          <button type="button" className={primaryBtn} onClick={() => publish.mutate({ id })}>
-            Publish
-          </button>
+          <Button onClick={() => publish.mutate({ id })}>Publish</Button>
         ) : null}
         {id && a?.status === "PUBLISHED" && canManage ? (
-          <button type="button" className={outlineBtn} onClick={() => archive.mutate({ id })}>
+          <Button variant="secondary" onClick={() => archive.mutate({ id })}>
             Archive
-          </button>
+          </Button>
         ) : null}
         {id && a?.status === "DRAFT" ? (
-          <button type="button" className={destructiveBtn} onClick={() => remove.mutate({ id })}>
+          <Button variant="destructive" onClick={() => remove.mutate({ id })}>
             Delete
-          </button>
+          </Button>
         ) : null}
       </div>
-    </div>
+    </Card>
   );
 }

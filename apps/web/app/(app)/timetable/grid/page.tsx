@@ -1,16 +1,9 @@
 "use client";
 
 import type { PeriodDto, TimetableEntryDto, WeekdayKey } from "@repo/types";
+import { Download } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import {
-  inputClass,
-  labelClass,
-  Modal,
-  outlineBtn,
-  primaryBtn,
-  smallDangerBtn,
-} from "@/src/components/academic/ui";
 import {
   downloadCsv,
   entriesToCsv,
@@ -18,10 +11,12 @@ import {
   WEEKDAYS,
   YearSelect,
 } from "@/src/components/timetable/ui";
+import { Button, Dialog, Input, Select, useToast } from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /** Section weekly grid — click a cell to add/edit an entry. Conflicts surface on save. */
 export default function GridPage() {
+  const { show } = useToast();
   const [yearId, setYearId] = useState<string>();
   const [classId, setClassId] = useState<string>();
   const [sectionId, setSectionId] = useState<string>();
@@ -43,9 +38,27 @@ export default function GridPage() {
 
   const utils = trpc.useUtils();
   const invalidate = () => utils.timetable.bySection.invalidate();
-  const createEntry = trpc.timetable.createEntry.useMutation({ onSuccess: invalidate });
-  const updateEntry = trpc.timetable.updateEntry.useMutation({ onSuccess: invalidate });
-  const removeEntry = trpc.timetable.deleteEntry.useMutation({ onSuccess: invalidate });
+  const createEntry = trpc.timetable.createEntry.useMutation({
+    onSuccess: () => {
+      show("success", "Timetable entry added");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const updateEntry = trpc.timetable.updateEntry.useMutation({
+    onSuccess: () => {
+      show("success", "Timetable entry updated");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
+  const removeEntry = trpc.timetable.deleteEntry.useMutation({
+    onSuccess: () => {
+      show("success", "Timetable entry removed");
+      return invalidate();
+    },
+    onError: (e) => show("error", e.message),
+  });
 
   const [cell, setCell] = useState<{ weekday: WeekdayKey; period: PeriodDto } | null>(null);
 
@@ -57,66 +70,56 @@ export default function GridPage() {
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end gap-3">
         <YearSelect value={yearId} onChange={setYearId} />
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-          Class
-          <select
-            value={classId ?? ""}
-            onChange={(e) => {
-              setClassId(e.target.value || undefined);
-              setSectionId(undefined);
-            }}
-            className={inputClass}
-          >
-            <option value="">Select…</option>
-            {(classes.data ?? []).map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-          Section
-          <select
-            value={sectionId ?? ""}
-            onChange={(e) => setSectionId(e.target.value || undefined)}
-            className={inputClass}
-            disabled={!classId}
-          >
-            <option value="">Select…</option>
-            {(sections.data ?? []).map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select
+          label="Class"
+          value={classId ?? ""}
+          onChange={(e) => {
+            setClassId(e.target.value || undefined);
+            setSectionId(undefined);
+          }}
+        >
+          <option value="">Select…</option>
+          {(classes.data ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </Select>
+        <Select
+          label="Section"
+          value={sectionId ?? ""}
+          onChange={(e) => setSectionId(e.target.value || undefined)}
+          disabled={!classId}
+        >
+          <option value="">Select…</option>
+          {(sections.data ?? []).map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </Select>
         {ready && entryRows.length > 0 ? (
-          <button
-            type="button"
-            className={outlineBtn}
+          <Button
+            variant="secondary"
+            icon={Download}
             onClick={() => {
               const { headers, rows: r } = entriesToCsv(entryRows);
               downloadCsv(`timetable-${sectionId}.csv`, headers, r);
             }}
           >
             Export CSV
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {!yearId || !sectionId ? (
-        <p className="text-muted-foreground">
-          Pick a year, class, and section to view the timetable.
-        </p>
+        <p className="text-neutral-500">Pick a year, class, and section to view the timetable.</p>
       ) : !schedule.data ? (
-        <p className="text-muted-foreground">
+        <p className="text-neutral-500">
           This year has no bell schedule yet. Set it up under “Bell schedule &amp; periods” first.
         </p>
       ) : rows.length === 0 ? (
-        <p className="text-muted-foreground">
-          The bell schedule has no periods yet. Add periods first.
-        </p>
+        <p className="text-neutral-500">The bell schedule has no periods yet. Add periods first.</p>
       ) : (
         <TimetableGrid
           periods={rows}
@@ -222,7 +225,7 @@ function EntryModal({
   };
 
   return (
-    <Modal
+    <Dialog
       title={`${dayLabel} · ${period.name} (${period.startTime}–${period.endTime})`}
       onClose={onClose}
     >
@@ -231,67 +234,61 @@ function EntryModal({
           e.preventDefault();
           submit();
         }}
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4"
       >
-        <label className={labelClass}>
-          Subject — Teacher
-          <select
-            value={pair}
-            onChange={(e) => setPair(e.target.value)}
-            className={inputClass}
-            required
-          >
-            <option value="" disabled>
-              Select an assignment…
+        <Select
+          label="Subject — Teacher"
+          value={pair}
+          onChange={(e) => setPair(e.target.value)}
+          helper={
+            options.length === 0
+              ? "No teacher assignments in this section yet — add one under Academic → Teacher assignments."
+              : undefined
+          }
+          required
+        >
+          <option value="" disabled>
+            Select an assignment…
+          </option>
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
             </option>
-            {options.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {options.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No teacher assignments in this section yet — add one under Academic → Teacher
-            assignments.
-          </p>
-        ) : null}
-        <label className={labelClass}>
-          Room (optional)
-          <input
-            value={room}
-            onChange={(e) => setRoom(e.target.value)}
-            className={inputClass}
-            placeholder="Room 12"
-          />
-        </label>
+          ))}
+        </Select>
+        <Input
+          label="Room (optional)"
+          value={room}
+          onChange={(e) => setRoom(e.target.value)}
+          placeholder="Room 12"
+        />
 
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-danger-600">{error}</p> : null}
 
-        <div className="mt-2 flex justify-between gap-2">
+        <div className="mt-1 flex justify-between gap-2">
           <div>
             {existing ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                className="text-danger-600 hover:bg-danger-50"
                 disabled={busy}
-                className={smallDangerBtn}
                 onClick={() => onDelete(existing.id)}
               >
                 Delete
-              </button>
+              </Button>
             ) : null}
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className={outlineBtn}>
+            <Button type="button" variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" disabled={busy || !pair} className={primaryBtn}>
-              {busy ? "Saving…" : "Save"}
-            </button>
+            </Button>
+            <Button type="submit" loading={busy} disabled={busy || !pair}>
+              Save
+            </Button>
           </div>
         </div>
       </form>
-    </Modal>
+    </Dialog>
   );
 }
