@@ -1,6 +1,6 @@
 # ADR-UX1 — Design System & Visual Language — UX-1
 
-**Status:** Accepted — **Step 1 (foundations) implemented** · **Date:** 2026-07-12 · **Deciders:** Design, Product
+**Status:** Accepted — **Steps 1–6 implemented (web complete; mobile tabs/screen-sweep deferred to device verification)** · **Date:** 2026-07-12 · **Deciders:** Design, Product
 **Related:** ADR-000-series (this is presentation-only — **zero** db/business/api/validation change) ·
 `UI_DESIGN_SYSTEM.md` (the prior brand-pending sketch — this ADR supersedes and expands it) ·
 `packages/ui` (the single token source; M0) ·

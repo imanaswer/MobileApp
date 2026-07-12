@@ -69,14 +69,16 @@ export function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
+    <section className="flex flex-col gap-3 rounded-card border border-neutral-200 bg-card p-5 shadow-sm">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-sm font-medium text-muted-foreground">{title}</h2>
+        <h2 className="text-caption font-semibold uppercase tracking-wide text-neutral-500">
+          {title}
+        </h2>
         {onExport ? (
           <button
             type="button"
             onClick={onExport}
-            className="rounded-md border border-border px-2 py-1 text-xs font-medium text-foreground hover:bg-background"
+            className="cursor-pointer rounded-md border border-neutral-300 px-2.5 py-1 text-caption font-medium text-neutral-700 hover:bg-neutral-50"
           >
             Export CSV
           </button>
@@ -89,15 +91,15 @@ export function Panel({
 
 export function Kpi({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-4">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-2xl font-semibold text-foreground">{value}</span>
+    <div className="flex flex-col gap-1 rounded-card border border-neutral-200 bg-card p-5 shadow-sm">
+      <span className="text-sm text-neutral-500">{label}</span>
+      <span className="text-display font-semibold tabular-nums text-neutral-900">{value}</span>
     </div>
   );
 }
 
 function Empty() {
-  return <p className="py-8 text-center text-sm text-muted-foreground">No data yet.</p>;
+  return <p className="py-8 text-center text-sm text-neutral-500">No data yet.</p>;
 }
 
 /* ─────────────────────────────────── charts ───────────────────────────────────── */

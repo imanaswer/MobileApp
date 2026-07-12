@@ -53,7 +53,7 @@ export function Sidebar({ role }: { role: RoleKey }) {
         {groups.map((group, gi) => (
           <div key={group.label || gi} className="mb-2 px-2">
             {group.label && (
-              <p className="hidden px-2 py-1 text-caption font-semibold uppercase tracking-wide text-navy-400 xl:block">
+              <p className="hidden px-2 py-1 text-caption font-semibold uppercase tracking-wide text-navy-300 xl:block">
                 {group.label}
               </p>
             )}

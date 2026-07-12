@@ -2,6 +2,11 @@
 
 Component catalog for `packages/ui` (shared tokens/primitives) and app-level domain components. Complements `UI_DESIGN_SYSTEM.md` (visual spec) — this is the build checklist. Web = shadcn/ui-based; mobile = NativeWind equivalents consuming the same tokens.
 
+> **UX-1 update (ADR-UX1):** the built component kit now lives in `apps/web/src/components/ui/*`
+> and `apps/mobile/src/components/ui/*` (see `docs/DESIGN_SYSTEM.md` for the full reference). The
+> web kit's living gallery is the dev-only `/design-system` route. The Tier-1 table below is the
+> original plan; the shipped kit is the source of truth.
+
 ## Tier 1 — `packages/ui` primitives (shared naming, per-platform impl)
 
 | Component | Web basis | Mobile basis | Notes | MS |

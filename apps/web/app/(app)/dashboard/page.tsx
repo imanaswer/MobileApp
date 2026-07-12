@@ -1,10 +1,7 @@
 "use client";
 
-import { signOut } from "@repo/auth";
-import { PERMISSIONS } from "@repo/constants";
-import { can } from "@repo/core";
+import type { RoleKey } from "@repo/constants";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 import {
@@ -12,18 +9,48 @@ import {
   ParentDashboard,
   TeacherDashboard,
 } from "@/src/components/analytics/dashboards";
-import { NotificationBell } from "@/src/components/notification/ui";
-import { getSupabaseClient } from "@/src/lib/supabase/client";
+import { visibleNavGroups } from "@/src/components/shell/nav-config";
+import { Card, EmptyState, StatusChip } from "@/src/components/ui";
 import { trpc } from "@/src/trpc/react";
 
 /**
- * Role-aware analytics dashboard (M14, ADR-022). Resolves the DB profile (`auth.me`),
- * activates a first-time INVITED account, then renders live KPIs + charts for the role
- * (admin / teacher / parent) over frozen data — read-only, computed on demand. Quick
- * links to the feature areas follow. No new API; charts are Recharts (ADR-022 §7).
+ * Role-aware home dashboard (M14 / ADR-022, restyled ADR-UX1 §5). Resolves the DB
+ * profile (`auth.me`), activates a first-time INVITED account, then renders the
+ * role's live KPIs/charts + a greeting and module cards. Presentation-only — the
+ * nav gating reuses `visibleNavGroups` (same `can()` checks); no new API. The
+ * persistent shell now owns nav / notification bell / sign-out (removed here).
  */
+const ROLE_LABEL: Record<RoleKey, string> = {
+  SUPER_ADMIN: "Super Admin",
+  OFFICE_ADMIN: "Office Admin",
+  TEACHER: "Teacher",
+  PARENT: "Parent",
+  ACCOUNTANT: "Accountant",
+};
+
+// Domain accents for the module cards (the 6 accented domains; others plain).
+const ACCENT: Record<
+  string,
+  "attendance" | "exams" | "homework" | "fees" | "calendar" | "messages"
+> = {
+  "/attendance/mark": "attendance",
+  "/exams": "exams",
+  "/homework": "homework",
+  "/fees": "fees",
+  "/calendar": "calendar",
+  "/announcements": "messages",
+};
+
+function greeting(): string {
+  const hour = Number(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata", hour: "numeric", hour12: false }),
+  );
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function DashboardPage() {
-  const router = useRouter();
   const me = trpc.auth.me.useQuery();
   const utils = trpc.useUtils();
   const register = trpc.auth.registerProfile.useMutation({
@@ -38,74 +65,36 @@ export default function DashboardPage() {
     }
   }, [me.data?.status, register]);
 
-  async function handleLogout() {
-    await signOut(getSupabaseClient());
-    router.replace("/login");
-    router.refresh();
-  }
-
   if (me.isError) {
     return (
-      <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center p-6">
-        <p className="text-center text-destructive">
-          Your account isn’t set up yet. Please contact the school office.
-        </p>
+      <main className="mx-auto max-w-[1200px] p-6">
+        <EmptyState
+          title="Your account isn’t set up yet"
+          message="Please contact the school office to finish activating your account."
+        />
       </main>
     );
   }
 
   if (me.isLoading || me.data?.status !== "ACTIVE" || register.isPending) {
     return (
-      <main className="flex min-h-screen items-center justify-center p-6">
-        <p className="text-muted-foreground">Loading…</p>
+      <main className="mx-auto flex min-h-[60vh] max-w-[1200px] items-center justify-center p-6">
+        <p className="text-sm text-neutral-500">Loading…</p>
       </main>
     );
   }
 
   const role = me.data.role;
   const isAdmin = role === "SUPER_ADMIN" || role === "OFFICE_ADMIN";
-
-  const links: { href: string; label: string; show: boolean }[] = [
-    {
-      href: "/academic/years",
-      label: "Academic structure",
-      show: can(role, PERMISSIONS.ACADEMIC_READ),
-    },
-    { href: "/people/students", label: "People", show: can(role, PERMISSIONS.STUDENT_READ) },
-    { href: "/attendance/mark", label: "Attendance", show: can(role, PERMISSIONS.ATTENDANCE_READ) },
-    { href: "/exams", label: "Examinations", show: can(role, PERMISSIONS.EXAM_MANAGE) },
-    { href: "/homework", label: "Homework", show: can(role, PERMISSIONS.HOMEWORK_READ) },
-    { href: "/timetable", label: "Timetable", show: can(role, PERMISSIONS.TIMETABLE_MANAGE) },
-    {
-      href: "/announcements",
-      label: "Announcements",
-      show: can(role, PERMISSIONS.ANNOUNCEMENT_READ),
-    },
-    { href: "/calendar", label: "School calendar", show: can(role, PERMISSIONS.CALENDAR_READ) },
-    {
-      href: "/behaviour",
-      label: "Behaviour & discipline",
-      show: can(role, PERMISSIONS.BEHAVIOUR_MANAGE),
-    },
-    { href: "/fees", label: "Fees & payments", show: can(role, PERMISSIONS.FEE_MANAGE) },
-    {
-      href: "/documents",
-      label: "Documents & certificates",
-      show: can(role, PERMISSIONS.DOCUMENT_READ),
-    },
-    { href: "/settings", label: "Administration", show: can(role, PERMISSIONS.SETTINGS_MANAGE) },
-  ];
+  const modules = visibleNavGroups(role)
+    .flatMap((g) => g.items)
+    .filter((i) => i.href !== "/dashboard");
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-6xl flex-col gap-6 p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-semibold text-foreground">School Portal</h1>
-          <p className="text-muted-foreground">
-            Signed in as <span className="font-medium text-foreground">{role}</span>
-          </p>
-        </div>
-        <NotificationBell />
+    <main className="mx-auto flex max-w-[1200px] flex-col gap-6 p-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-display font-semibold text-neutral-900">{greeting()}</h1>
+        <StatusChip tone="info" label={ROLE_LABEL[role]} />
       </div>
 
       {isAdmin ? (
@@ -116,30 +105,30 @@ export default function DashboardPage() {
         <ParentDashboard />
       ) : null}
 
-      <section className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4">
-        <h2 className="text-sm font-medium text-muted-foreground">Quick links</h2>
-        <div className="flex flex-wrap gap-2">
-          {links
-            .filter((l) => l.show)
-            .map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                className="min-h-11 rounded-md border border-border px-4 py-2 font-medium text-foreground hover:bg-background"
-              >
-                {l.label}
-              </Link>
-            ))}
-        </div>
-      </section>
-
-      <button
-        type="button"
-        onClick={() => void handleLogout()}
-        className="min-h-11 self-start rounded-md border border-border px-4 py-2 font-medium text-foreground"
-      >
-        Log out
-      </button>
+      {modules.length > 0 && (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-caption font-semibold uppercase tracking-wide text-neutral-500">
+            Modules
+          </h2>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {modules.map((m) => {
+              const Icon = m.icon;
+              return (
+                <Link key={m.href} href={m.href}>
+                  <Card
+                    interactive
+                    accent={ACCENT[m.href]}
+                    className="flex h-full items-center gap-3 p-4"
+                  >
+                    <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0 text-neutral-500" />
+                    <span className="text-sm font-medium text-neutral-800">{m.label}</span>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
