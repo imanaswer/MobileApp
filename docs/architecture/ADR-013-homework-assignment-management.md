@@ -9,8 +9,9 @@
 > submission row and its attachment metadata persist together, and the mint needs no
 > pre-existing submission row. Same private / server-chosen / attempt-tagged
 > properties; no behavioural change. Also: mobile ships the text loop + attachment
-> **download**, with file **upload web-only** (no native picker dependency); the
-> OFFICE_ADMIN create-from-scratch web picker is unbuilt (service supports it) — both
+> **download**; parent file **upload is now on mobile too** (Phase 3 — expo-image-
+> picker/expo-document-picker → the same mint→PUT→confirm flow as web). The
+> OFFICE_ADMIN create-from-scratch web picker is unbuilt (service supports it) —
 > recorded in `docs/features/homework.md` §Known limitations.
 **Related:** Dev PRD v1.3 §8.6 (homework — superseded in part by the M6 brief, see below) ·
 ADR-002 (business layer is the authorization gate) · ADR-003 (repositories) ·

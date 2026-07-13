@@ -5,6 +5,13 @@ import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-nativ
 
 import { ScreenScaffold } from "../../../components/attendance-ui";
 import { AttachmentList, HW_STATUS_LABEL, SUB_STATUS_LABEL } from "../../../components/homework-ui";
+import {
+  pickDocument,
+  pickImage,
+  uploadSubmissionFile,
+  type AttachmentMeta,
+  type PickedFile,
+} from "../../../lib/attachments";
 import { trpc } from "../../../lib/trpc";
 
 /**
@@ -174,19 +181,75 @@ function ChildSubmitCard({
 }) {
   const utils = trpc.useUtils();
   const [note, setNote] = useState("");
+  const [files, setFiles] = useState<PickedFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
   const onDone = () => {
     setNote("");
+    setFiles([]);
     void utils.submission.childContext.invalidate({ homeworkId });
   };
   const submit = trpc.submission.submit.useMutation({ onSuccess: onDone });
   const resubmit = trpc.submission.resubmit.useMutation({ onSuccess: onDone });
+  const mintUpload = trpc.submission.attachmentUploadUrl.useMutation();
   const sub = row.submission;
   const isResubmit = sub !== null;
   const reviewed = sub?.status === "REVIEWED";
-  const pending = submit.isPending || resubmit.isPending;
+  const attempt = sub ? sub.attempt + 1 : 1;
+  const pending = submit.isPending || resubmit.isPending || uploading;
   const err = submit.error ?? resubmit.error;
   // Can act only with an ACTIVE-in-section enrollment, homework PUBLISHED, not yet REVIEWED.
   const actionable = canSubmit && row.enrollmentId !== null && !reviewed;
+  // Server rule: a submission needs a note OR at least one attachment.
+  const canSend = note.trim() !== "" || files.length > 0;
+
+  const addFile = (pick: () => Promise<PickedFile | null>) => async () => {
+    setUploadErr(null);
+    try {
+      const file = await pick();
+      if (file) {
+        setFiles((prev) => (prev.length >= 10 ? prev : [...prev, file]));
+      }
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : "Could not add the file");
+    }
+  };
+
+  const onSend = async () => {
+    if (row.enrollmentId === null) {
+      return;
+    }
+    setUploadErr(null);
+    let attachments: AttachmentMeta[] = [];
+    try {
+      setUploading(true);
+      attachments = await Promise.all(
+        files.map((file) =>
+          uploadSubmissionFile(file, (meta) =>
+            mintUpload
+              .mutateAsync({ homeworkId, enrollmentId: row.enrollmentId!, attempt, ...meta })
+              .then((r) => ({ storagePath: r.storagePath, token: r.token })),
+          ),
+        ),
+      );
+    } catch (e) {
+      setUploadErr(e instanceof Error ? e.message : "File upload failed");
+      return;
+    } finally {
+      setUploading(false);
+    }
+    const input = {
+      homeworkId,
+      enrollmentId: row.enrollmentId,
+      note: note.trim() || null,
+      attachments,
+    };
+    if (isResubmit) {
+      resubmit.mutate(input);
+    } else {
+      submit.mutate(input);
+    }
+  };
 
   return (
     <View className="gap-2 rounded-md border border-border bg-card p-4">
@@ -219,37 +282,66 @@ function ChildSubmitCard({
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder={isResubmit ? "Note for resubmission" : "Note (or attach files on web)"}
+            placeholder={isResubmit ? "Note for resubmission" : "Add a note"}
             multiline
             className="min-h-16 rounded-md border border-border px-3 py-2 text-foreground"
           />
+
+          {files.map((file, i) => (
+            <View
+              key={`${file.uri}-${i}`}
+              className="flex-row items-center justify-between rounded-md border border-border bg-background px-3 py-2"
+            >
+              <Text className="flex-1 text-sm text-foreground" numberOfLines={1}>
+                {file.fileName}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                disabled={pending}
+                onPress={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+              >
+                <Text className="text-sm font-medium text-destructive">Remove</Text>
+              </Pressable>
+            </View>
+          ))}
+
+          <View className="flex-row gap-2">
+            <Pressable
+              accessibilityRole="button"
+              disabled={pending || files.length >= 10}
+              onPress={addFile(pickImage)}
+              className="min-h-11 flex-1 items-center justify-center rounded-md border border-border px-3 py-2"
+            >
+              <Text className="text-sm font-medium text-foreground">Add photo</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              disabled={pending || files.length >= 10}
+              onPress={addFile(pickDocument)}
+              className="min-h-11 flex-1 items-center justify-center rounded-md border border-border px-3 py-2"
+            >
+              <Text className="text-sm font-medium text-foreground">Add file</Text>
+            </Pressable>
+          </View>
+
           <Pressable
             accessibilityRole="button"
-            disabled={pending || note.trim() === ""}
+            disabled={pending || !canSend}
             onPress={() => {
-              const input = {
-                homeworkId,
-                enrollmentId: row.enrollmentId!,
-                note: note.trim(),
-                attachments: [],
-              };
-              if (isResubmit) {
-                resubmit.mutate(input);
-              } else {
-                submit.mutate(input);
-              }
+              void onSend();
             }}
             className={`min-h-11 items-center justify-center rounded-md px-4 py-3 ${
-              pending || note.trim() === "" ? "bg-primary/40" : "bg-primary"
+              pending || !canSend ? "bg-primary/40" : "bg-primary"
             }`}
           >
             <Text className="font-medium text-primary-foreground">
-              {isResubmit ? "Resubmit" : "Submit"}
+              {uploading ? "Uploading…" : isResubmit ? "Resubmit" : "Submit"}
             </Text>
           </Pressable>
           <Text className="text-xs text-muted-foreground">
-            A note is required on mobile; attach files from the web app.
+            Add a note or attach up to 10 photos/files.
           </Text>
+          {uploadErr ? <Text className="text-sm text-destructive">{uploadErr}</Text> : null}
         </>
       ) : reviewed ? (
         <Text className="text-sm text-success">Reviewed — no further changes.</Text>
