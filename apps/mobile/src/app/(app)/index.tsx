@@ -6,6 +6,8 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { formatDate } from "../../components/announcements-ui";
 import { formatPaise } from "../../components/fees-ui";
 import { NotificationBell } from "../../components/notifications-ui";
+import { OfflineBanner } from "../../components/offline-banner";
+import { SyncQueueIndicator } from "../../components/sync-queue-indicator";
 import { trpc } from "../../lib/trpc";
 import { useAuthStore } from "../../stores/auth-store";
 
@@ -85,6 +87,8 @@ export default function AppHome() {
       </View>
 
       <ScrollView contentContainerClassName="p-4 gap-4">
+        <OfflineBanner />
+        <SyncQueueIndicator />
         {overview.isLoading ? (
           <ContextCard title="At a glance">
             <Muted>Loading…</Muted>

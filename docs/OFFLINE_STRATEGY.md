@@ -2,6 +2,11 @@
 
 Two layers: a **baseline** every build ships (graceful weak-connectivity behaviour — PRD v2 §8 "works on weak connectivity"), and the **`offline` feature flag** (queued offline attendance marking — Dev PRD §8.17). Scope is deliberately narrow: v1 offline **writes** = attendance only.
 
+> **Implemented — Phase 2 (2026-07-13).** Layer 1 fully; Layer 2 for attendance. Two deviations from the design below, both forced by the real schema:
+> - **Coalescing key is `sessionId`, not `(divisionId, dateIST, period)`.** `divisionId`/`period`/`markBulk`/`[enrollmentId,date,period]` do not exist in this codebase. The register is an `AttendanceSession` (sectionId + date + sessionType), saved via `attendance.mark`, upsert on `(sessionId, enrollmentId)`. One queue entry per `sessionId` — re-editing replaces it (same upsert intent, no replay-ordering problem).
+> - **Layer 2 ships always-on, not behind the `offline` flag.** The mobile client does not consume `flags.*` at all, so gating would mean building flag-consumption infra for one path; per the repo's "no new feature-flag infra without an ADR" rule, the queue is unconditional. Sync is retry-on-reconnect/foreground (not the 1m/5m/15m timer ladder) — entries stay PENDING and are manually retryable, never dropped.
+> Files: `apps/mobile/src/lib/{query-client,use-online,attendance-sync}.ts`, `stores/offline-queue-store.ts`, `components/{offline-banner,sync-queue-indicator}.tsx`. Queue keyed to userId + purged on logout (never drains under a different actor). Runtime unverified (no device); typecheck-green.
+
 ## Layer 1 — Baseline (core, all builds)
 
 1. **Read caching:** TanStack Query persister on mobile (STATE_MANAGEMENT_PLAN §6) — rosters, homework, notices, summaries, child profile readable from cache when offline (shown with a "last updated" hint where data is time-sensitive).

@@ -11,7 +11,11 @@ import {
   STATUS_LABEL,
   todayIst,
 } from "../../../../components/attendance-ui";
+import { OfflineBanner } from "../../../../components/offline-banner";
+import { SyncQueueIndicator } from "../../../../components/sync-queue-indicator";
 import { trpc } from "../../../../lib/trpc";
+import { useIsOnline } from "../../../../lib/use-online";
+import { useOfflineQueueStore } from "../../../../stores/offline-queue-store";
 
 /**
  * Teacher/admin daily register for a section. Resolves today's session (findSession
@@ -24,6 +28,9 @@ export default function MarkAttendanceScreen() {
   const { sectionId } = useLocalSearchParams<{ sectionId: string }>();
   const utils = trpc.useUtils();
   const date = todayIst();
+  const online = useIsOnline();
+  const me = trpc.auth.me.useQuery();
+  const enqueue = useOfflineQueueStore((s) => s.enqueue);
 
   const years = trpc.academicYear.list.useQuery();
   const activeYearId = (years.data ?? []).find((y) => y.status === "ACTIVE")?.id;
@@ -95,7 +102,12 @@ export default function MarkAttendanceScreen() {
             if (sectionId === undefined) {
               return;
             }
-            openSession.mutate({ academicYearId: activeYearId, sectionId, sessionType: "DAILY", date });
+            openSession.mutate({
+              academicYearId: activeYearId,
+              sectionId,
+              sessionType: "DAILY",
+              date,
+            });
           }}
           className="min-h-11 items-center justify-center rounded-md bg-primary px-4 py-3"
         >
@@ -116,6 +128,8 @@ export default function MarkAttendanceScreen() {
       <Text className="text-sm text-muted-foreground">
         {date} · {session.status}
       </Text>
+      <OfflineBanner message="Offline — marks are saved on this device and will sync when you reconnect." />
+      <SyncQueueIndicator />
 
       {roster.isLoading ? (
         <ActivityIndicator />
@@ -153,17 +167,29 @@ export default function MarkAttendanceScreen() {
             accessibilityRole="button"
             disabled={mark.isPending}
             onPress={() => {
-              mark.mutate({
-                sessionId: session.id,
-                marks: rows.map((row) => ({
-                  enrollmentId: row.enrollmentId,
-                  status: edits[row.enrollmentId] ?? row.currentStatus ?? row.suggestedStatus,
-                })),
-              });
+              const marks = rows.map((row) => ({
+                enrollmentId: row.enrollmentId,
+                status: edits[row.enrollmentId] ?? row.currentStatus ?? row.suggestedStatus,
+              }));
+              // Offline (§Layer-2): queue on-device and drain later; online: save now.
+              if (!online && me.data?.userId) {
+                enqueue({
+                  userId: me.data.userId,
+                  sessionId: session.id,
+                  sectionId: session.sectionId,
+                  dateIST: date,
+                  marks,
+                });
+                setEdits({});
+                return;
+              }
+              mark.mutate({ sessionId: session.id, marks });
             }}
             className="min-h-11 items-center justify-center rounded-md bg-primary px-4 py-3"
           >
-            <Text className="font-medium text-primary-foreground">Save marks</Text>
+            <Text className="font-medium text-primary-foreground">
+              {online ? "Save marks" : "Save (offline)"}
+            </Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"

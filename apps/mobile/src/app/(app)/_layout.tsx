@@ -2,6 +2,7 @@ import { Redirect, Stack } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
+import { useAttendanceSync } from "../../lib/attendance-sync";
 import { usePushRegistration } from "../../lib/push";
 import { trpc } from "../../lib/trpc";
 import { useAuthStore } from "../../stores/auth-store";
@@ -57,6 +58,7 @@ function ActivationGate() {
   return (
     <>
       <PushRegistrar />
+      <AttendanceSyncRunner />
       <Stack screenOptions={{ headerShown: false }} />
     </>
   );
@@ -65,5 +67,11 @@ function ActivationGate() {
 /** Registers this device for push once the session is signed-in and ACTIVE. */
 function PushRegistrar(): null {
   usePushRegistration();
+  return null;
+}
+
+/** Drains the offline attendance queue on reconnect/foreground while signed in. */
+function AttendanceSyncRunner(): null {
+  useAttendanceSync();
   return null;
 }
