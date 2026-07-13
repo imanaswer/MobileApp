@@ -154,6 +154,22 @@ export const storageProcedure = protectedProcedure.use(({ ctx, next }) => {
 });
 
 /**
+ * Storage + the host-wired `PdfRenderer` (ADR-026) — for routes that render a PDF
+ * and write it to a bucket (document generate, report-card publish). Builds on
+ * {@link storageProcedure}; a host missing either port gets a clean
+ * PRECONDITION_FAILED. The web host always wires both, so this passes in prod.
+ */
+export const renderProcedure = storageProcedure.use(({ ctx, next }) => {
+  if (!ctx.pdf) {
+    throw new TRPCError({
+      code: "PRECONDITION_FAILED",
+      message: "PDF rendering is not configured",
+    });
+  }
+  return next({ ctx: { pdf: ctx.pdf } });
+});
+
+/**
  * Onboarding path only: authenticated with an `INVITED` **or** `ACTIVE` profile
  * (`DISABLED` rejected). The seam `auth.registerProfile`/`auth.me` run on, so a
  * first-time INVITED user isn't locked out by the ACTIVE-only gate.

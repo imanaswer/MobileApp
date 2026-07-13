@@ -315,6 +315,7 @@ function makeStorage(): StoragePort & {
   return {
     createSignedUploadUrl: vi.fn(async () => ({ signedUrl: "https://upload", token: "tok" })),
     createSignedDownloadUrl: vi.fn(async () => "https://download"),
+    uploadObject: vi.fn(async () => undefined),
   };
 }
 

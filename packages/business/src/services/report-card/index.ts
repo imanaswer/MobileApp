@@ -14,3 +14,4 @@ export {
   type GenerateReportCardInput,
 } from "./report-card.service";
 export { computeRank, assembleSnapshot, type CardSnapshot } from "./snapshot";
+export { renderReportCardPdf, reportCardPdfDownloadUrl } from "./pdf";

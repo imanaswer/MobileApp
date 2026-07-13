@@ -2,9 +2,11 @@ import type { ExamDto, HomeworkDto, LeaveRequestDto, ReportCardDto } from "@repo
 
 import type { ServiceContext } from "../../context";
 import { decideLeave } from "../attendance";
+import type { PdfRenderer } from "../document/pdf-renderer.port";
 import { publishExam } from "../exam";
 import { publishHomework } from "../homework";
-import { publishReportCard } from "../report-card";
+import type { StoragePort } from "../people/document-storage.service";
+import { publishReportCard, renderReportCardPdf } from "../report-card";
 
 import {
   emitExamPublished,
@@ -45,9 +47,14 @@ export async function publishExamAndNotify(ctx: ServiceContext, examId: string):
 
 export async function publishReportCardAndNotify(
   ctx: ServiceContext,
+  storage: StoragePort,
+  pdf: PdfRenderer,
   reportCardId: string,
 ): Promise<ReportCardDto> {
   const card = await publishReportCard(ctx, reportCardId);
+  // Post-commit, BEST-EFFORT: render the PDF from the frozen snapshot and store its path
+  // (ADR-026). renderReportCardPdf swallows its own failures — never fails the publish.
+  await renderReportCardPdf(ctx, storage, pdf, card);
   await emitReportCardPublished(ctx, card);
   return card;
 }

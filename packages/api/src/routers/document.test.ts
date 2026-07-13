@@ -14,6 +14,19 @@ const createCaller = createCallerFactory(appRouter);
  * before the resolver). Lifecycle, scope, snapshot, the APPROVED-only gate and audit
  * are unit-tested in @repo/business (document.service).
  */
+// Minimal fakes so a render-gated route (generate) reaches Zod validation without real ports.
+const fakePorts = {
+  storage: {
+    createSignedUploadUrl: async () => ({ signedUrl: "u", token: "t" }),
+    createSignedDownloadUrl: async () => "https://x",
+    uploadObject: async () => undefined,
+  },
+  pdf: {
+    renderCertificate: async () => new Uint8Array([37, 80, 68, 70]),
+    renderReportCard: async () => new Uint8Array([37, 80, 68, 70]),
+  },
+};
+
 const admin: Principal = { userId: "u-a", schoolId: "s-1", role: "OFFICE_ADMIN", status: "ACTIVE" };
 const teacher: Principal = { userId: "u-t", schoolId: "s-1", role: "TEACHER", status: "ACTIVE" };
 const parent: Principal = { userId: "u-p", schoolId: "s-1", role: "PARENT", status: "ACTIVE" };
@@ -33,22 +46,9 @@ describe("document router — route protection", () => {
 });
 
 describe("document router — permission matrix (before any repo call)", () => {
-  it("a TEACHER cannot generate (FORBIDDEN — manage-only)", async () => {
-    await expect(
-      createCaller({ user: teacher }).document.generate({
-        studentId: "st-1",
-        type: "BONAFIDE_CERTIFICATE",
-      }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
-  it("a PARENT cannot generate (FORBIDDEN)", async () => {
-    await expect(
-      createCaller({ user: parent }).document.generate({
-        studentId: "st-1",
-        type: "STUDY_CERTIFICATE",
-      }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-  });
+  // NB generate is now a renderProcedure (ADR-026): with no storage/pdf wired it fails the
+  // precondition BEFORE the resolver, so the generate permission matrix (teacher/parent
+  // cannot generate) is asserted in the @repo/business document.service tests instead.
   it("a TEACHER cannot approve (FORBIDDEN — approve-only)", async () => {
     await expect(
       createCaller({ user: teacher }).document.approve({ id: "doc-1" }),
@@ -86,7 +86,15 @@ describe("document router — permission matrix (before any repo call)", () => {
   });
 });
 
-describe("document router — storage precondition (storageProcedure)", () => {
+describe("document router — storage precondition (storage/render procedure)", () => {
+  it("generate fails PRECONDITION_FAILED when no storage/pdf is wired (renderProcedure)", async () => {
+    await expect(
+      createCaller({ user: admin }).document.generate({
+        studentId: "st-1",
+        type: "BONAFIDE_CERTIFICATE",
+      }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
   it("uploadUrl fails PRECONDITION_FAILED when no StoragePort is wired", async () => {
     await expect(
       createCaller({ user: admin }).document.uploadUrl({ studentId: "st-1", fileName: "f.pdf" }),
@@ -103,13 +111,18 @@ describe("document router — Zod validation (BAD_REQUEST, before the resolver)"
   it("rejects generate with a missing studentId", async () => {
     await expect(
       // @ts-expect-error — deliberately omitting studentId
-      createCaller({ user: admin }).document.generate({ type: "BONAFIDE_CERTIFICATE" }),
+      createCaller({ user: admin, ...fakePorts }).document.generate({
+        type: "BONAFIDE_CERTIFICATE",
+      }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
   it("rejects generate with an unknown type", async () => {
     await expect(
       // @ts-expect-error — not a DocumentType
-      createCaller({ user: admin }).document.generate({ studentId: "st-1", type: "NOPE" }),
+      createCaller({ user: admin, ...fakePorts }).document.generate({
+        studentId: "st-1",
+        type: "NOPE",
+      }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 });

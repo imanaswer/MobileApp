@@ -22,6 +22,8 @@ export interface StoragePort {
   ): Promise<{ signedUrl: string; token: string }>;
   /** Short-lived signed read URL for an existing object. */
   createSignedDownloadUrl(bucket: string, path: string, expiresInSeconds: number): Promise<string>;
+  /** Server-side upload of already-rendered bytes (e.g. a generated PDF). Overwrites. */
+  uploadObject(bucket: string, path: string, bytes: Uint8Array, contentType: string): Promise<void>;
 }
 
 /** Signed read URLs stay valid this long — long enough to open, too short to share. */

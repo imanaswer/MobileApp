@@ -4,6 +4,7 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { cookies } from "next/headers";
 
 import { env } from "@/src/env";
+import { createPdfRenderer } from "@/src/lib/pdf/renderer";
 import { createStoragePort } from "@/src/lib/storage";
 
 /** Extract a bearer token from the Authorization header (the mobile path). */
@@ -41,6 +42,7 @@ function handler(req: Request): Promise<Response> {
       return createContext({
         authUser,
         storage: createStoragePort(),
+        pdf: createPdfRenderer(),
         // Correlation id from an upstream proxy/LB if present; else generated.
         requestId: req.headers.get("x-request-id") ?? undefined,
       });

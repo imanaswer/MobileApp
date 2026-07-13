@@ -29,5 +29,14 @@ export function createStoragePort(): StoragePort {
       }
       return data.signedUrl;
     },
+    async uploadObject(bucket, path, bytes, contentType) {
+      const { error } = await supabase.storage.from(bucket).upload(path, bytes, {
+        contentType,
+        upsert: true,
+      });
+      if (error) {
+        throw new Error(`Could not upload the object: ${error.message}`);
+      }
+    },
   };
 }

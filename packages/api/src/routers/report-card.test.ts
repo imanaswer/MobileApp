@@ -73,10 +73,18 @@ describe("reportCard router — permission gates (fail in the service before any
       createCaller({ user: teacher }).reportCard.approve({ reportCardId: "rc-1" }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
-  it("a TEACHER cannot publish (FORBIDDEN)", async () => {
+  it("publish fails PRECONDITION_FAILED without storage/pdf (renderProcedure — ADR-026)", async () => {
+    // publish is now render-capable (renders + stores the PDF post-commit); with no ports wired
+    // it fails the precondition BEFORE the resolver, so the publish permission gate
+    // (teacher/parent cannot publish) is asserted in the @repo/business report-card tests.
     await expect(
       createCaller({ user: teacher }).reportCard.publish({ reportCardId: "rc-1" }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+  });
+  it("pdfDownloadUrl fails PRECONDITION_FAILED when no StoragePort is wired", async () => {
+    await expect(
+      createCaller({ user: superAdmin }).reportCard.pdfDownloadUrl({ reportCardId: "rc-1" }),
+    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
   });
   it("a PARENT cannot revoke (FORBIDDEN)", async () => {
     await expect(

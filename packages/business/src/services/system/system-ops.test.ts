@@ -52,6 +52,7 @@ describe("verifyStorage (SUPER_ADMIN)", () => {
         return { signedUrl: "u", token: "t" };
       }),
       createSignedDownloadUrl: vi.fn(),
+      uploadObject: vi.fn(async () => undefined),
     };
     const result = await verifyStorage(ctxFor("SUPER_ADMIN"), storage);
     const branding = result.find((r) => r.bucket === "branding");

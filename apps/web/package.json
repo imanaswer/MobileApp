@@ -13,6 +13,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4",
     "@repo/api": "workspace:*",
     "@repo/auth": "workspace:*",
     "@repo/constants": "workspace:*",

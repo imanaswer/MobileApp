@@ -96,6 +96,8 @@ export interface ReportCardRepository {
     fromStatus: ReportCardStatus,
     data: TransitionReportCardInput,
   ): Promise<ReportCard | null>;
+  /** Persist the rendered PDF's storage PATH (ADR-026). Unguarded — best-effort, post-publish. */
+  setPdfPath(id: string, pdfPath: string): Promise<void>;
 }
 
 export function createReportCardRepository(client: DbClient): ReportCardRepository {
@@ -152,6 +154,9 @@ export function createReportCardRepository(client: DbClient): ReportCardReposito
         data: { status, ...spread(rest) },
       });
       return res.count === 0 ? null : client.reportCard.findUnique({ where: { id } });
+    },
+    setPdfPath: async (id, pdfPath) => {
+      await client.reportCard.update({ where: { id }, data: { pdfPath } });
     },
   };
 }

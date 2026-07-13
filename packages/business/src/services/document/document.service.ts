@@ -8,6 +8,7 @@ import type { ServiceContext } from "../../context";
 import type { StoragePort } from "../people/document-storage.service";
 
 import { istToday, mapDocument } from "./mappers";
+import type { CertificatePdfData, PdfRenderer } from "./pdf-renderer.port";
 import {
   assertStudentInScope,
   currentEnrollment,
@@ -37,15 +38,27 @@ export interface GenerateDocumentInput {
   fields?: Record<string, string> | undefined;
 }
 
+/** "BONAFIDE_CERTIFICATE" → "Bonafide Certificate" (the PDF heading). */
+function titleize(type: string): string {
+  return type
+    .toLowerCase()
+    .split("_")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 /**
- * Generate a certificate as a GENERATED document (ADR-023 §3). The values are FROZEN
- * into `snapshotJson` at issue time — student identity + current placement are
+ * Generate a certificate as a GENERATED document (ADR-023 §3, ADR-026). The values are
+ * FROZEN into `snapshotJson` at issue time — student identity + current placement are
  * SYSTEM-SOURCED (from Student + the current Enrollment), so a later profile change
- * cannot rewrite an issued certificate (the ADR-014 snapshot philosophy). No file is
- * rendered in v1 (metadata-only); `storagePath` stays null. Admin-only. Audited.
+ * cannot rewrite an issued certificate (the ADR-014 snapshot philosophy). The PDF is
+ * rendered from that same frozen snapshot, uploaded to the private DOCUMENTS bucket, and
+ * its PATH persisted (never a URL — served via the 60s signed mint). Admin-only. Audited.
  */
 export async function generateDocument(
   ctx: ServiceContext,
+  storage: StoragePort,
+  pdf: PdfRenderer,
   input: GenerateDocumentInput,
 ): Promise<DocumentDto> {
   assertCan(ctx.user, PERMISSIONS.DOCUMENT_MANAGE);
@@ -86,6 +99,28 @@ export async function generateDocument(
     ...(input.fields ? { fields: input.fields } : {}),
   };
 
+  // Render the PDF from the FROZEN snapshot, then upload to the private bucket (object-then-row,
+  // like createUploadedDocument). schoolName from branding (School repo is out of ctx — ADR-026).
+  const branding = await ctx.repositories.brandingSettings.getBySchool(ctx.user.schoolId);
+  const title = titleize(input.type);
+  const certData: CertificatePdfData = {
+    schoolName: branding?.displayName ?? "School",
+    title,
+    studentName: snapshot.studentName,
+    class: snapshot.class,
+    section: snapshot.section,
+    academicYear: snapshot.academicYear,
+    issuedOn: snapshot.issuedOn,
+    rows: [
+      { label: "Admission No", value: snapshot.admissionNo },
+      ...Object.entries(snapshot.fields ?? {}).map(([label, value]) => ({ label, value })),
+    ],
+  };
+  const bytes = await pdf.renderCertificate(certData);
+  const safeName = `${title.replace(/[^\w.-]+/g, "_")}.pdf`.slice(-100);
+  const storagePath = `${ctx.user.schoolId}/${input.studentId}/${crypto.randomUUID()}-${safeName}`;
+  await storage.uploadObject(STORAGE_BUCKETS.DOCUMENTS, storagePath, bytes, "application/pdf");
+
   const created = await ctx.withTransaction(async (repos) => {
     const row = await repos.documents.create({
       schoolId: ctx.user.schoolId,
@@ -94,6 +129,10 @@ export async function generateDocument(
       status: "GENERATED",
       templateId: input.templateId ?? null,
       snapshotJson: snapshot as unknown as Record<string, string>,
+      storagePath,
+      fileName: safeName,
+      mimeType: "application/pdf",
+      sizeBytes: bytes.length,
       generatedByUserId: ctx.user.userId,
     });
     await recordAudit(ctx, repos, {

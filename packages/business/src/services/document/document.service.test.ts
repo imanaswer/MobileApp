@@ -26,6 +26,7 @@ import {
   generateDocument,
   listStudentDocuments,
 } from "./document.service";
+import type { PdfRenderer } from "./pdf-renderer.port";
 
 const admin: Principal = {
   userId: "u-admin",
@@ -136,6 +137,9 @@ function makeRepos(start: Document, opts: { parentChild?: boolean } = {}) {
       studentIdsForParent: vi.fn(async (): Promise<string[]> => (opts.parentChild ? ["st-1"] : [])),
     },
     teacherAssignments: { list: vi.fn(async () => []) },
+    brandingSettings: {
+      getBySchool: vi.fn(async () => ({ schoolId: "s-1", displayName: "Green Valley School" })),
+    },
   };
 }
 
@@ -153,15 +157,26 @@ function makeCtx(user: Principal, repos: ReturnType<typeof makeRepos>) {
 const storage: StoragePort = {
   createSignedUploadUrl: vi.fn(async () => ({ signedUrl: "u", token: "t" })),
   createSignedDownloadUrl: vi.fn(async () => "https://signed/url"),
+  uploadObject: vi.fn(async () => undefined),
+};
+
+// Fake renderer — returns the PDF magic bytes so the render→upload→persist path runs.
+const pdf: PdfRenderer = {
+  renderCertificate: vi.fn(async () => new Uint8Array([37, 80, 68, 70])),
+  renderReportCard: vi.fn(async () => new Uint8Array([37, 80, 68, 70])),
 };
 
 describe("document lifecycle (ADR-023)", () => {
-  it("generate: freezes a system-sourced snapshot; no file yet (metadata-only)", async () => {
+  it("generate: freezes a system-sourced snapshot and renders + stores the PDF (ADR-026)", async () => {
     const repos = makeRepos(doc());
     const { ctx } = makeCtx(admin, repos);
-    const out = await generateDocument(ctx, { studentId: "st-1", type: "BONAFIDE_CERTIFICATE" });
+    const out = await generateDocument(ctx, storage, pdf, {
+      studentId: "st-1",
+      type: "BONAFIDE_CERTIFICATE",
+    });
     expect(out.status).toBe("GENERATED");
-    expect(out.hasFile).toBe(false);
+    expect(out.hasFile).toBe(true);
+    expect(out.mimeType).toBe("application/pdf");
     expect(out.snapshot).toMatchObject({
       studentName: "Anu A",
       admissionNo: "A001",
@@ -169,6 +184,14 @@ describe("document lifecycle (ADR-023)", () => {
       section: "A",
       academicYear: "2026-27",
     });
+    // Rendered from the frozen snapshot, then uploaded to the private DOCUMENTS bucket.
+    expect(pdf.renderCertificate).toHaveBeenCalledTimes(1);
+    expect(storage.uploadObject).toHaveBeenCalledWith(
+      "documents",
+      expect.stringMatching(/^s-1\/st-1\/.*\.pdf$/),
+      expect.any(Uint8Array),
+      "application/pdf",
+    );
     expect(repos.audit.record).toHaveBeenCalledTimes(1);
   });
 
@@ -197,7 +220,7 @@ describe("document lifecycle (ADR-023)", () => {
   it("teacher cannot generate/upload (view-only)", async () => {
     const { ctx } = makeCtx(teacher, makeRepos(doc()));
     await expect(
-      generateDocument(ctx, { studentId: "st-1", type: "BONAFIDE_CERTIFICATE" }),
+      generateDocument(ctx, storage, pdf, { studentId: "st-1", type: "BONAFIDE_CERTIFICATE" }),
     ).rejects.toBeInstanceOf(ForbiddenError);
     await expect(
       createUploadedDocument(ctx, {

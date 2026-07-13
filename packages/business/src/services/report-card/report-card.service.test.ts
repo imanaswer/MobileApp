@@ -413,6 +413,13 @@ describe("reopen / publish / revoke", () => {
     const { ctx } = makeCtx(admin, makeStore([{ status: "SUBMITTED" }]));
     await expect(publishReportCard(ctx, "rc-1")).rejects.toBeInstanceOf(ConflictError);
   });
+  it("publish is admin-only (a class teacher cannot publish — report_card:manage)", async () => {
+    const { ctx } = makeCtx(
+      classTeacher,
+      makeStore([{ status: "APPROVED", approvedAt: d("2026-10-01") }]),
+    );
+    await expect(publishReportCard(ctx, "rc-1")).rejects.toBeInstanceOf(ForbiddenError);
+  });
   it("revoke (PUBLISHED → REVOKED) requires a reason", async () => {
     const { ctx } = makeCtx(
       admin,

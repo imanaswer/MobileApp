@@ -10,6 +10,7 @@ import {
   listReportCardsForSection,
   publishReportCardAndNotify,
   reopenReportCard,
+  reportCardPdfDownloadUrl,
   revokeReportCard,
   submitReportCard,
 } from "@repo/business";
@@ -25,7 +26,7 @@ import {
   sectionRosterInput,
 } from "@repo/validation";
 
-import { protectedProcedure, router } from "../trpc";
+import { protectedProcedure, renderProcedure, router, storageProcedure } from "../trpc";
 
 /**
  * Report Card procedures (M7, ADR-014). Thin transport only — validate (Zod) then
@@ -80,10 +81,22 @@ export const reportCardRouter = router({
     .input(reopenReportCardInput)
     .mutation(({ ctx, input }) => reopenReportCard(createServiceContext(ctx.user), input)),
   /** Admin publishes (APPROVED → PUBLISHED), superseding any prior published version in one tx. */
-  publish: protectedProcedure.input(reportCardIdInput).mutation(({ ctx, input }) =>
-    // M10: business composer publishes then notifies post-commit (ADR-018 §3).
-    publishReportCardAndNotify(createServiceContext(ctx.user), input.reportCardId),
+  publish: renderProcedure.input(reportCardIdInput).mutation(({ ctx, input }) =>
+    // M10: composer publishes then notifies post-commit (ADR-018 §3). M-PDF: it also renders
+    // + stores the PDF best-effort after commit (ADR-026) — hence the render-capable procedure.
+    publishReportCardAndNotify(
+      createServiceContext(ctx.user),
+      ctx.storage,
+      ctx.pdf,
+      input.reportCardId,
+    ),
   ),
+  /** Mint a short-lived (300s) signed READ URL for the card's stored PDF; scope checked first. */
+  pdfDownloadUrl: storageProcedure
+    .input(reportCardIdInput)
+    .mutation(({ ctx, input }) =>
+      reportCardPdfDownloadUrl(createServiceContext(ctx.user), ctx.storage, input.reportCardId),
+    ),
   /** Admin revokes a published card (PUBLISHED → REVOKED). Reason required. */
   revoke: protectedProcedure
     .input(revokeReportCardInput)

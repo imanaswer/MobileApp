@@ -19,7 +19,7 @@ import {
   listStudentDocumentsInput,
 } from "@repo/validation";
 
-import { protectedProcedure, router, storageProcedure } from "../trpc";
+import { protectedProcedure, renderProcedure, router, storageProcedure } from "../trpc";
 
 /**
  * Document / certificate procedures (M15, ADR-023). Thin transport only — validate
@@ -31,10 +31,12 @@ import { protectedProcedure, router, storageProcedure } from "../trpc";
  */
 export const documentRouter = router({
   /* ---- generate / upload (office / admin) ---- */
-  /** Generate a certificate (metadata-first; snapshot frozen at issue). */
-  generate: protectedProcedure
+  /** Generate a certificate — snapshot frozen at issue, PDF rendered + stored (ADR-026). */
+  generate: renderProcedure
     .input(generateDocumentInput)
-    .mutation(({ ctx, input }) => generateDocument(createServiceContext(ctx.user), input)),
+    .mutation(({ ctx, input }) =>
+      generateDocument(createServiceContext(ctx.user), ctx.storage, ctx.pdf, input),
+    ),
   /** Mint a one-time signed UPLOAD URL (authz runs in the service BEFORE any URL exists). */
   uploadUrl: storageProcedure
     .input(documentUploadUrlInput)
