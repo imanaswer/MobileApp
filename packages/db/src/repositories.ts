@@ -106,6 +106,7 @@ import {
   type LeaveRequestRepository,
 } from "./repositories/leave-request.repository";
 import { createMarkRepository, type MarkRepository } from "./repositories/mark.repository";
+import { createMessageRepository, type MessageRepository } from "./repositories/message.repository";
 import {
   createNotificationRecipientRepository,
   type NotificationRecipientRepository,
@@ -205,6 +206,7 @@ export * from "./repositories/announcement.repository";
 export * from "./repositories/announcement-attachment.repository";
 export * from "./repositories/calendar-event.repository";
 export * from "./repositories/behaviour-incident.repository";
+export * from "./repositories/message.repository";
 export * from "./repositories/fee-structure.repository";
 export * from "./repositories/invoice.repository";
 export * from "./repositories/payment.repository";
@@ -256,6 +258,7 @@ export interface Repositories {
   announcementAttachments: AnnouncementAttachmentRepository;
   calendarEvents: CalendarEventRepository;
   behaviourIncidents: BehaviourIncidentRepository;
+  messages: MessageRepository;
   feeStructures: FeeStructureRepository;
   invoices: InvoiceRepository;
   payments: PaymentRepository;
@@ -309,6 +312,7 @@ export function createRepositories(client: DbClient): Repositories {
     announcementAttachments: createAnnouncementAttachmentRepository(client),
     calendarEvents: createCalendarEventRepository(client),
     behaviourIncidents: createBehaviourIncidentRepository(client),
+    messages: createMessageRepository(client),
     feeStructures: createFeeStructureRepository(client),
     invoices: createInvoiceRepository(client),
     payments: createPaymentRepository(client),

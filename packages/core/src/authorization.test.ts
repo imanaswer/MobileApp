@@ -64,6 +64,9 @@ describe("authorization policy", () => {
       PERMISSIONS.PAYMENT_READ,
       // M15: download own child's APPROVED documents/certificates.
       PERMISSIONS.DOCUMENT_READ,
+      // M18: open/send + read teacher↔parent threads with own child's teachers.
+      PERMISSIONS.MESSAGE_SEND,
+      PERMISSIONS.MESSAGE_READ,
     ]);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.USER_SET_ROLE);
     expect(getPermissions("SUPER_ADMIN")).toContain(PERMISSIONS.ANNOUNCEMENT_SEND);

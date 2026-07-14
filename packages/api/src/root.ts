@@ -34,6 +34,7 @@ import { documentTemplateRouter } from "./routers/document-template";
 import { assessmentRouter, examRouter, gradeScaleRouter, markRouter } from "./routers/exam";
 import { feeRouter } from "./routers/fee";
 import { homeworkRouter, submissionRouter } from "./routers/homework";
+import { messageRouter } from "./routers/message";
 import { notificationRouter } from "./routers/notification";
 import { paymentRouter } from "./routers/payment";
 import {
@@ -115,6 +116,7 @@ export const appRouter = router({
   announcement: announcementRouter,
   calendar: calendarRouter,
   behaviour: behaviourRouter,
+  message: messageRouter,
   fee: feeRouter,
   payment: paymentRouter,
   analytics: analyticsRouter,

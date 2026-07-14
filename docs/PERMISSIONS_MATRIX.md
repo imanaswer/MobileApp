@@ -311,6 +311,27 @@ Notes:
 - **Reads default to the ACTIVE year** server-side (a parent has no `academic:read` to supply a year).
 - **Not built in M9** (deferred): notifications, substitute teachers, recurring/template timetables.
 
+### Teacher ↔ Parent Messaging (M18 — implemented)
+
+Built as **M18** (see `docs/milestones/M18.md`). **Permission-only — no feature flag.** 1:1 direct-message threads
+between a teacher and a parent, ABOUT one student (the scope anchor), over frozen M1–M17. Exactly two parties per
+thread, so a single `readAt` per message suffices (a group thread would need a `MessageRead` join). Admins are **not**
+a party — messaging is a teacher↔parent surface only. Party membership + counterparty scope are enforced in the
+service; RLS is coarse defense-in-depth (a thread/message is visible only to its two parties; anon none).
+
+| Permission | SA | OA | T | P | AC |
+|---|---|---|---|---|---|
+| `message:send` (open a thread + post a message) | – | – | guardian of **own-section** student | teacher of **own-child**'s section | – |
+| `message:read` (own threads + messages, mark read) | – | – | own threads (party) | own threads (party) | – |
+
+Notes:
+- **Counterparty scope** — a teacher may only address a **guardian of an own-section student**; a parent may only
+  address a **teacher of their child's ACTIVE-year section** (subject teachers ∪ the class teacher). The acting user
+  is always the matching party (teacher→staff, parent→guardian); `createThread` is idempotent on the party unique.
+- **Send emits a best-effort M10 notification** (type `MESSAGE`) to the **other** party — a delivery hiccup never
+  fails the committed send (the canonical `*AndNotify` posture).
+- **Accountants / admins:** none (out of scope). **No feature flag.**
+
 ### Add-ons (feature-flag gated first, then permission)
 
 | Permission | Flag | SA | OA | T | P | AC |

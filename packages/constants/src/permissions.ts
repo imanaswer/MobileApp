@@ -203,6 +203,14 @@ export const PERMISSIONS = {
    * verification, cache clear (all read-only / non-destructive; no business data is
    * modified). SUPER_ADMIN ONLY — never granted to OFFICE_ADMIN. */
   SYSTEM_MANAGE: "system:manage",
+
+  /* ---- M18 Messaging — teacher↔parent 1:1 direct messages, permission-only.
+   * Both grants held by TEACHER and PARENT only (admins are not a party). Party
+   * membership + student/counterparty scope are enforced in the service. */
+  /** Open a thread + send a message. TEACHER / PARENT (party-scoped in the service). */
+  MESSAGE_SEND: "message:send",
+  /** Read own threads + their messages, mark read. TEACHER / PARENT (party-scoped). */
+  MESSAGE_READ: "message:read",
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -395,6 +403,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.FEE_READ,
     // M15: views APPROVED documents for own-section students, read-only (ADR-023 §6).
     PERMISSIONS.DOCUMENT_READ,
+    // M18: opens/sends + reads teacher↔parent threads with the parents of own-section students.
+    PERMISSIONS.MESSAGE_SEND,
+    PERMISSIONS.MESSAGE_READ,
   ],
   // PARENT: reads only their OWN children (students/enrollments/documents) and
   // their OWN parent record (row-scope in the service). M4: reads own child's
@@ -431,6 +442,9 @@ export const ROLE_PERMISSIONS: Readonly<Record<RoleKey, readonly Permission[]>> 
     PERMISSIONS.PAYMENT_READ,
     // M15: downloads own child's APPROVED documents/certificates (ADR-023 §6).
     PERMISSIONS.DOCUMENT_READ,
+    // M18: opens/sends + reads teacher↔parent threads with own child's teachers.
+    PERMISSIONS.MESSAGE_SEND,
+    PERMISSIONS.MESSAGE_READ,
   ],
   ACCOUNTANT: [...SELF_PROFILE, PERMISSIONS.NOTIFICATION_MANAGE_OWN],
 };

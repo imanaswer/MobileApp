@@ -868,6 +868,37 @@ export const listBehaviourByTeacherInput = z.object({
   before: z.string().datetime().optional(),
 });
 
+// ---------------------------------------------------------------------------
+// Teacher ↔ Parent Messaging (M18)
+// ---------------------------------------------------------------------------
+
+/** Open (or reuse — idempotent) a 1:1 thread about a student with a counterparty
+ *  (`otherUserId`): the parent, on the teacher path; the teacher, on the parent path. */
+export const createThreadInput = z.object({
+  studentId: idSchema,
+  otherUserId: idSchema,
+});
+
+export const sendMessageInput = z.object({
+  threadId: idSchema,
+  body: z.string().min(1).max(4000),
+});
+
+export const listThreadsInput = z.object({
+  before: z.string().datetime().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+
+export const threadMessagesInput = z.object({
+  threadId: idSchema,
+  before: z.string().datetime().optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+
+export const markThreadReadInput = z.object({
+  threadId: idSchema,
+});
+
 /* ---- Fees & Payments (M13, ADR-021). Money is in paise (Int). Cross-field money
  * invariants (paid<=total, balance, snapshot) live in the DB CHECK + business service. */
 

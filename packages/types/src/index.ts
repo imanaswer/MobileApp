@@ -682,7 +682,8 @@ export type NotificationTypeKey =
   | "BEHAVIOUR"
   | "LEAVE"
   | "INVOICE_ISSUED"
-  | "PAYMENT_RECEIVED";
+  | "PAYMENT_RECEIVED"
+  | "MESSAGE";
 
 export type NotificationPriorityKey = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 
@@ -790,6 +791,40 @@ export interface BehaviourIncidentDto {
   resolvedAt: IsoUtcString | null;
   createdAt: IsoUtcString;
   updatedAt: IsoUtcString;
+}
+
+// ---------------------------------------------------------------------------
+// Teacher ↔ Parent Messaging (M18)
+// ---------------------------------------------------------------------------
+
+/** A 1:1 teacher↔parent message thread ABOUT one student (M18). The two parties are
+ *  `staffUserId` (teacher) and `guardianUserId` (parent); `lastMessageAt` orders the
+ *  thread list. */
+export interface MessageThreadDto {
+  id: string;
+  schoolId: string;
+  staffUserId: string;
+  guardianUserId: string;
+  studentId: string;
+  lastMessageAt: IsoUtcString;
+  createdAt: IsoUtcString;
+  updatedAt: IsoUtcString;
+}
+
+/** One message within a thread (M18). `readAt` is set when the OTHER party reads it. */
+export interface MessageDto {
+  id: string;
+  threadId: string;
+  senderUserId: string;
+  body: string;
+  readAt: IsoUtcString | null;
+  createdAt: IsoUtcString;
+}
+
+/** A keyset page of items plus the cursor for the next page (null when exhausted). */
+export interface MessagePage<T> {
+  items: T[];
+  nextCursor: IsoUtcString | null;
 }
 
 // ---------------------------------------------------------------------------

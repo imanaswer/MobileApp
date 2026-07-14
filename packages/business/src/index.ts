@@ -22,6 +22,7 @@ export * from "./services/notification";
 export * from "./services/announcement";
 export * from "./services/calendar";
 export * from "./services/behaviour";
+export * from "./services/message";
 export * from "./services/fee";
 export * from "./services/analytics";
 export * from "./services/document";

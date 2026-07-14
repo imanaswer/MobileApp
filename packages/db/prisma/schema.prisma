@@ -71,6 +71,9 @@ model User {
   timetableEntries        TimetableEntry[] // M9: slots this user teaches (virtual back-relation only)
   notifications           NotificationRecipient[] // M10: in-app notifications addressed to this user (virtual back-relation only)
   behaviourIncidents      BehaviourIncident[]      @relation("BehaviourTeacher") // M12: incidents this user (teacher) referred (virtual back-relation only)
+  threadsAsStaff          MessageThread[]          @relation("ThreadStaff") // M18: message threads where this user is the staff party (virtual back-relation only)
+  threadsAsGuardian       MessageThread[]          @relation("ThreadGuardian") // M18: message threads where this user is the guardian party (virtual back-relation only)
+  sentMessages            Message[]                @relation("MessageSender") // M18: messages this user sent (virtual back-relation only)
   staff                   Staff? // M3: employment profile, 1:1 (userId unique on Staff)
   parent                  Parent? // M3: parent portal login, 1:1 (userId unique on Parent)
   // + raw SQL: RLS ON — read-self + admin-read-all (m1_rls_hardening)
@@ -354,6 +357,7 @@ model Student {
   behaviourIncidents BehaviourIncident[] // M12: discipline history that follows the person across years (virtual back-relation only)
   invoices           Invoice[] // M13: fee history follows the person across years (virtual back-relation only)
   issuedDocuments    Document[] // M15: issued-certificate center — follows the person across years (virtual back-relation only)
+  messageThreads     MessageThread[] // M18: teacher↔parent threads about this student (virtual back-relation only)
   // + raw SQL: partial unique — Aadhaar unique per school when present:
   //   WHERE "aadhaar" IS NOT NULL  (a shared national ID is a data error)
   // + raw SQL: RLS ON — admin ALL; teacher SELECT own-section; parent SELECT own-child (people_rls, Step 4)
@@ -1491,6 +1495,7 @@ enum NotificationType {
   LEAVE // M12: a leave request was approved/rejected (→ the requesting parent)
   INVOICE_ISSUED // M13: a fee invoice was issued (→ student's parents)
   PAYMENT_RECEIVED // M13: a fee payment was recorded (→ student's parents)
+  MESSAGE // M18: a new teacher↔parent direct message was sent (→ the other party)
 }
 
 enum NotificationPriority {
@@ -2010,4 +2015,47 @@ model SystemSettings {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   // + raw SQL: RLS ON — admin ALL; teacher/parent none; anon none (settings_rls, Step 3)
+}
+
+// ========================= Teacher ↔ Parent Messaging (M18) =========================
+// A 1:1 direct-message thread between a staff (teacher) party and a guardian (parent)
+// party, ABOUT one student (the scope anchor). Exactly TWO parties, so a single readAt
+// per Message suffices — a group thread would need a MessageRead join (B12). schoolId
+// is a loose tenant ref (ADR-008, no FK). createThread is idempotent via the party
+// unique — one thread per (teacher, guardian, student).
+model MessageThread {
+  id             String    @id @default(cuid())
+  schoolId       String // loose tenant ref (ADR-008)
+  staffUserId    String // the teacher/staff party → User
+  guardianUserId String // the parent/guardian party → User
+  studentId      String // the student this 1:1 thread is ABOUT (scope anchor)
+  lastMessageAt  DateTime  @default(now()) // thread-list ordering; bumped on each send
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  staff          User      @relation("ThreadStaff", fields: [staffUserId], references: [id], onDelete: Restrict)
+  guardian       User      @relation("ThreadGuardian", fields: [guardianUserId], references: [id], onDelete: Restrict)
+  student        Student   @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  messages       Message[]
+  // + raw SQL: RLS ON — party-only (staffUserId/guardianUserId = auth.uid()); anon none (messaging_rls)
+
+  @@unique([staffUserId, guardianUserId, studentId]) // one thread per (teacher, guardian, student) — createThread is idempotent (upsert)
+  @@index([staffUserId, lastMessageAt])
+  @@index([guardianUserId, lastMessageAt])
+  @@index([schoolId])
+}
+
+// One message within a thread. readAt is when the OTHER party read it (1:1 → one
+// readAt suffices; B12). Cascade-deletes with its thread; sender FK Restrict.
+model Message {
+  id           String        @id @default(cuid())
+  threadId     String
+  senderUserId String // who sent it → User (the staff or the guardian party)
+  body         String
+  readAt       DateTime? // when the OTHER party read it (1:1 → one readAt; B12)
+  createdAt    DateTime      @default(now())
+  thread       MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender       User          @relation("MessageSender", fields: [senderUserId], references: [id], onDelete: Restrict)
+  // + raw SQL: RLS ON — visible iff caller is a party of the parent thread; anon none (messaging_rls)
+
+  @@index([threadId, createdAt]) // keyset pagination within a thread
 }

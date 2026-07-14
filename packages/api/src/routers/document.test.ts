@@ -118,9 +118,9 @@ describe("document router — Zod validation (BAD_REQUEST, before the resolver)"
   });
   it("rejects generate with an unknown type", async () => {
     await expect(
-      // @ts-expect-error — not a DocumentType
       createCaller({ user: admin, ...fakePorts }).document.generate({
         studentId: "st-1",
+        // @ts-expect-error — not a DocumentType
         type: "NOPE",
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
