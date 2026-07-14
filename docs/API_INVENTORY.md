@@ -89,6 +89,7 @@ Every mutation writes `AuditLog` in the same transaction. Bounded full lists
 | `student.create` | M | `student:manage` | ✓ | admissionNo unique/school; Aadhaar unique when present |
 | `student.update` | M | `student:manage` | ✓ | identity fields only — never class/section/year |
 | `student.archive` | M | `student:manage` | ✓ | lifecycle, not delete |
+| `student.importCsv` | M | `student:manage` + `parent:manage` | ✓ per row | bulk CSV import (ADR-027): fixed-header template, students + guardians (dedupe by phone), partial success + per-row error report; 2 MB cap |
 | `parent.list` / `get` | Q | `parent:read` | – | PARENT role → own record only |
 | `parent.create` / `update` | M | `parent:manage` | ✓ | optional 1:1 `User` link (portal login vs contact-only) |
 | `parent.delete` | M | `parent:manage` | ✓ | removes the record; links cascade |
@@ -285,6 +286,7 @@ notifications (deferred). Year-consistency (scope year = enrollment year) is a s
 | `reportCard.publish` | M | `report_card:manage` | ✓ | admin; APPROVED → PUBLISHED; **supersedes any prior published version in one tx** |
 | `reportCard.revoke` | M | `report_card:manage` | ✓ | admin; PUBLISHED → REVOKED; **requires a reason** |
 | `reportCard.correct` | M | `report_card:manage` | ✓ | admin; spawns a new DRAFT `version+1` from a published card (copies authored fields); refuses a second concurrent correction |
+| `reportCard.pdfDownloadUrl` | M | `report_card:read` (storage) | – | ADR-026: mint 60s signed read URL for the stored PDF (rendered best-effort post-publish); read-scope chain runs first; no-file → CONFLICT |
 
 **Not built in M7** (later milestones): PDF rendering (the `pdfPath` column + private bucket are
 provisioned for it), report-card notifications, CGPA-across-years snapshot, bilingual PDF.
@@ -354,6 +356,23 @@ router transport is unchanged in shape; `createAnnouncement` is the one manual a
 parents (`HOMEWORK_PUBLISHED`); exam publish → exam-section teachers (`EXAM_PUBLISHED`); report-card publish →
 the card's parents (`REPORT_CARD_PUBLISHED`); announcement → admin-chosen scope (`ANNOUNCEMENT`). Timetable
 (`TIMETABLE_UPDATED`) + study material (`STUDY_MATERIAL`) types reserved, no M10 source (ADR-018 deviations).
+
+## Messaging (M18 / Phase 6 — implemented; permission-only)
+
+Teacher↔parent 1:1 threads ABOUT a student (`MessageThread` unique on `[staffUserId, guardianUserId, studentId]` —
+`createThread` is idempotent). Scope enforced in business (not RLS): a teacher may thread a guardian of a student they
+teach; a parent may thread a teacher of their child's section; send/read/markRead require being a thread party.
+Send fires a post-commit best-effort `MESSAGE` notification to the other party (ADR-018 seam). Never cached offline
+(Phase 2 NEVER_PERSIST). Permissions: `message:send` / `message:read` (TEACHER + PARENT only).
+
+| Procedure | T | Permission | Notes |
+|---|---|---|---|
+| `message.createThread` | M | `message:send` | idempotent on the unique triple; scope-gated both directions |
+| `message.send` | M | `message:send` | thread party only; post-commit `MESSAGE` notification to the other party |
+| `message.listThreads` | Q | `message:read` | caller's threads, keyset on `lastMessageAt` |
+| `message.threadMessages` | Q | `message:read` | thread party only; keyset on `createdAt`, newest-first |
+| `message.markRead` | M | `message:read` | marks the thread's messages addressed to the caller (`senderUserId ≠ caller`, `readAt` null) as read |
+| `message.counterparties` | Q | `message:read` | valid recipients for a student (teacher→guardians-with-login / parent→section teachers) — the compose picker's only source of counterparty userIds |
 
 ## Announcements & Calendar (M11 — ADR-019, implemented; permission-only)
 
@@ -453,7 +472,7 @@ fully working). Distinct from M3 `studentDocument.*` (KYC uploads).
 
 | Procedure | T | Permission | Notes |
 |---|---|---|---|
-| `document.generate` | M | `document:manage` | GENERATED; freezes system-sourced `snapshotJson` (name/admissionNo + current class/section/year); no file in v1; ✓ audit |
+| `document.generate` | M | `document:manage` | GENERATED; freezes system-sourced `snapshotJson` (name/admissionNo + current class/section/year); **ADR-026: renders the certificate PDF from the frozen snapshot → uploads → persists `storagePath`** (supersedes "no file in v1"); ✓ audit |
 | `document.uploadUrl` | M | `document:manage` (storage) | mint one-time signed **upload** URL (server-chosen path, `documents` bucket); PRECONDITION_FAILED if storage unwired |
 | `document.createUploaded` | M | `document:manage` | record an UPLOADED doc after the file is pushed to the signed URL; ✓ audit |
 | `document.approve` | M | `document:approve` | draft (GENERATED/UPLOADED) → APPROVED (visibility gate); ✓ audit |

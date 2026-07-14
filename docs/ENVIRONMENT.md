@@ -17,6 +17,7 @@ Every variable, its purpose, and where it's validated. Template: **`.env.example
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✓ | client | Supabase anon key (browser auth). |
 | `PUSH_NOTIFICATIONS_ENABLED` | – | server | `"true"` wires the Expo push adapter + fan-out (Phase 1). Unset ⇒ in-app only, no delivery. |
 | `EXPO_ACCESS_TOKEN` | – | **server-only** | Optional — Expo's enhanced push security token. Push works without it. |
+| `AUTH_PROBE_PASSWORD` | – | ops script | Optional — password `scripts/verify-auth.ts` uses for its signup probe; defaults to a random UUID per run (SECURITY_AUDIT WARN 7 remediation). |
 
 ## Mobile (Expo — only `EXPO_PUBLIC_*` is bundled)
 
