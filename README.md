@@ -2,7 +2,7 @@
 
 Production-grade, single-school management portal — web admin dashboard (Next.js) + native mobile app (Expo) on one shared, type-safe backend (tRPC + Supabase + Prisma).
 
-> **Status: M0 — Foundation.** Infrastructure only; no application features yet. The full scope, data model, and decisions live in `School_Portal_DEV_PRD.md` (source of truth), `School_Portal_PRD_v2.md`, and `docs/` (ADRs, conventions, design system, Definition of Done).
+> **Status: feature-complete.** All milestones M0–M17 shipped (people, attendance, exams, report cards, homework, fees, analytics, documents, configuration, production readiness), plus the post-M17 phases: push notifications, mobile offline, i18n (EN/ML), server-side PDFs, teacher↔parent messaging, CSV bulk import, and security/perf hardening. The full scope, data model, and decisions live in `School_Portal_DEV_PRD.md` (source of truth), `School_Portal_PRD_v2.md`, and `docs/` (ADRs, conventions, design system, Definition of Done).
 
 ---
 
@@ -36,15 +36,88 @@ Defined and **validated, fail-fast** in `apps/web/src/env.ts` and `apps/mobile/s
 
 CI and offline builds set `SKIP_ENV_VALIDATION=true` so `build`/`typecheck` run without real secrets (validation still fires at runtime).
 
-## Local development
+## Running the app
 
-```bash
-pnpm dev                      # all dev servers via turbo
-pnpm --filter web dev         # web only  → http://localhost:3000
-#   liveness  → GET /api/health  (process up; dependency-free; always 200)
-#   readiness → GET /api/ready   (DB reachable via api→business→db; 200 ready / 503 not)
-pnpm --filter mobile start    # Expo dev server (press i / a / w)
-```
+### Web (Next.js) — step by step
+
+1. **Node + deps** (once):
+   ```bash
+   nvm use && pnpm install
+   ```
+2. **Env file** — create `apps/web/.env.local` (Next.js reads env from the app
+   directory, not the repo root):
+   ```bash
+   APP_ENV=development
+   DATABASE_URL=postgresql://...            # Supabase session pooler, port 5432
+   SUPABASE_SERVICE_ROLE=<service-role-key> # server-only, never NEXT_PUBLIC_
+   NEXT_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+   ```
+   Values come from your Supabase project — provision one per
+   `docs/RUNBOOK_SUPABASE_SETUP.md`.
+3. **Start**:
+   ```bash
+   pnpm --filter web dev        # → http://localhost:3000
+   ```
+4. **Verify**: `GET /api/health` → 200 (liveness, dependency-free);
+   `GET /api/ready` → 200 when DB **and** storage are reachable (503 otherwise,
+   with per-check booleans). Opening `/` redirects to `/login`.
+
+> **No Supabase yet?** The app boots against any Postgres: point `DATABASE_URL`
+> at a local DB with the migrations applied
+> (`psql -f packages/db/prisma/migrations/*/migration.sql`, skipping the `*_rls`
+> ones — they need Supabase's `auth` schema) and use syntactically-valid
+> placeholders for the three Supabase vars. Every page renders and `/api/ready`
+> honestly reports `storage: false` — but **sign-in will not work**: auth is
+> Supabase-direct, there is no local fallback.
+
+### Mobile (Expo) — step by step
+
+1. **Env file** — create `apps/mobile/.env` (only `EXPO_PUBLIC_*` is bundled):
+   ```bash
+   EXPO_PUBLIC_APP_ENV=development
+   EXPO_PUBLIC_SUPABASE_URL=https://<project>.supabase.co
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+   EXPO_PUBLIC_API_URL=http://localhost:3000   # the web app hosts the tRPC API
+   ```
+   On a **physical device**, `localhost` is the phone — use your machine's LAN
+   IP (`http://192.168.x.x:3000`) and keep the web dev server running.
+2. **Start the web dev server first** (the mobile app has no API of its own),
+   then:
+   ```bash
+   pnpm --filter mobile start   # Expo dev server — press i (iOS sim) / a (Android) / w (web)
+   ```
+   Or scan the QR code with the Expo Go app on your phone.
+
+### Login credentials
+
+There are **no default or hardcoded credentials** — public signup is disabled
+(ADR-001); every account is provisioned via the Supabase Admin API by the ops
+scripts, which read the repo-root `.env` (copy `.env.example`):
+
+1. **Super admin** (once per environment) — set in root `.env`:
+   `SEED_SCHOOL_NAME`, `SEED_SUPER_ADMIN_EMAIL`,
+   `SEED_SUPER_ADMIN_PASSWORD` (≥ 10 chars, your choice), then:
+   ```bash
+   pnpm --filter @repo/business run bootstrap
+   ```
+   Sign in on the web at `/login` → **Staff** tab with that email + password.
+2. **Staff** (admin/teacher — email + password):
+   ```bash
+   pnpm --filter @repo/business run provision -- --role TEACHER --email t@school.example --password <pw>
+   ```
+3. **Parents** (phone OTP):
+   ```bash
+   pnpm --filter @repo/business run provision -- --role PARENT --phone +919999900001 --locale ml
+   ```
+   Sign in on the **Parent** tab with the phone number. Until a real SMS
+   provider is wired (tracked go-live blocker), **only the Supabase test OTP
+   number works**: configure `TEST_OTP_PHONE` → `TEST_OTP_CODE` (default
+   `+919999900001` → `123456`) in Supabase per `docs/RUNBOOK_SUPABASE_SETUP.md`
+   — test numbers receive no SMS; type the configured code.
+
+Accounts are created `INVITED` and flip to `ACTIVE` on first sign-in. Roles and
+what each can see: `docs/PERMISSIONS_MATRIX.md`.
 
 Common scripts (root, run across the monorepo via Turborepo):
 
