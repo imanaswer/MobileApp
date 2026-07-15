@@ -189,6 +189,8 @@ export interface StudentParentDto {
 /** Outcome of a bulk people CSV import (PRD §8.2, ADR-027). Partial success by
  *  design: failed rows land in `errors` with their 1-based CSV line number. */
 export interface ImportReportDto {
+  /** True when this was a validate-only pass — counts are "would create". */
+  dryRun: boolean;
   totalRows: number;
   studentsCreated: number;
   guardiansCreated: number;

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { Principal } from "../../authorization";
 import type { ServiceContext } from "../../context";
 
-import { importPeopleCsv, parseCsv } from "./import.service";
+import { importPeopleCsv, normalizeGuardianPhone, parseCsv } from "./import.service";
 
 const officeAdmin: Principal = {
   userId: "u-office",
@@ -64,7 +64,9 @@ function makeRepos() {
       findById: vi.fn(async (): Promise<Student | null> =>
         makeStudent({ admissionNo: "A-0", firstName: "Any" }),
       ),
-      findByAdmissionNo: vi.fn(async (): Promise<Student | null> => null),
+      findByAdmissionNo: vi.fn(
+        async (_schoolId: string, _admissionNo: string): Promise<Student | null> => null,
+      ),
       findByAadhaar: vi.fn(async (): Promise<Student | null> => null),
       create: vi.fn(async (input: { admissionNo: string; firstName: string }) =>
         makeStudent(input),
@@ -131,7 +133,71 @@ describe("parseCsv", () => {
   });
 });
 
+describe("normalizeGuardianPhone", () => {
+  it("normalizes register notations to one E.164 form", () => {
+    expect(normalizeGuardianPhone("+91 98765 43210")).toBe("+919876543210");
+    expect(normalizeGuardianPhone("9876543210")).toBe("+919876543210");
+    expect(normalizeGuardianPhone("09876543210")).toBe("+919876543210");
+    expect(normalizeGuardianPhone("919876543210")).toBe("+919876543210");
+    expect(normalizeGuardianPhone("98765-43210")).toBe("+919876543210");
+  });
+
+  it("keeps unrecognized shapes compacted, not rejected", () => {
+    expect(normalizeGuardianPhone("12345")).toBe("12345");
+    expect(normalizeGuardianPhone("+1 555 0100 200")).toBe("+15550100200");
+  });
+});
+
 describe("importPeopleCsv (ADR-027)", () => {
+  it("dedupes guardians across mixed phone notations (one create, both linked)", async () => {
+    const { ctx, repos } = makeCtx(officeAdmin);
+    const csv = [
+      HEADER,
+      "A-1,Asha,Nair,,,Raj Nair,98765 43210,FATHER,",
+      "A-2,Bini,Nair,,,Raj Nair,09876543210,FATHER,",
+    ].join("\n");
+
+    const report = await importPeopleCsv(ctx, { csv });
+
+    expect(report.guardiansCreated).toBe(1);
+    expect(report.guardiansLinked).toBe(2);
+    expect(repos.parents.create).toHaveBeenCalledTimes(1);
+    expect(repos.parents.create).toHaveBeenCalledWith(
+      expect.objectContaining({ phone: "+919876543210" }),
+    );
+  });
+
+  it("dryRun reports would-create counts and DB conflicts with ZERO writes", async () => {
+    const repos = makeRepos();
+    // A-9 already exists in the DB — dry run must surface it as a row error.
+    repos.students.findByAdmissionNo.mockImplementation(
+      async (_schoolId: string, admissionNo: string) =>
+        admissionNo === "A-9" ? makeStudent({ admissionNo: "A-9", firstName: "Dup" }) : null,
+    );
+    const { ctx } = makeCtx(officeAdmin, repos);
+    const csv = [
+      HEADER,
+      "A-1,Asha,Nair,,,Meera Nair,+91 99999 00001,MOTHER,true", // existing guardian → reuse
+      "A-2,Bini,Thomas,,,Tom Thomas,+919999900002,FATHER,", // new guardian
+      "A-9,Dup,Row,,,,,,", // admissionNo already in DB
+      "A-3,Bad,Dob,2026-02-30,,,,,", // row validation error
+    ].join("\n");
+
+    const report = await importPeopleCsv(ctx, { csv, dryRun: true });
+
+    expect(report).toMatchObject({
+      dryRun: true,
+      totalRows: 4,
+      studentsCreated: 2,
+      guardiansCreated: 1,
+      guardiansLinked: 2,
+    });
+    expect(report.errors.map((e) => e.row)).toEqual([4, 5]);
+    expect(repos.students.create).not.toHaveBeenCalled();
+    expect(repos.parents.create).not.toHaveBeenCalled();
+    expect(repos.studentParents.create).not.toHaveBeenCalled();
+  });
+
   it("creates students, reuses guardians by phone, links, and reports counts", async () => {
     const { ctx, repos } = makeCtx(officeAdmin);
     const csv = [

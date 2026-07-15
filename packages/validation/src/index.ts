@@ -265,6 +265,8 @@ export const linkParentInput = z.object({
    happens in the service so failures come back as a per-row error report. */
 export const importPeopleCsvInput = z.object({
   csv: z.string().min(1).max(2_000_000),
+  // Validate-only pass — the UI runs this first and commits on confirmation.
+  dryRun: z.boolean().optional(),
 });
 export const unlinkParentInput = z.object({
   studentId: idSchema,

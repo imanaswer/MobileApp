@@ -45,24 +45,31 @@ const TEMPLATE_SAMPLE = [
 ];
 
 /**
- * Bulk student/guardian CSV import (PRD §8.2, ADR-027). Upload → synchronous
- * import → summary + downloadable per-row error report. Repeat a student's
- * admissionNo on a second row to attach another guardian.
+ * Bulk student/guardian CSV import (PRD §8.2, ADR-027). Upload → dry-run
+ * validation report (zero writes) → explicit commit → summary + downloadable
+ * per-row error report. Repeat a student's admissionNo on a second row to
+ * attach another guardian.
  */
 export function ImportCsvDialog({ onClose }: { onClose: () => void }) {
   const utils = trpc.useUtils();
+  const [csv, setCsv] = useState<string | null>(null);
   const [report, setReport] = useState<ImportReportDto | null>(null);
   const importCsv = trpc.student.importCsv.useMutation({
     onSuccess: (r) => {
       setReport(r);
-      void utils.student.list.invalidate();
-      void utils.parent.list.invalidate();
+      if (!r.dryRun) {
+        void utils.student.list.invalidate();
+        void utils.parent.list.invalidate();
+      }
     },
   });
 
+  // Validate first (dryRun) — nothing is written until the operator confirms.
   const onFile = async (file: File | undefined) => {
     if (!file) return;
-    importCsv.mutate({ csv: await file.text() });
+    const text = await file.text();
+    setCsv(text);
+    importCsv.mutate({ csv: text, dryRun: true });
   };
 
   return (
@@ -102,8 +109,21 @@ export function ImportCsvDialog({ onClose }: { onClose: () => void }) {
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-neutral-700">
-            {report.studentsCreated} of {report.totalRows} rows imported · {report.guardiansCreated}{" "}
-            guardians created · {report.guardiansLinked} linked · {report.errors.length} failed
+            {report.dryRun ? (
+              <>
+                Validation only — nothing imported yet. {report.studentsCreated} student
+                {report.studentsCreated === 1 ? "" : "s"} · {report.guardiansCreated} new guardian
+                {report.guardiansCreated === 1 ? "" : "s"} · {report.guardiansLinked} link
+                {report.guardiansLinked === 1 ? "" : "s"} would be created · {report.errors.length}{" "}
+                row{report.errors.length === 1 ? "" : "s"} with errors
+              </>
+            ) : (
+              <>
+                {report.studentsCreated} of {report.totalRows} rows imported ·{" "}
+                {report.guardiansCreated} guardians created · {report.guardiansLinked} linked ·{" "}
+                {report.errors.length} failed
+              </>
+            )}
           </p>
           {report.errors.length > 0 && (
             <>
@@ -133,7 +153,22 @@ export function ImportCsvDialog({ onClose }: { onClose: () => void }) {
               </Button>
             </>
           )}
-          <Button onClick={onClose}>Done</Button>
+          {report.dryRun ? (
+            <div className="flex gap-2">
+              <Button
+                disabled={report.studentsCreated + report.guardiansLinked === 0}
+                loading={importCsv.isPending}
+                onClick={() => csv !== null && importCsv.mutate({ csv })}
+              >
+                {report.errors.length > 0 ? "Import valid rows anyway" : "Import"}
+              </Button>
+              <Button variant="secondary" onClick={() => setReport(null)}>
+                Choose another file
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={onClose}>Done</Button>
+          )}
         </div>
       )}
     </Dialog>

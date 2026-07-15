@@ -1,5 +1,5 @@
 import { PERMISSIONS } from "@repo/constants";
-import { ValidationError } from "@repo/core";
+import { ConflictError, ValidationError } from "@repo/core";
 import type { GenderKey, ImportReportDto, StudentRelationshipKey } from "@repo/types";
 
 import { assertCan } from "../../authorization";
@@ -91,6 +91,23 @@ export function parseCsv(text: string): string[][] {
 
 export interface ImportPeopleCsvInput {
   csv: string;
+  /** Validate only — full report of what WOULD happen, zero writes. */
+  dryRun?: boolean | undefined;
+}
+
+/**
+ * Normalize a guardian phone to E.164 so dedupe survives the register-notation mix
+ * ("+91 98765 43210" / "9876543210" / "09876543210" are the SAME guardian). Assumes
+ * +91 for bare 10-digit numbers (PRD: single Indian school). Unrecognized shapes are
+ * returned compacted, not rejected — the row-level length validation still applies.
+ */
+export function normalizeGuardianPhone(raw: string): string {
+  const compact = raw.replace(/[\s\-().]/g, "");
+  if (/^\+\d{8,15}$/.test(compact)) return compact;
+  const digits = compact.replace(/^0/, "");
+  if (/^\d{10}$/.test(digits)) return `+91${digits}`;
+  if (/^91\d{10}$/.test(digits)) return `+${digits}`;
+  return compact;
 }
 
 interface ParsedRow {
@@ -176,7 +193,7 @@ function parseRow(cells: readonly string[], col: Map<string, number>): ParsedRow
     }
     row.guardian = {
       name: required(get("guardianName"), "guardianName", 120),
-      phone: required(get("guardianPhone"), "guardianPhone", 20),
+      phone: normalizeGuardianPhone(required(get("guardianPhone"), "guardianPhone", 20)),
       email: optional(get("guardianEmail"), "guardianEmail", 254),
       relationship: (relRaw as StudentRelationshipKey | undefined) ?? "GUARDIAN",
       isPrimary: primaryRaw !== undefined && ["true", "yes", "1"].includes(primaryRaw),
@@ -213,25 +230,72 @@ export async function importPeopleCsv(
   }
 
   // Guardian dedupe by phone: one list() upfront beats a query per row at school scale.
+  // Keys are normalized so mixed notations in the DB still match a normalized row.
   // ponytail: whole-roster in memory; page it if a school ever has >10^5 guardians.
   const existingParents = await ctx.repositories.parents.list(ctx.user.schoolId);
-  const parentIdByPhone = new Map(existingParents.map((p) => [p.phone, p.id]));
+  const parentIdByPhone = new Map(
+    existingParents.map((p) => [normalizeGuardianPhone(p.phone), p.id]),
+  );
 
   const report: ImportReportDto = {
+    dryRun: input.dryRun === true,
     totalRows: rows.length - 1,
     studentsCreated: 0,
     guardiansCreated: 0,
     guardiansLinked: 0,
     errors: [],
   };
-  // Repeated admission numbers within the file = extra guardian rows for that student.
-  const studentIdByAdmissionNo = new Map<string, string>();
 
+  // Row validation runs standalone, BEFORE any write — so a dry run can return the
+  // full report, and a half-bad file is visible without half-importing.
+  const parsed: { line: number; row: ParsedRow }[] = [];
   for (let i = 1; i < rows.length; i++) {
     const line = i + 1; // 1-based, counting the header
     try {
-      const row = parseRow(rows[i]!, col);
+      parsed.push({ line, row: parseRow(rows[i]!, col) });
+    } catch (e) {
+      report.errors.push({ row: line, message: e instanceof Error ? e.message : String(e) });
+    }
+  }
 
+  if (report.dryRun) {
+    // Counts = what a commit WOULD do; the admission-number DB conflict is checked
+    // here explicitly (a real run hits it inside createStudent).
+    const admissionSeen = new Set<string>();
+    const phoneSeen = new Set(parentIdByPhone.keys());
+    for (const { line, row } of parsed) {
+      try {
+        if (!admissionSeen.has(row.admissionNo)) {
+          const dup = await ctx.repositories.students.findByAdmissionNo(
+            ctx.user.schoolId,
+            row.admissionNo,
+          );
+          if (dup) {
+            throw new ConflictError(`Admission number "${row.admissionNo}" is already in use`);
+          }
+          admissionSeen.add(row.admissionNo);
+          report.studentsCreated++;
+        }
+        if (row.guardian) {
+          if (!phoneSeen.has(row.guardian.phone)) {
+            phoneSeen.add(row.guardian.phone);
+            report.guardiansCreated++;
+          }
+          report.guardiansLinked++;
+        }
+      } catch (e) {
+        report.errors.push({ row: line, message: e instanceof Error ? e.message : String(e) });
+      }
+    }
+    report.errors.sort((a, b) => a.row - b.row);
+    return report;
+  }
+
+  // Repeated admission numbers within the file = extra guardian rows for that student.
+  const studentIdByAdmissionNo = new Map<string, string>();
+
+  for (const { line, row } of parsed) {
+    try {
       let studentId = studentIdByAdmissionNo.get(row.admissionNo);
       if (!studentId) {
         const { guardian: _guardian, ...studentInput } = row;
@@ -266,5 +330,6 @@ export async function importPeopleCsv(
     }
   }
 
+  report.errors.sort((a, b) => a.row - b.row);
   return report;
 }

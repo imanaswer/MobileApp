@@ -13,13 +13,15 @@
  */
 const buckets = new Map<string, { count: number; resetAt: number }>();
 
-/** Sensitive mutations (full tRPC path). Publish/approve are the brief's list. */
+/** Sensitive mutations (full tRPC path). Publish/approve are the brief's list;
+ *  importCsv is here as the one heavy bulk-write endpoint (ADR-027). */
 const SENSITIVE_MUTATIONS = new Set([
   "homework.publish",
   "reportCard.publish",
   "reportCard.approve",
   "announcement.publish",
   "document.approve",
+  "student.importCsv",
 ]);
 
 /** Rate-limit config for a procedure path, or null if it isn't limited. */
