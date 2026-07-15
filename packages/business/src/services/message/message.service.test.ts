@@ -24,6 +24,7 @@ import {
   listThreads,
   markThreadRead,
   sendMessage,
+  unreadMessageCount,
 } from "./message.service";
 
 /* ---- principals ---- */
@@ -122,7 +123,11 @@ function makeRepos(opts: { studentInScope?: boolean; current?: MessageThread } =
         thread(input as Partial<MessageThread>),
       ),
       findThreadById: vi.fn(async (): Promise<MessageThread | null> => opts.current ?? thread()),
-      listThreadsForUser: vi.fn(async (): Promise<MessageThread[]> => [thread()]),
+      listThreadsForUser: vi.fn(
+        async (): Promise<
+          (MessageThread & { unreadCount: number; lastMessageBody: string | null })[]
+        > => [{ ...thread(), unreadCount: 2, lastMessageBody: "hello" }],
+      ),
       createMessage: vi.fn(async (input: Record<string, unknown>): Promise<Message> =>
         message(input as Partial<Message>),
       ),
@@ -288,5 +293,20 @@ describe("markThreadRead / listThreads", () => {
     const page = await listThreads(ctx, {});
     expect(page.items).toHaveLength(1);
     expect(page.nextCursor).toBeNull();
+  });
+
+  it("listThreads carries the reader's unread count and a preview per thread", async () => {
+    const { ctx } = makeCtx(teacher);
+    const page = await listThreads(ctx, {});
+    expect(page.items[0]?.unreadCount).toBe(2);
+    expect(page.items[0]?.lastMessagePreview).toBe("hello");
+  });
+
+  it("unreadMessageCount counts across the caller's threads", async () => {
+    const { ctx, repos } = makeCtx(parent);
+    repos.messages.unreadCountForUser.mockResolvedValueOnce(5);
+    const res = await unreadMessageCount(ctx);
+    expect(repos.messages.unreadCountForUser).toHaveBeenCalledWith("u-parent");
+    expect(res.count).toBe(5);
   });
 });

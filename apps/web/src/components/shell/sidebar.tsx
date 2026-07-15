@@ -7,12 +7,12 @@ import { LogOut, School } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-import { getSupabaseClient } from "@/src/lib/supabase/client";
-
 import { Avatar } from "../ui";
 
 import { visibleNavGroups } from "./nav-config";
 
+import { getSupabaseClient } from "@/src/lib/supabase/client";
+import { trpc } from "@/src/trpc/react";
 
 const ROLE_LABEL: Record<RoleKey, string> = {
   SUPER_ADMIN: "Super Admin",
@@ -35,6 +35,15 @@ export function Sidebar({ role }: { role: RoleKey }) {
   // `auth.me` returns only the DB Principal (role/schoolId/status) — no display
   // name. Showing the role here; a real name needs a `name` on auth.me (future).
   const label = ROLE_LABEL[role];
+
+  // Unread-messages badge — only for roles that can even see Messages (avoids 403s).
+  const hasMessages = groups.some((g) => g.items.some((i) => i.href === "/messages"));
+  const unread = trpc.message.unreadCount.useQuery(undefined, {
+    enabled: hasMessages,
+    refetchInterval: 30_000,
+    retry: false,
+  });
+  const unreadCount = unread.data?.count ?? 0;
 
   async function logout() {
     await signOut(getSupabaseClient());
@@ -72,6 +81,14 @@ export function Sidebar({ role }: { role: RoleKey }) {
                 >
                   <Icon aria-hidden strokeWidth={1.75} className="size-5 shrink-0" />
                   <span className="hidden truncate xl:block">{item.label}</span>
+                  {item.href === "/messages" && unreadCount > 0 ? (
+                    <span
+                      aria-label={`${unreadCount} unread messages`}
+                      className="ml-auto rounded-full bg-primary-600 px-1.5 py-0.5 text-caption font-semibold text-white"
+                    >
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}

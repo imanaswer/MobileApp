@@ -18,7 +18,8 @@ export default function MessagesScreen() {
   const t = dict.messages;
   const router = useRouter();
   const myUserId = trpc.auth.me.useQuery().data?.userId;
-  const list = trpc.message.listThreads.useQuery({});
+  // Modest poll so a reply shows up without a manual reopen (no realtime yet).
+  const list = trpc.message.listThreads.useQuery({}, { refetchInterval: 20_000 });
   const students = trpc.student.list.useQuery();
   const studentName = useMemo(
     () => new Map((students.data ?? []).map((s) => [s.id, `${s.firstName} ${s.lastName}`])),
@@ -120,10 +121,34 @@ function ThreadRow({
       onPress={() => onOpen(name)}
       className="flex-row items-center gap-3 rounded-md border border-border bg-card p-4"
     >
-      <Text className="flex-1 text-foreground" numberOfLines={1}>
-        <Text className="font-semibold">{name}</Text>
-        <Text className="text-muted-foreground"> · {studentLabel}</Text>
-      </Text>
+      <View className="min-w-0 flex-1">
+        <Text className="text-foreground" numberOfLines={1}>
+          <Text className="font-semibold">{name}</Text>
+          <Text className="text-muted-foreground"> · {studentLabel}</Text>
+        </Text>
+        {thread.lastMessagePreview ? (
+          <Text
+            numberOfLines={1}
+            className={
+              thread.unreadCount > 0
+                ? "text-sm font-medium text-foreground"
+                : "text-sm text-muted-foreground"
+            }
+          >
+            {thread.lastMessagePreview}
+          </Text>
+        ) : null}
+      </View>
+      {thread.unreadCount > 0 ? (
+        <View
+          accessibilityLabel={t.unreadBadge(thread.unreadCount)}
+          className="rounded-full bg-primary px-2 py-0.5"
+        >
+          <Text className="text-xs font-semibold text-primary-foreground">
+            {thread.unreadCount}
+          </Text>
+        </View>
+      ) : null}
       <Text className="text-xs text-muted-foreground">{formatDate(thread.lastMessageAt)}</Text>
     </Pressable>
   );

@@ -23,6 +23,12 @@ export interface KeysetPage {
   before?: Date;
 }
 
+/** A thread row for the list UI: per-reader unread count + latest message body. */
+export type ThreadWithStats = MessageThread & {
+  unreadCount: number;
+  lastMessageBody: string | null;
+};
+
 /**
  * Persistence for M18 teacher↔parent messaging (`MessageThread` + `Message`). No
  * authorization: the business layer resolves permission and the party gate. A thread
@@ -34,7 +40,7 @@ export interface KeysetPage {
 export interface MessageRepository {
   upsertThread(input: UpsertThreadInput): Promise<MessageThread>;
   findThreadById(id: string): Promise<MessageThread | null>;
-  listThreadsForUser(userId: string, page: KeysetPage): Promise<MessageThread[]>;
+  listThreadsForUser(userId: string, page: KeysetPage): Promise<ThreadWithStats[]>;
   createMessage(input: CreateMessageInput): Promise<Message>;
   listMessages(threadId: string, page: KeysetPage): Promise<Message[]>;
   /** Mark the OTHER party's unread messages read; returns how many flipped. */
@@ -60,15 +66,31 @@ export function createMessageRepository(client: DbClient): MessageRepository {
 
     findThreadById: (id) => client.messageThread.findUnique({ where: { id } }),
 
-    listThreadsForUser: (userId, page) =>
-      client.messageThread.findMany({
+    // One grouped query (no N+1): filtered relation count for the reader's unread
+    // + a take-1 include for the latest message body (thread-list preview).
+    listThreadsForUser: async (userId, page) => {
+      const rows = await client.messageThread.findMany({
         where: {
           OR: [{ staffUserId: userId }, { guardianUserId: userId }],
           ...(page.before ? { lastMessageAt: { lt: page.before } } : {}),
         },
         orderBy: { lastMessageAt: "desc" },
         take: page.limit,
-      }),
+        include: {
+          messages: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true } },
+          _count: {
+            select: {
+              messages: { where: { senderUserId: { not: userId }, readAt: null } },
+            },
+          },
+        },
+      });
+      return rows.map(({ messages, _count, ...thread }) => ({
+        ...thread,
+        unreadCount: _count.messages,
+        lastMessageBody: messages[0]?.body ?? null,
+      }));
+    },
 
     // Two writes — atomic ONLY when `client` is a transaction client (withTransaction).
     createMessage: async (input) => {

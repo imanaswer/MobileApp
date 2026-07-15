@@ -28,14 +28,20 @@ export default function ConversationPage({
   const myUserId = me.data?.userId;
   const utils = trpc.useUtils();
 
-  const query = trpc.message.threadMessages.useQuery({ threadId });
+  // Modest poll so the counterparty's reply appears while the conversation is open.
+  const query = trpc.message.threadMessages.useQuery({ threadId }, { refetchInterval: 15_000 });
   // Newest-first from the server → render oldest at top.
   const messages = [...(query.data?.items ?? [])].reverse();
 
-  const markRead = trpc.message.markRead.useMutation();
+  // Flip incoming messages to read whenever a NEW one arrives (poll), not just on
+  // mount — keeps the sidebar unread badge honest while the thread is open.
+  const latestIncomingId = query.data?.items.find((m) => m.senderUserId !== myUserId)?.id;
+  const markRead = trpc.message.markRead.useMutation({
+    onSuccess: () => void utils.message.unreadCount.invalidate(),
+  });
   useEffect(() => {
     markRead.mutate({ threadId });
-  }, [threadId]);
+  }, [threadId, latestIncomingId]);
 
   const [body, setBody] = useState("");
   const send = trpc.message.send.useMutation({

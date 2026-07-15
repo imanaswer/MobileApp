@@ -165,6 +165,7 @@ export const en = {
     send: "Send",
     parentFallback: "Parent",
     teacherFallback: "Teacher",
+    unreadBadge: (n: number) => `${n} unread`,
   },
   announcements: {
     attachments: "Attachments",

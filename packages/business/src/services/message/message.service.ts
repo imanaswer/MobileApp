@@ -169,7 +169,12 @@ export async function listThreads(
   assertCan(ctx.user, PERMISSIONS.MESSAGE_READ);
   const page = pageArgs(input);
   const rows = await ctx.repositories.messages.listThreadsForUser(ctx.user.userId, page);
-  const items = rows.map(mapThread);
+  const items = rows.map((t) =>
+    mapThread(t, {
+      unreadCount: t.unreadCount,
+      lastMessagePreview: t.lastMessageBody === null ? null : preview(t.lastMessageBody),
+    }),
+  );
   const last = items.at(-1);
   const nextCursor = last && items.length === page.limit ? last.lastMessageAt : null;
   return { items, nextCursor };
@@ -209,6 +214,13 @@ export async function markThreadRead(
   await loadThreadAsParty(ctx, input.threadId);
   const readCount = await ctx.repositories.messages.markThreadRead(input.threadId, ctx.user.userId);
   return { readCount };
+}
+
+/** Total unread messages for the caller across all their threads (nav badge). */
+export async function unreadMessageCount(ctx: ServiceContext): Promise<{ count: number }> {
+  assertCan(ctx.user, PERMISSIONS.MESSAGE_READ);
+  const count = await ctx.repositories.messages.unreadCountForUser(ctx.user.userId);
+  return { count };
 }
 
 export interface ListCounterpartiesInput {

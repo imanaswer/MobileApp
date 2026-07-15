@@ -372,6 +372,7 @@ Send fires a post-commit best-effort `MESSAGE` notification to the other party (
 | `message.listThreads` | Q | `message:read` | caller's threads, keyset on `lastMessageAt` |
 | `message.threadMessages` | Q | `message:read` | thread party only; keyset on `createdAt`, newest-first |
 | `message.markRead` | M | `message:read` | marks the thread's messages addressed to the caller (`senderUserId ≠ caller`, `readAt` null) as read |
+| `message.unreadCount` | Q | `message:read` | caller's total unread messages across threads — nav/sidebar badge (polled) |
 | `message.counterparties` | Q | `message:read` | valid recipients for a student (teacher→guardians-with-login / parent→section teachers) — the compose picker's only source of counterparty userIds |
 
 ## Announcements & Calendar (M11 — ADR-019, implemented; permission-only)

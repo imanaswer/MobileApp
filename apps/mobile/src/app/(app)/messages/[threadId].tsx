@@ -31,13 +31,22 @@ export default function ConversationScreen() {
   const myUserId = trpc.auth.me.useQuery().data?.userId;
   const utils = trpc.useUtils();
 
-  const query = trpc.message.threadMessages.useQuery({ threadId }, { enabled: !!threadId });
+  // Modest poll so the counterparty's reply appears while the conversation is open.
+  const query = trpc.message.threadMessages.useQuery(
+    { threadId },
+    { enabled: !!threadId, refetchInterval: 15_000 },
+  );
   const messages = query.data?.items ?? []; // newest-first, matches inverted list
 
-  const markRead = trpc.message.markRead.useMutation();
+  // Flip incoming messages to read whenever a NEW one arrives (poll), not just on
+  // mount — keeps the home/list unread badges honest while the thread is open.
+  const latestIncomingId = messages.find((m) => m.senderUserId !== myUserId)?.id;
+  const markRead = trpc.message.markRead.useMutation({
+    onSuccess: () => void utils.message.unreadCount.invalidate(),
+  });
   useEffect(() => {
     if (threadId) markRead.mutate({ threadId });
-  }, [threadId]);
+  }, [threadId, latestIncomingId]);
 
   const [body, setBody] = useState("");
   const send = trpc.message.send.useMutation({

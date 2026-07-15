@@ -165,6 +165,7 @@ export const ml: Dictionary = {
     send: "അയയ്ക്കുക", // TODO(verify-ml)
     parentFallback: "രക്ഷിതാവ്", // TODO(verify-ml)
     teacherFallback: "അധ്യാപകൻ", // TODO(verify-ml)
+    unreadBadge: (n: number) => `${n} വായിക്കാത്തവ`, // TODO(verify-ml)
   },
   announcements: {
     attachments: "അറ്റാച്ച്‌മെന്റുകൾ", // TODO(verify-ml)

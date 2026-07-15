@@ -27,7 +27,8 @@ export default function MessagesPage() {
   const router = useRouter();
   const me = trpc.auth.me.useQuery();
   const myUserId = me.data?.userId;
-  const threads = trpc.message.listThreads.useQuery({});
+  // Modest poll so a reply shows up without a manual reopen (no realtime yet).
+  const threads = trpc.message.listThreads.useQuery({}, { refetchInterval: 20_000 });
   const students = trpc.student.list.useQuery();
   const studentName = new Map(
     (students.data ?? []).map((s) => [s.id, `${s.firstName} ${s.lastName}`]),
@@ -95,6 +96,8 @@ function ThreadRow({
     guardianUserId: string;
     studentId: string;
     lastMessageAt: string;
+    unreadCount: number;
+    lastMessagePreview: string | null;
   };
   studentLabel: string;
   myUserId: string | undefined;
@@ -112,10 +115,29 @@ function ThreadRow({
 
   return (
     <Card interactive onClick={() => onOpen(name)} className="flex items-center gap-3">
-      <span className="flex-1 truncate">
-        <span className="font-semibold text-neutral-900">{name}</span>
-        <span className="text-neutral-500"> · {studentLabel}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate">
+          <span className="font-semibold text-neutral-900">{name}</span>
+          <span className="text-neutral-500"> · {studentLabel}</span>
+        </span>
+        {thread.lastMessagePreview ? (
+          <span
+            className={`block truncate text-sm ${
+              thread.unreadCount > 0 ? "font-medium text-neutral-800" : "text-neutral-500"
+            }`}
+          >
+            {thread.lastMessagePreview}
+          </span>
+        ) : null}
       </span>
+      {thread.unreadCount > 0 ? (
+        <span
+          aria-label={`${thread.unreadCount} unread`}
+          className="rounded-full bg-primary-600 px-2 py-0.5 text-caption font-semibold text-white"
+        >
+          {thread.unreadCount}
+        </span>
+      ) : null}
       <span className="text-caption text-neutral-500">{whenLabel(thread.lastMessageAt)}</span>
     </Card>
   );

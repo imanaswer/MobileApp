@@ -29,6 +29,15 @@ export default function AppHome() {
     role !== undefined && can(role, p);
   const isParent = role === "PARENT";
 
+  const canReadMessages = has(PERMISSIONS.MESSAGE_READ);
+  // Unread-messages badge on the nav entry (polled; permission-gated to avoid 403s).
+  const unreadMessages =
+    trpc.message.unreadCount.useQuery(undefined, {
+      enabled: canReadMessages,
+      refetchInterval: 30_000,
+      retry: false,
+    }).data?.count ?? 0;
+
   const canReadAcademic = has(PERMISSIONS.ACADEMIC_READ);
   const canReadStudents = has(PERMISSIONS.STUDENT_READ);
   const canReadParents = has(PERMISSIONS.PARENT_READ);
@@ -46,7 +55,6 @@ export default function AppHome() {
   const showTimetable = canReadTimetable && (role === "TEACHER" || isParent);
   const canReadAnnouncements = has(PERMISSIONS.ANNOUNCEMENT_READ);
   const canReadCalendar = has(PERMISSIONS.CALENDAR_READ);
-  const canReadMessages = has(PERMISSIONS.MESSAGE_READ);
   const canReadBehaviour = has(PERMISSIONS.BEHAVIOUR_READ);
   const canRecordBehaviour = has(PERMISSIONS.BEHAVIOUR_RECORD) || has(PERMISSIONS.BEHAVIOUR_MANAGE);
   const canReadFees = has(PERMISSIONS.FEE_READ);
@@ -346,7 +354,12 @@ export default function AppHome() {
 
         {canReadAnnouncements || canReadCalendar || canReadMessages ? (
           <NavCard title={t.communication}>
-            {canReadMessages ? <NavLink href="/messages" label={t.messages} /> : null}
+            {canReadMessages ? (
+              <NavLink
+                href="/messages"
+                label={unreadMessages > 0 ? `${t.messages} (${unreadMessages})` : t.messages}
+              />
+            ) : null}
             {canReadAnnouncements ? (
               <NavLink href="/announcements" label={t.announcements} />
             ) : null}

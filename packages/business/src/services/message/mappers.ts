@@ -4,7 +4,13 @@ import type { IsoUtcString, MessageDto, MessageThreadDto } from "@repo/types";
 const iso = (d: Date): IsoUtcString => d.toISOString() as IsoUtcString;
 const isoOrNull = (d: Date | null): IsoUtcString | null => (d ? iso(d) : null);
 
-export function mapThread(t: MessageThread): MessageThreadDto {
+export function mapThread(
+  t: MessageThread,
+  stats: { unreadCount: number; lastMessagePreview: string | null } = {
+    unreadCount: 0,
+    lastMessagePreview: null,
+  },
+): MessageThreadDto {
   return {
     id: t.id,
     schoolId: t.schoolId,
@@ -12,6 +18,8 @@ export function mapThread(t: MessageThread): MessageThreadDto {
     guardianUserId: t.guardianUserId,
     studentId: t.studentId,
     lastMessageAt: iso(t.lastMessageAt),
+    unreadCount: stats.unreadCount,
+    lastMessagePreview: stats.lastMessagePreview,
     createdAt: iso(t.createdAt),
     updatedAt: iso(t.updatedAt),
   };

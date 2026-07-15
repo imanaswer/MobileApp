@@ -817,6 +817,10 @@ export interface MessageThreadDto {
   guardianUserId: string;
   studentId: string;
   lastMessageAt: IsoUtcString;
+  /** Unread-by-the-CALLER count (0 on a freshly created/reused thread response). */
+  unreadCount: number;
+  /** Truncated latest message body for the list row (null when empty thread). */
+  lastMessagePreview: string | null;
   createdAt: IsoUtcString;
   updatedAt: IsoUtcString;
 }

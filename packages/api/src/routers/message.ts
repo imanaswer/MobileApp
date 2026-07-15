@@ -6,6 +6,7 @@ import {
   listThreads,
   markThreadRead,
   sendMessage,
+  unreadMessageCount,
 } from "@repo/business";
 import {
   createThreadInput,
@@ -45,6 +46,10 @@ export const messageRouter = router({
   markRead: protectedProcedure
     .input(markThreadReadInput)
     .mutation(({ ctx, input }) => markThreadRead(createServiceContext(ctx.user), input)),
+  /** Total unread messages for the caller — nav/sidebar badge. */
+  unreadCount: protectedProcedure.query(({ ctx }) =>
+    unreadMessageCount(createServiceContext(ctx.user)),
+  ),
   /** The valid counterparties the caller may open a thread with about a student. */
   counterparties: protectedProcedure
     .input(studentIdInput)
