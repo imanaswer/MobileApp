@@ -37,7 +37,15 @@ export default tseslint.config(
       "unused-imports": unusedImports,
     },
     settings: {
-      "import-x/resolver": { typescript: true, node: true },
+      // Pin the tsconfig set: resolution (and thus import-x/order grouping of
+      // `@/*` aliases) must not depend on eslint's cwd — repo-root lint-staged
+      // and per-app `eslint .` used to disagree and ping-pong import order.
+      "import-x/resolver": {
+        typescript: {
+          project: ["tsconfig.base.json", "apps/*/tsconfig.json", "packages/*/tsconfig.json"],
+        },
+        node: true,
+      },
     },
     rules: {
       "no-console": ["warn", { allow: ["warn", "error"] }],
