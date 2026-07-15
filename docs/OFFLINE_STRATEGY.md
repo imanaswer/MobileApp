@@ -34,6 +34,14 @@ type QueuedAttendanceMutation = {
 - Persisted store (`useOfflineQueueStore`, MMKV/AsyncStorage), survives app restarts.
 - **Coalescing:** one entry per `(divisionId, dateIST, period)` — re-editing offline replaces the entry (matches server upsert semantics; no replay ordering problem).
 - Roster prefetch: opening a division while online caches the roster ≥24h so offline marking has data.
+- **Known limitation (as implemented):** queue entries are keyed by an EXISTING
+  `sessionId`, and `attendance.openSession` is an online-only mutation. Offline
+  marking therefore only works for a register that was **opened while online**
+  (today's normal flow: open the register in the morning, mark through outages).
+  A teacher who goes offline *before* opening the day's register cannot start it
+  offline; submit/lock transitions are also online-only. Upgrade path: queue an
+  "openSession intent" (`sectionId + dateIST + sessionType`) resolved at drain
+  time before the mark replay.
 
 ### Sync protocol
 
@@ -49,7 +57,7 @@ Offline replay overwrites earlier server values via the normal upsert; every cha
 
 Edge rules:
 - **Leave collision:** replayed PRESENT over an approved-leave LEAVE row → LWW applies, audited; the leave itself stays APPROVED (attendance is the operational record; discrepancy is visible in audit). Optional post-core improvement: warn in the response and flag the row in UI.
-- **Auth expiry:** sync pauses on 401 until session refresh/sign-in; queue is keyed to userId and cleared if a *different* user signs in.
+- **Auth expiry:** sync pauses on 401 until session refresh/sign-in. The queue is keyed to userId and the drain refuses entries whose userId ≠ the signed-in user, so nothing ever posts under a different account; a user's unsynced entries are only discarded with their explicit confirmation at logout (never silently).
 - **Clock skew:** server time is authoritative everywhere; `queuedAt` is display-only. `dateIST` was chosen by the teacher, so no off-by-one risk from device clocks.
 - **Stale roster:** rows for enrollments that changed division/status fail row-level → partial success reported (mirror of import semantics), failed rows listed.
 
