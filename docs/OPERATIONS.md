@@ -38,6 +38,20 @@ authenticated Super-Admin client. Adding a `/admin/ops` console is a future UI t
 - **Storage looks wrong:** `system.storageCheck` confirms bucket reachability; provisioning is
   `RUNBOOK_SUPABASE_SETUP.md §3b–3e`.
 
+## Push delivery (operational notes / tracking)
+- **Fire-and-forget dispatch:** `dispatchPushToUsers` is a floating promise by design —
+  fine for the Docker deploy (long-lived Node process). **If this app ever moves to a
+  serverless host (Vercel/Lambda), wire Next's `after()` around the dispatch at the API
+  layer** or pushes will be silently dropped when the function freezes. Tracked in the
+  `ponytail:` comment in `packages/business/src/services/notification/push.ts`.
+- **Receipt polling not implemented:** Expo reports some failures (e.g. an iOS token
+  revoked at Apple) only via the *receipts* API ~15 min after send; those tokens are
+  currently never pruned (only `DeviceNotRegistered` at send-time is, finding B13).
+  Symptom: stale device rows accumulate; cost is a few wasted sends per stale device.
+  Upgrade path: a `system.pushReceiptSweep` ops procedure (store ticket ids at send,
+  poll `getPushNotificationReceiptsAsync`, prune on terminal errors) run manually or
+  via cron. Tracked in the adapter comment (`packages/notifications`).
+
 ## Rate limiting (operational note)
 In-memory, **per-process** (`packages/api/src/rate-limit.ts`) — correct for the single web
 container M17 deploys. If scaled horizontally, the effective limit multiplies by instance

@@ -66,7 +66,9 @@ export function parseCsv(text: string): string[][] {
       } else {
         cell += ch;
       }
-    } else if (ch === '"') {
+    } else if (ch === '"' && cell.length === 0) {
+      // RFC 4180: a quote only opens a quoted section at the START of a cell;
+      // mid-cell quotes (ab"c) are literal characters.
       inQuotes = true;
     } else if (ch === ",") {
       row.push(cell);

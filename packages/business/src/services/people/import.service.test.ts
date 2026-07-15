@@ -125,6 +125,10 @@ describe("parseCsv", () => {
     ]);
   });
 
+  it("treats a mid-cell quote as a literal character (RFC 4180)", () => {
+    expect(parseCsv('ab"c,2\n')).toEqual([['ab"c', "2"]]);
+  });
+
   it("skips blank lines", () => {
     expect(parseCsv("a,b\n\n1,2\n  ,\n")).toEqual([
       ["a", "b"],
