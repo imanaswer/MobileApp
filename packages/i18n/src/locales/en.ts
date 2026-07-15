@@ -111,6 +111,11 @@ export const en = {
     view: "View",
     studentCount: (n: number) => `${n} student${n > 1 ? "s" : ""}`,
     discard: "Discard",
+    logoutUnsyncedTitle: "Unsynced attendance",
+    logoutUnsyncedBody: (n: number) =>
+      `You have ${n} attendance register${n > 1 ? "s" : ""} that ${n > 1 ? "have" : "has"} not synced. Logging out will discard ${n > 1 ? "them" : "it"} — go online to sync first.`,
+    logoutDiscard: "Discard & log out",
+    cancel: "Cancel",
   },
   fees: {
     title: "Fees",

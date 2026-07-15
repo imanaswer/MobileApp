@@ -60,8 +60,9 @@ interface OfflineQueueStore {
   discard: (id: string) => void;
   /** Ask the drain to run now (e.g. after a manual retry while online). */
   requestSync: () => void;
-  /** Logout / different user — never drain another user's writes (§Auth). */
-  purge: () => void;
+  /** Discard ONE user's unsynced entries — only on explicit logout confirmation
+   *  ("never silently dropped", OFFLINE_STRATEGY). Other users' entries are kept. */
+  purgeUser: (userId: string) => void;
 }
 
 const newId = (): string => `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -104,7 +105,7 @@ export const useOfflineQueueStore = create<OfflineQueueStore>()(
         })),
       discard: (id) => set((s) => ({ queue: s.queue.filter((e) => e.id !== id) })),
       requestSync: () => set((s) => ({ syncNonce: s.syncNonce + 1 })),
-      purge: () => set({ queue: [] }),
+      purgeUser: (userId) => set((s) => ({ queue: s.queue.filter((e) => e.userId !== userId) })),
     }),
     {
       name: "offline-attendance-queue",

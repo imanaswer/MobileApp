@@ -12,8 +12,6 @@ import { create } from "zustand";
 import { supabase } from "../lib/supabase";
 import { trpcClient } from "../lib/trpc";
 
-import { useOfflineQueueStore } from "./offline-queue-store";
-
 type AuthStatus = "loading" | "signedIn" | "signedOut";
 
 interface AuthState {
@@ -58,8 +56,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         .catch(() => undefined);
     }
     set({ pushToken: null });
-    // Never drain another user's queued attendance under a new session (§Auth).
-    useOfflineQueueStore.getState().purge();
+    // Queued attendance is NOT purged here: the drain already refuses entries whose
+    // userId ≠ the signed-in user (§Auth), and unsynced marks must never be silently
+    // dropped (OFFLINE_STRATEGY). The logout UI confirms + purgeUser() explicitly.
     await signOut(supabase);
   },
 }));

@@ -2,7 +2,7 @@ import { PERMISSIONS } from "@repo/constants";
 import { can } from "@repo/core";
 import { useTranslation } from "@repo/i18n";
 import { Link, type Href } from "expo-router";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 
 import { formatDate } from "../../components/announcements-ui";
 import { formatPaise } from "../../components/fees-ui";
@@ -11,6 +11,7 @@ import { OfflineBanner } from "../../components/offline-banner";
 import { SyncQueueIndicator } from "../../components/sync-queue-indicator";
 import { trpc } from "../../lib/trpc";
 import { useAuthStore } from "../../stores/auth-store";
+import { useOfflineQueueStore } from "../../stores/offline-queue-store";
 
 /**
  * Role-aware home dashboard. Scrollable (every role's nav + today-context fits any phone;
@@ -363,7 +364,31 @@ export default function AppHome() {
         <Pressable
           accessibilityRole="button"
           onPress={() => {
-            void logout();
+            // Unsynced offline attendance must never be silently dropped
+            // (OFFLINE_STRATEGY). While `me` is still loading, treat every
+            // entry as the current user's (conservative).
+            const myId = me.data?.userId;
+            const { queue, purgeUser } = useOfflineQueueStore.getState();
+            const unsynced = queue.filter((e) => !myId || e.userId === myId);
+            if (unsynced.length === 0) {
+              void logout();
+              return;
+            }
+            Alert.alert(
+              dict.sync.logoutUnsyncedTitle,
+              dict.sync.logoutUnsyncedBody(unsynced.length),
+              [
+                { text: dict.sync.cancel, style: "cancel" },
+                {
+                  text: dict.sync.logoutDiscard,
+                  style: "destructive",
+                  onPress: () => {
+                    unsynced.forEach((e) => purgeUser(e.userId));
+                    void logout();
+                  },
+                },
+              ],
+            );
           }}
           className="min-h-11 items-center justify-center rounded-md border border-border px-4 py-3"
         >

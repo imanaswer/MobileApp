@@ -110,6 +110,11 @@ export const ml: Dictionary = {
     view: "കാണുക", // TODO(verify-ml)
     studentCount: (n: number) => `${n} വിദ്യാർത്ഥികൾ`, // TODO(verify-ml)
     discard: "ഒഴിവാക്കുക", // TODO(verify-ml)
+    logoutUnsyncedTitle: "സമന്വയിക്കാത്ത ഹാജർ", // TODO(verify-ml)
+    logoutUnsyncedBody: (n: number) =>
+      `സമന്വയിക്കാത്ത ${n} ഹാജർ രജിസ്റ്ററുകൾ ഉണ്ട്. ലോഗ് ഔട്ട് ചെയ്താൽ അവ നഷ്ടപ്പെടും — ആദ്യം ഓൺലൈനായി സമന്വയിക്കുക.`, // TODO(verify-ml)
+    logoutDiscard: "ഒഴിവാക്കി ലോഗ് ഔട്ട് ചെയ്യുക", // TODO(verify-ml)
+    cancel: "റദ്ദാക്കുക", // TODO(verify-ml)
   },
   fees: {
     title: "ഫീസ്", // TODO(verify-ml)
